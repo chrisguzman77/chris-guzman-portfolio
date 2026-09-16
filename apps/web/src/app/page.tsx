@@ -34,7 +34,7 @@ export default function HomePage() {
         alt="Portrait of Christopher Guzman"
         width={788}
         height={985}
-        priority
+        preload
         sizes="(min-width: 768px) 320px, 80vw"
         className="mx-auto w-64 rounded-2xl border border-border/60 shadow-sm md:w-80"
       />
