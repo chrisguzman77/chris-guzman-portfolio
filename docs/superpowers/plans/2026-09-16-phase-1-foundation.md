@@ -319,10 +319,7 @@ import { SiteHeader } from "./site-header";
 describe("SiteHeader", () => {
   it("links the site name to the home page and exposes the theme toggle", () => {
     render(<SiteHeader />);
-    expect(screen.getByRole("link", { name: "Christopher Guzman" })).toHaveProperty(
-      "href",
-      "http://localhost:3000/",
-    );
+    expect(screen.getByRole("link", { name: "Christopher Guzman" }).getAttribute("href")).toBe("/");
     expect(screen.getByRole("button", { name: /toggle theme/i })).toBeTruthy();
   });
 });
@@ -490,7 +487,6 @@ Vitest note: if `@/*` imports fail to resolve in tests, add `resolve: { alias: {
 
 ```tsx
 import Image from "next/image";
-import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/lib/site";
@@ -515,9 +511,6 @@ export default function HomePage() {
               LinkedIn
             </a>
           </Button>
-          <Button asChild variant="ghost">
-            <Link href="/api/healthz">Status</Link>
-          </Button>
         </div>
       </div>
       <Image
@@ -526,7 +519,7 @@ export default function HomePage() {
         width={788}
         height={985}
         preload
-        sizes="(min-width: 768px) 320px, 80vw"
+        sizes="(min-width: 768px) 320px, 256px"
         className="mx-auto w-64 rounded-2xl border border-border/60 shadow-sm md:w-80"
       />
     </section>
@@ -631,6 +624,8 @@ Expected: `.venv` created, `uv.lock` written.
 - [ ] **Step 3: Write `apps/api/src/portfolio_api/config.py`**
 
 ```python
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -641,7 +636,7 @@ class Settings(BaseSettings):
 
     app_version: str = "dev"
     database_url: str = "postgresql+asyncpg://portfolio:portfolio@localhost:5432/portfolio"
-    log_level: str = "INFO"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     cors_origins: list[str] = ["http://localhost:3000"]
 ```
 
@@ -900,7 +895,7 @@ In `apps/api/alembic/env.py`, directly after `config = context.config`, add:
 from portfolio_api.config import Settings
 from portfolio_api.models import Base
 
-config.set_main_option("sqlalchemy.url", Settings().database_url)
+config.set_main_option("sqlalchemy.url", Settings().database_url.replace("%", "%%"))
 ```
 
 and change `target_metadata = None` to `target_metadata = Base.metadata`. In `alembic.ini`, delete the `sqlalchemy.url = ...` line (the URL now comes from `API_DATABASE_URL`).
@@ -1070,8 +1065,9 @@ set -euo pipefail
 
 create_app_db() {
   local name="$1" password="$2"
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<SQL
-CREATE ROLE ${name} LOGIN PASSWORD '${password}';
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+    --set=pw="$password" <<SQL
+CREATE ROLE ${name} LOGIN PASSWORD :'pw';
 CREATE DATABASE ${name} OWNER ${name};
 SQL
 }
@@ -1125,7 +1121,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ../postgres/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -1152,7 +1148,7 @@ services:
     volumes:
       - directus-uploads:/directus/uploads
     ports:
-      - "${DIRECTUS_PORT:-8055}:8055"
+      - "127.0.0.1:${DIRECTUS_PORT:-8055}:8055"
 
   api:
     build: ../../apps/api
@@ -1163,12 +1159,12 @@ services:
       API_DATABASE_URL: postgresql+asyncpg://portfolio:${PORTFOLIO_DB_PASSWORD:-portfolio}@postgres:5432/portfolio
       API_CORS_ORIGINS: '["http://localhost:3000"]'
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
 
   web:
     build: ../../apps/web
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
 
 volumes:
   postgres-data:
@@ -1299,6 +1295,9 @@ jobs:
               - 'infra/**'
               - 'scripts/**'
               - 'apps/*/Dockerfile'
+              - 'Makefile'
+              - '.pre-commit-config.yaml'
+              - '.sops.yaml'
               - '.github/workflows/ci.yml'
 
   web:
@@ -1375,6 +1374,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: Validate compose files
         run: docker compose -f infra/compose/compose.dev.yaml config -q
+      - name: No plaintext env files committed
+        run: git ls-files -z '*.env' '.env*' '**/.env*' | xargs -0 -r scripts/check-no-plaintext-env.sh
       - uses: hadolint/hadolint-action@v3.5.0
         with:
           recursive: true
@@ -1456,12 +1457,14 @@ jobs:
           tags: |
             type=sha,prefix=,format=long
             type=raw,value=latest
-      - name: Build (load locally for scanning)
+      - name: Build (load locally so the scanned image is the pushed image)
         uses: docker/build-push-action@v7.4.0
         with:
           context: apps/${{ matrix.app }}
           load: true
-          tags: ${{ env.IMAGE_BASE }}/${{ matrix.app }}:${{ github.sha }}
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             NEXT_PUBLIC_APP_VERSION=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.app }}
@@ -1474,15 +1477,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
       - name: Push
-        uses: docker/build-push-action@v7.4.0
-        with:
-          context: apps/${{ matrix.app }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            NEXT_PUBLIC_APP_VERSION=${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.app }}
+        run: docker push --all-tags ${{ env.IMAGE_BASE }}/${{ matrix.app }}
 
   deploy:
     needs: build
