@@ -22,12 +22,12 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
     HOSTNAME=0.0.0.0
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 -G nodejs nextjs
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
-USER nextjs
+USER 1001:1001
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
-  CMD wget -qO- http://127.0.0.1:3000/api/healthz || exit 1
+  CMD ["wget", "-qO-", "http://127.0.0.1:3000/api/healthz"]
 CMD ["node", "server.js"]
