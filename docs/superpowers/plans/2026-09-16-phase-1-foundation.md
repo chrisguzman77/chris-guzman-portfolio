@@ -1024,7 +1024,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 FROM python:3.12-slim-bookworm AS runner
-RUN groupadd --system --gid 1000 app && useradd --system --uid 1000 --gid app --home-dir /app app
+RUN groupadd --gid 1000 app && useradd --uid 1000 --gid app --home-dir /app --no-create-home --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -1099,6 +1099,12 @@ UMAMI_DB_PASSWORD=umami
 DIRECTUS_SECRET=dev-only-secret-change-me-0123456789
 DIRECTUS_ADMIN_EMAIL=admin@example.com
 DIRECTUS_ADMIN_PASSWORD=admin
+
+# Host ports (override if something else already listens on the default)
+POSTGRES_PORT=5432
+DIRECTUS_PORT=8055
+API_PORT=8000
+WEB_PORT=3000
 ```
 
 - [ ] **Step 3: Write `infra/compose/compose.dev.yaml`**
@@ -1119,7 +1125,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ../postgres/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -1146,7 +1152,7 @@ services:
     volumes:
       - directus-uploads:/directus/uploads
     ports:
-      - "8055:8055"
+      - "${DIRECTUS_PORT:-8055}:8055"
 
   api:
     build: ../../apps/api
@@ -1157,12 +1163,12 @@ services:
       API_DATABASE_URL: postgresql+asyncpg://portfolio:${PORTFOLIO_DB_PASSWORD:-portfolio}@postgres:5432/portfolio
       API_CORS_ORIGINS: '["http://localhost:3000"]'
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
 
   web:
     build: ../../apps/web
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
 
 volumes:
   postgres-data:
