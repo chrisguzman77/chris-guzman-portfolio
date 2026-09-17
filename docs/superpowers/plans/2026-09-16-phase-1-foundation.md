@@ -1430,6 +1430,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -1482,6 +1483,7 @@ jobs:
     # Enabled in Phase 2 once the self-hosted runner exists inside the VM.
     if: false
     runs-on: [self-hosted, portfolio-deploy]
+    timeout-minutes: 15
     steps:
       - run: echo "deploy placeholder (Phase 2)"
 ```
