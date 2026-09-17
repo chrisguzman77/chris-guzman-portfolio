@@ -23,7 +23,7 @@ repos:
     hooks:
       - id: prettier-web
         name: prettier (apps/web)
-        entry: apps/web/node_modules/.bin/prettier --write
+        entry: apps/web/node_modules/.bin/prettier --write --ignore-path apps/web/.prettierignore
         language: system
         files: ^apps/web/.*\.(ts|tsx|css|json|md)$
       - id: no-plaintext-env

@@ -13,3 +13,4 @@ An ephemeral, repo-scoped runner container (label `portfolio-deploy`) runs insid
 - The runner never sees long-lived secrets; it decrypts with the VM-local age key.
 - Fork PRs cannot reach the runner: they are approval-gated and no PR job targets its label.
 - GitHub-hosted minutes are free on this public repo; the self-hosted runner is never billed.
+- Until Phase 2 registers the runner, the deploy job is present but disabled (`if: false`) so releases only build, scan, and push.
