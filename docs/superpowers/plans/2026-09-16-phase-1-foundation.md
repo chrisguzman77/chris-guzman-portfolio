@@ -1269,6 +1269,10 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read  # dorny/paths-filter needs this on pull_request events
     outputs:
       web: ${{ steps.filter.outputs.web }}
       api: ${{ steps.filter.outputs.api }}
@@ -1295,12 +1299,15 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: pnpm/action-setup@v6.1.0
+        with:
+          package_json_file: apps/web/package.json  # no root package.json in this monorepo
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: 24
@@ -1319,6 +1326,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/api
@@ -1356,6 +1364,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Validate compose files
