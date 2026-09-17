@@ -33,7 +33,7 @@ Spec: `docs/superpowers/specs/2026-09-16-portfolio-design.md` (Phase 1 section).
 | `.github/workflows/release.yml` | main: build → Trivy → push GHCR → deploy (stubbed) |
 | `apps/web/` | Next.js app; `src/app/api/healthz/route.ts` liveness; `src/components/theme-provider.tsx`, `layout/site-header.tsx`, `layout/site-footer.tsx`; hero on `src/app/page.tsx` |
 | `apps/api/` | FastAPI package `portfolio_api`: `config.py` (settings), `db.py` (engine + ping), `observability.py` (structlog), `schemas/health.py`, `routers/health.py`, `main.py` (app factory); `alembic/` migrations |
-| `infra/compose/compose.dev.yaml`, `.env.example`, `prod.enc.env` | Local stack; documented vars; encrypted prod placeholder |
+| `infra/compose/compose.dev.yaml`, `env.example`, `prod.enc.env` | Local stack; documented vars; encrypted prod placeholder |
 | `infra/postgres/init/01-init.sh` | Creates `directus`, `portfolio`, `umami` roles + DBs; pgvector only in `portfolio` |
 | `scripts/check-no-plaintext-env.sh` | pre-commit guard |
 | `docs/architecture.md`, `docs/setup.md`, `docs/adr/000{1..5}-*.md` | Architecture, setup order, decisions |
@@ -113,7 +113,7 @@ Run:
 ```bash
 touch /tmp/x; for f in .env apps/web/.env.local infra/compose/prod.env infra/compose/env.example infra/compose/prod.enc.env; do printf '%-32s ' "$f"; git check-ignore -q "$f" && echo ignored || echo tracked; done
 ```
-Expected: the first three print `ignored`; `.env.example` and `prod.enc.env` print `tracked`.
+Expected: the first three print `ignored`; `env.example` and `prod.enc.env` print `tracked`.
 
 - [ ] **Step 4: Commit**
 
@@ -620,7 +620,7 @@ Also write `apps/api/.python-version` containing `3.12`, and `apps/api/README.md
 
 FastAPI service owning site interactions (contact, views, resume downloads, GitHub cache) and the RAG chat. See `docs/architecture.md`.
 
-Run: `uv sync && uv run fastapi dev src/portfolio_api/main.py`. Test: `uv run pytest`.
+Run: `uv sync && uv run uvicorn portfolio_api.main:create_app --factory --reload`. Test: `uv run pytest`.
 ```
 
 - [ ] **Step 2: Sync the environment**
@@ -677,7 +677,7 @@ import structlog
 def configure_logging(level: str) -> None:
     """JSON logs to stdout so Alloy/Loki can parse them without a pipeline stage."""
     numeric = logging.getLevelNamesMapping()[level.upper()]
-    logging.basicConfig(level=numeric, format="%(message)s")
+    logging.basicConfig(level=numeric, format="%(message)s", force=True)
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -838,9 +838,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(health.router)
     return app
-
-
-app = create_app()
 ```
 
 - [ ] **Step 10: Run the tests to verify they pass**
@@ -1036,7 +1033,7 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD python -c "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status == 200 else 1)"
-CMD ["uvicorn", "portfolio_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "portfolio_api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 - [ ] **Step 6: Build and smoke-test the api image**
@@ -1209,7 +1206,7 @@ dev-web:       ## Next.js dev server with HMR (expects `make up` for backing ser
 	cd apps/web && pnpm dev
 
 dev-api:       ## FastAPI dev server with reload
-	cd apps/api && uv run fastapi dev src/portfolio_api/main.py
+	cd apps/api && uv run uvicorn portfolio_api.main:create_app --factory --reload
 ```
 
 - [ ] **Step 5: Validate and bring the stack up**
