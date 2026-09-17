@@ -1,0 +1,33 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff-check
+        args: ["--fix"]
+        files: ^apps/api/
+      - id: ruff-format
+        files: ^apps/api/
+
+  - repo: local
+    hooks:
+      - id: prettier-web
+        name: prettier (apps/web)
+        entry: apps/web/node_modules/.bin/prettier --write --ignore-path apps/web/.prettierignore
+        language: system
+        files: ^apps/web/.*\.(ts|tsx|css|json|md)$
+      - id: no-plaintext-env
+        name: block plaintext env files
+        entry: scripts/check-no-plaintext-env.sh
+        language: script
+        files: (^|/)[^/]*\.env(\.[^/]+)?$
