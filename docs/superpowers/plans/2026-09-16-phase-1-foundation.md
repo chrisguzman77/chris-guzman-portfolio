@@ -111,7 +111,7 @@ __pycache__/
 
 Run:
 ```bash
-touch /tmp/x; for f in .env apps/web/.env.local infra/compose/prod.env infra/compose/.env.example infra/compose/prod.enc.env; do printf '%-32s ' "$f"; git check-ignore -q "$f" && echo ignored || echo tracked; done
+touch /tmp/x; for f in .env apps/web/.env.local infra/compose/prod.env infra/compose/env.example infra/compose/prod.enc.env; do printf '%-32s ' "$f"; git check-ignore -q "$f" && echo ignored || echo tracked; done
 ```
 Expected: the first three print `ignored`; `.env.example` and `prod.enc.env` print `tracked`.
 
@@ -127,7 +127,7 @@ git commit -m "chore: add editorconfig and root gitignore"
 ### Task 2: Scaffold the Next.js app with a tested health route
 
 **Files:**
-- Create: `apps/web/**` (via create-next-app), then `apps/web/vitest.config.ts`, `apps/web/src/app/api/healthz/route.ts`, `apps/web/src/app/api/healthz/route.test.ts`
+- Create: `apps/web/**` (via create-next-app), then `apps/web/vitest.config.mts`, `apps/web/src/app/api/healthz/route.ts`, `apps/web/src/app/api/healthz/route.test.ts`
 - Modify: `apps/web/package.json`, `apps/web/next.config.ts`, `apps/web/tsconfig.json`
 
 **Interfaces:**
@@ -162,18 +162,17 @@ Edit `apps/web/package.json`: add a top-level `"packageManager": "pnpm@11.24.0"`
 - [ ] **Step 3: Install test and formatting deps**
 
 ```bash
-cd apps/web && pnpm add -D vitest@5 @vitejs/plugin-react@6 vite-tsconfig-paths@6 jsdom@30 @testing-library/react@16 prettier@3
+cd apps/web && pnpm add -D vitest@5 @vitejs/plugin-react@6 jsdom@30 @testing-library/react@16 prettier@3 @types/node@24
 ```
 
-- [ ] **Step 4: Write `apps/web/vitest.config.ts`**
+- [ ] **Step 4: Write `apps/web/vitest.config.mts` (the `.mts` extension avoids a vitest config-loader warning; Vite 8 resolves tsconfig `paths` natively, so no plugin is needed)**
 
 ```ts
 import react from "@vitejs/plugin-react";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  plugins: [react()],
   test: {
     // Route handlers run in node; component tests opt into jsdom with a
     // `// @vitest-environment jsdom` comment at the top of the file.
@@ -183,7 +182,7 @@ export default defineConfig({
 });
 ```
 
-Add `"vitest.config.ts"` to the `include` array in `apps/web/tsconfig.json` so typecheck covers it, and add `.prettierrc` at `apps/web/.prettierrc`:
+Add `"vitest.config.mts"` to the `include` array in `apps/web/tsconfig.json` so typecheck covers it, and add `.prettierrc` at `apps/web/.prettierrc`:
 
 ```json
 { "semi": true, "singleQuote": false, "trailingComma": "all", "printWidth": 100 }
@@ -279,7 +278,7 @@ git commit -m "feat(web): scaffold Next.js app with healthz route and vitest"
 - [ ] **Step 1: Initialize shadcn and add the Button**
 
 ```bash
-cd apps/web && pnpm dlx shadcn@4 init --yes --base-color neutral && pnpm dlx shadcn@4 add button
+cd apps/web && pnpm dlx shadcn@4 init --yes --preset nova --base radix && pnpm dlx shadcn@4 add button
 pnpm add next-themes@0.4.6 lucide-react
 ```
 Expected: `components.json`, `src/components/ui/button.tsx`, and `src/lib/utils.ts` exist; `globals.css` now contains shadcn CSS variables.
@@ -472,7 +471,20 @@ Inside the existing `@theme inline { ... }` block that shadcn generated, add:
   --font-display: var(--font-display), ui-serif, Georgia, serif;
 ```
 
-(If the block is named `@theme` rather than `@theme inline`, add the two lines there.)
+(If the block is named `@theme` rather than `@theme inline`, add the two lines there.) Delete the generated `--font-mono: var(--font-geist-mono);` line, since no font sets that variable any more. Then set the one accent hue (deep blue) by replacing these three tokens in both the `:root` and `.dark` blocks:
+
+```css
+/* :root */
+--primary: oklch(0.42 0.16 262);
+--primary-foreground: oklch(0.985 0 0);
+--ring: oklch(0.42 0.16 262);
+/* .dark */
+--primary: oklch(0.72 0.14 262);
+--primary-foreground: oklch(0.15 0.03 262);
+--ring: oklch(0.72 0.14 262);
+```
+
+Vitest note: if `@/*` imports fail to resolve in tests, add `resolve: { alias: { "@": path.resolve(import.meta.dirname, "./src") } }` to `vitest.config.mts`.
 
 - [ ] **Step 12: Replace `apps/web/src/app/page.tsx` with the hero**
 
@@ -513,7 +525,7 @@ export default function HomePage() {
         alt="Portrait of Christopher Guzman"
         width={788}
         height={985}
-        priority
+        preload
         sizes="(min-width: 768px) 320px, 80vw"
         className="mx-auto w-64 rounded-2xl border border-border/60 shadow-sm md:w-80"
       />
@@ -544,7 +556,7 @@ git commit -m "feat(web): editorial base layout, theme toggle, and hero"
 ### Task 4: Scaffold the FastAPI service with a tested health endpoint
 
 **Files:**
-- Create: `apps/api/pyproject.toml`, `apps/api/.python-version`, `apps/api/.env.example`, `apps/api/src/portfolio_api/__init__.py`, `config.py`, `db.py`, `observability.py`, `schemas/__init__.py`, `schemas/health.py`, `routers/__init__.py`, `routers/health.py`, `main.py`, `apps/api/tests/conftest.py`, `apps/api/tests/test_health.py`
+- Create: `apps/api/pyproject.toml`, `apps/api/.python-version`, `apps/api/env.example`, `apps/api/src/portfolio_api/__init__.py`, `config.py`, `db.py`, `observability.py`, `schemas/__init__.py`, `schemas/health.py`, `routers/__init__.py`, `routers/health.py`, `main.py`, `apps/api/tests/conftest.py`, `apps/api/tests/test_health.py`
 
 **Interfaces:**
 - Produces: `create_app(settings: Settings | None = None) -> FastAPI` in `portfolio_api.main`; `Settings` in `portfolio_api.config` with `database_url`, `app_version`, `log_level`, `cors_origins`; `GET /health` → `{"status": "ok"|"degraded", "version": str, "db": "ok"|"unavailable"}` (200 either way; liveness). `app.state.db_ping: Callable[[], Awaitable[bool]]` is the seam tests override.
@@ -841,7 +853,7 @@ Expected: `2 passed`.
 Run: `cd apps/api && uv run ruff check . && uv run ruff format . && uv run pyright`
 Expected: ruff clean; pyright `0 errors`. If pyright flags `request.app.state.*` as `Any`-typed access, that is allowed under strict for attribute access on `State`; fix any other errors.
 
-- [ ] **Step 12: Write `apps/api/.env.example`**
+- [ ] **Step 12: Write `apps/api/env.example`**
 
 ```dotenv
 # Copy to .env for local runs outside Docker. All keys are prefixed API_.
@@ -936,7 +948,7 @@ node_modules
 .next
 coverage
 .env*
-!.env.example
+!env.example
 Dockerfile
 ```
 
@@ -994,7 +1006,7 @@ Expected: `{"status":"ok","version":"dev"}` and uid `1001`.
 __pycache__
 tests
 .env*
-!.env.example
+!env.example
 Dockerfile
 ```
 
@@ -1046,7 +1058,7 @@ git commit -m "build: multi-stage non-root Dockerfiles for web and api"
 ### Task 7: Local Compose stack, Postgres init, and Makefile
 
 **Files:**
-- Create: `infra/compose/compose.dev.yaml`, `infra/compose/.env.example`, `infra/postgres/init/01-init.sh`, `Makefile`
+- Create: `infra/compose/compose.dev.yaml`, `infra/compose/env.example`, `infra/postgres/init/01-init.sh`, `Makefile`
 
 **Interfaces:**
 - Produces: `make up` brings up postgres, directus, api, web on ports 5432/8055/8000/3000; `make down`, `make logs`, `make ps`, `make test`, `make lint`, `make migrate`, `make dev-web`, `make dev-api`. Postgres roles `directus`, `portfolio`, `umami` each own a same-named DB; `vector` extension only in `portfolio`.
@@ -1078,7 +1090,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname portfolio \
 
 Run: `chmod +x infra/postgres/init/01-init.sh`
 
-- [ ] **Step 2: Write `infra/compose/.env.example`**
+- [ ] **Step 2: Write `infra/compose/env.example`**
 
 ```dotenv
 # Copy to infra/compose/.env for local development. Never commit .env.
@@ -1224,7 +1236,7 @@ Expected: `Running upgrade  -> <hash>, init`.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add infra/compose/compose.dev.yaml infra/compose/.env.example infra/postgres/init/01-init.sh Makefile
+git add infra/compose/compose.dev.yaml infra/compose/env.example infra/postgres/init/01-init.sh Makefile
 git commit -m "infra: local compose stack with postgres init, directus, api, web"
 ```
 
@@ -1520,7 +1532,7 @@ chmod +x scripts/check-no-plaintext-env.sh
 printf 'A=1\n' > /tmp/plain.env; printf 'A=1\n' > /tmp/bad.enc.env; printf 'A=ENC[x]\nsops_version=3.13\n' > /tmp/good.enc.env
 scripts/check-no-plaintext-env.sh /tmp/plain.env; echo "exit=$?"
 scripts/check-no-plaintext-env.sh /tmp/bad.enc.env; echo "exit=$?"
-scripts/check-no-plaintext-env.sh /tmp/good.enc.env infra/compose/.env.example; echo "exit=$?"
+scripts/check-no-plaintext-env.sh /tmp/good.enc.env infra/compose/env.example; echo "exit=$?"
 ```
 Expected: `exit=1`, `exit=1`, `exit=0`.
 
@@ -1852,7 +1864,7 @@ Ordered checklist of every external account and machine this project needs. Each
 
 ## Local development (Phase 1)
 1. Install: Node 24, pnpm 11, uv, Docker Desktop, age, sops (`brew install sops age`), pre-commit (`uv tool install pre-commit`).
-2. `cp infra/compose/.env.example infra/compose/.env`
+2. `cp infra/compose/env.example infra/compose/.env`
 3. `make up` then open http://localhost:3000, http://localhost:8000/docs, http://localhost:8055 (admin@example.com / admin).
 4. `pre-commit install`
 5. Secrets: generate an age key (`age-keygen -o ~/.config/sops/age/keys.txt`) and have its public key added to `.sops.yaml`.
@@ -1901,7 +1913,7 @@ Personal site of Christopher Guzman: experience, projects, blog, resume, and an 
 ## Quick start
 
 ```bash
-cp infra/compose/.env.example infra/compose/.env
+cp infra/compose/env.example infra/compose/.env
 make up        # postgres + directus + api + web
 make test      # web (vitest) + api (pytest)
 make lint      # eslint, tsc, prettier, ruff, pyright

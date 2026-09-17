@@ -78,7 +78,7 @@ apps/web/            Next.js 15, React 19, TS strict, Tailwind v4, shadcn/ui, ne
   src/components/    ui/ layout/ content/ interactive/ chat/
   src/lib/           directus/{client,queries,schema}, api/client, markdown, cache-tags, env (zod)
 apps/api/            FastAPI (uv), src/portfolio_api/{main,config,db,models,schemas,routers,services,middleware,observability,cli}, alembic/, tests/
-infra/compose/       compose.yaml (prod), compose.dev.yaml, .env.sops, .env.example
+infra/compose/       compose.yaml (prod), compose.dev.yaml, .env.sops, env.example
 infra/cloudflared/   config.yml ingress
 infra/postgres/init/ 01-init.sh (3 DBs, 3 roles, pgvector only in portfolio)
 infra/directus/      snapshot.yaml, access.json (roles/policies/permissions), flows.json, seed.sh, seed/resume.pdf
