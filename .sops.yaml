@@ -1,0 +1,5 @@
+# Encrypt every *.enc.env for the listed age recipients.
+# Phase 2 appends the VM's public key and runs: sops updatekeys infra/compose/prod.enc.env
+creation_rules:
+  - path_regex: \.enc\.env$
+    age: age1uhc3qfsqh629p3p5djfq8jj8pny675lx5wqn7c73gquqtz77hsksca6p9l
