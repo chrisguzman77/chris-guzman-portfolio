@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,5 +10,5 @@ class Settings(BaseSettings):
 
     app_version: str = "dev"
     database_url: str = "postgresql+asyncpg://portfolio:portfolio@localhost:5432/portfolio"
-    log_level: str = "INFO"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     cors_origins: list[str] = ["http://localhost:3000"]

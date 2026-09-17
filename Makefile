@@ -1,6 +1,9 @@
 COMPOSE := docker compose -f infra/compose/compose.dev.yaml
 
-.PHONY: up down logs ps build migrate test lint dev-web dev-api
+.PHONY: help up down logs ps build migrate test lint dev-web dev-api
+
+help:          ## Show this help
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
 up:            ## Build and start the full local stack
 	$(COMPOSE) up -d --build

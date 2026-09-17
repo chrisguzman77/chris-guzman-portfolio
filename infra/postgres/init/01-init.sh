@@ -5,8 +5,9 @@ set -euo pipefail
 
 create_app_db() {
   local name="$1" password="$2"
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<SQL
-CREATE ROLE ${name} LOGIN PASSWORD '${password}';
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+    --set=pw="$password" <<SQL
+CREATE ROLE ${name} LOGIN PASSWORD :'pw';
 CREATE DATABASE ${name} OWNER ${name};
 SQL
 }

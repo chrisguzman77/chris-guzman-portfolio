@@ -40,6 +40,9 @@ jobs:
               - 'scripts/**'
               - 'apps/*/Dockerfile'
               - '.github/workflows/ci.yml'
+              - 'Makefile'
+              - '.pre-commit-config.yaml'
+              - '.sops.yaml'
 
   web:
     needs: changes
@@ -115,6 +118,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: Validate compose files
         run: docker compose -f infra/compose/compose.dev.yaml config -q
+      - name: No plaintext env files committed
+        run: git ls-files -z '*.env' '.env*' '**/.env*' | xargs -0 -r scripts/check-no-plaintext-env.sh
       - uses: hadolint/hadolint-action@v3.5.0
         with:
           recursive: true

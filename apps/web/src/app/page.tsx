@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/lib/site";
@@ -24,9 +23,6 @@ export default function HomePage() {
               LinkedIn
             </a>
           </Button>
-          <Button asChild variant="ghost">
-            <Link href="/api/healthz">Status</Link>
-          </Button>
         </div>
       </div>
       <Image
@@ -35,7 +31,7 @@ export default function HomePage() {
         width={788}
         height={985}
         preload
-        sizes="(min-width: 768px) 320px, 80vw"
+        sizes="(min-width: 768px) 320px, 256px"
         className="mx-auto w-64 rounded-2xl border border-border/60 shadow-sm md:w-80"
       />
     </section>

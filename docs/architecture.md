@@ -29,3 +29,8 @@ Boundaries that matter:
 - Only `api` and `directus` hold Postgres credentials, each for its own database.
 
 Decisions are recorded in [`adr/`](adr/README.md). Phase-by-phase delivery is in the [design spec](superpowers/specs/2026-09-16-portfolio-design.md).
+
+## Notes
+
+- FastAPI's `/docs` and `/openapi.json` are intentionally public (the API contract is part of the showcase).
+- `next build` fetches Inter and Fraunces from Google Fonts at build time, so image builds need network access.
