@@ -1213,9 +1213,9 @@ dev-api:       ## FastAPI dev server with reload
 
 ```bash
 docker compose -f infra/compose/compose.dev.yaml config -q && make up && sleep 20 && make ps
-curl -s localhost:3000/api/healthz; echo; curl -s localhost:8000/health; echo; curl -s localhost:8055/server/health
+curl -s localhost:3000/api/healthz; echo; curl -s localhost:8000/health; echo; curl -s localhost:8055/server/ping
 ```
-Expected: four services running; web `{"status":"ok",...}`; api `{"status":"ok","version":"dev","db":"ok"}`; Directus `{"status":"ok"}`. Open `http://localhost:8055` and log in with `admin@example.com` / `admin`.
+Expected: four services running; web `{"status":"ok",...}`; api `{"status":"ok","version":"dev","db":"ok"}`; Directus `pong` (its `/server/health` requires admin auth in v12). Open `http://localhost:8055` and log in with `admin@example.com` / `admin`.
 
 - [ ] **Step 6: Verify the init script created the right databases**
 
