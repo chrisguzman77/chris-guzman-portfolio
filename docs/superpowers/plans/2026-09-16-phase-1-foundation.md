@@ -1572,7 +1572,7 @@ repos:
     hooks:
       - id: prettier-web
         name: prettier (apps/web)
-        entry: pnpm --dir apps/web exec prettier --write
+        entry: apps/web/node_modules/.bin/prettier --write --ignore-path apps/web/.prettierignore
         language: system
         files: ^apps/web/.*\.(ts|tsx|css|json|md)$
       - id: no-plaintext-env
@@ -1698,10 +1698,10 @@ Expected: the file now shows `POSTGRES_PASSWORD=ENC[AES256_GCM,...]` lines plus 
 - [ ] **Step 4: Prove the guard blocks plaintext**
 
 ```bash
-printf 'X=1\n' > infra/compose/.env && git add -f infra/compose/.env && pre-commit run no-plaintext-env --files infra/compose/.env; echo "exit=$?"; git rm -q --cached infra/compose/.env && rm infra/compose/.env
+printf 'X=1\n' > /tmp/plain.env; scripts/check-no-plaintext-env.sh /tmp/plain.env; echo "exit=$?"; rm /tmp/plain.env
 pre-commit run no-plaintext-env --files infra/compose/prod.enc.env; echo "exit=$?"
 ```
-Expected: first `exit=1` with the refusal message; second `exit=0`.
+Expected: first `exit=1` with the refusal message; second `exit=0`. (The plaintext probe lives in `/tmp` on purpose: never create a `.env` file inside the repo, even temporarily.)
 
 - [ ] **Step 5: Commit**
 
@@ -1875,7 +1875,7 @@ Ordered checklist of every external account and machine this project needs. Each
 2. `cp infra/compose/env.example infra/compose/.env`
 3. `make up` then open http://localhost:3000, http://localhost:8000/docs, http://localhost:8055 (admin@example.com / admin).
 4. `pre-commit install`
-5. Secrets: generate an age key (`age-keygen -o ~/.config/sops/age/keys.txt`) and have its public key added to `.sops.yaml`.
+5. Secrets: generate an age key (`age-keygen -o ~/.config/sops/age/keys.txt`) and have its public key added to `.sops.yaml`. On macOS, sops looks for the key under `~/Library/Application Support/sops/age/keys.txt`, so add `export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"` to your shell profile (the Linux VM sets the same variable to `/etc/portfolio/age.key`). Test with `sops decrypt infra/compose/prod.enc.env | head -2`.
 
 ## Domain and Cloudflare (Phase 2)
 - Buy a domain on Cloudflare Registrar; zone on Cloudflare DNS; enable Always Use HTTPS.
