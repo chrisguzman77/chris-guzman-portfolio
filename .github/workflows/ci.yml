@@ -97,7 +97,7 @@ jobs:
       API_DATABASE_URL: postgresql+asyncpg://portfolio:portfolio@localhost:5432/portfolio
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
           cache-dependency-glob: apps/api/uv.lock
