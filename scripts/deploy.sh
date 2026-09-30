@@ -37,7 +37,7 @@ compose up -d --wait postgres
 echo "==> Migrating"
 compose run --rm --no-deps api alembic upgrade head
 # shellcheck disable=SC2086
-compose up -d --remove-orphans ${SERVICES}
+compose up -d --wait --wait-timeout 180 --remove-orphans ${SERVICES}
 echo "==> Smoke testing"
 "${ROOT}/scripts/smoke.sh"
 docker image prune -f >/dev/null
