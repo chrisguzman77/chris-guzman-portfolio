@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/compose/compose.dev.yaml
 
-.PHONY: help up down logs ps build migrate test lint dev-web dev-api
+.PHONY: help up down logs ps build migrate test lint dev-web dev-api prod-config secrets-edit secrets-check
 
 help:          ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -36,3 +36,15 @@ dev-web:       ## Next.js dev server with HMR (expects `make up` for backing ser
 
 dev-api:       ## FastAPI dev server with reload
 	cd apps/api && uv run uvicorn portfolio_api.main:create_app --factory --reload
+
+SOPS_KEY ?= $(HOME)/.config/sops/age/keys.txt
+
+prod-config:   ## Validate the production compose file
+	docker compose -f infra/compose/compose.yaml --env-file infra/compose/prod.env.example config -q
+
+secrets-edit:  ## Edit the encrypted production secrets (opens $$EDITOR)
+	SOPS_AGE_KEY_FILE=$(SOPS_KEY) sops edit infra/compose/prod.enc.env
+
+secrets-check: ## Confirm prod secrets decrypt and count placeholder values (never prints secrets)
+	@SOPS_AGE_KEY_FILE=$(SOPS_KEY) sops decrypt infra/compose/prod.enc.env | \
+	  awk -F= '/^[A-Z_]+=/{n++} /change-me/{p++} END{printf "%d keys, %d still change-me\n", n, p+0}'
