@@ -128,7 +128,9 @@ jobs:
       - name: Fallback Worker tests
         run: node --test infra/cloudflare/worker-fallback.test.mjs
       - name: Validate compose files
-        run: docker compose -f infra/compose/compose.dev.yaml config -q
+        run: |
+          docker compose -f infra/compose/compose.dev.yaml config -q
+          docker compose -f infra/compose/compose.yaml --env-file infra/compose/prod.env.example config -q
       - name: No plaintext env files committed
         run: git ls-files -z '*.env' '.env*' '**/.env*' | xargs -0 -r scripts/check-no-plaintext-env.sh
       - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
