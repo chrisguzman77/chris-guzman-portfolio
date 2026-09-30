@@ -288,7 +288,7 @@ export default {
 };
 ```
 
-- [ ] **Step 3: Run tests** — `node --test infra/cloudflare/worker-fallback.test.mjs` → `pass 8`, `fail 0`, no warnings.
+- [ ] **Step 3: Run tests** — `node --test infra/cloudflare/worker-fallback.test.mjs` → `pass 7`, `fail 0`, no warnings.
 
 - [ ] **Step 4: Add the tests to CI.** In `ci.yml` `infra` job, after the checkout step, add:
 
