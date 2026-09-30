@@ -644,6 +644,7 @@ set -euo pipefail
 PROJECT="${COMPOSE_PROJECT_NAME:-portfolio}"
 ATTEMPTS="${SMOKE_ATTEMPTS:-20}"
 
+# shellcheck disable=SC2329 # invoked indirectly through check "$@"
 container() {
   docker ps -q \
     --filter "label=com.docker.compose.project=${PROJECT}" \
@@ -664,6 +665,7 @@ check() {
   return 1
 }
 
+# shellcheck disable=SC2329 # invoked indirectly through check "$@"
 in_service() {
   local id
   id="$(container "$1")"
