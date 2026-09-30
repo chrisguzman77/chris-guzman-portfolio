@@ -405,7 +405,7 @@ ARG SOPS_SHA256=e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b
 ARG AGE_VERSION=v1.3.2
 ARG AGE_SHA256=cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
 
-USER root
+USER 0:0
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSLo /usr/local/lib/docker/cli-plugins/docker-compose \
       "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-x86_64" \
