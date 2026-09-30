@@ -727,7 +727,7 @@ compose up -d --wait postgres
 echo "==> Migrating"
 compose run --rm --no-deps api alembic upgrade head
 # shellcheck disable=SC2086
-compose up -d --remove-orphans ${SERVICES}
+compose up -d --wait --wait-timeout 180 --remove-orphans ${SERVICES}
 echo "==> Smoke testing"
 "${ROOT}/scripts/smoke.sh"
 docker image prune -f >/dev/null
@@ -746,8 +746,7 @@ secrets-edit:  ## Edit the encrypted production secrets (opens $$EDITOR)
 	SOPS_AGE_KEY_FILE=$(SOPS_KEY) sops edit infra/compose/prod.enc.env
 
 secrets-check: ## Confirm prod secrets decrypt and count placeholder values (never prints secrets)
-	@SOPS_AGE_KEY_FILE=$(SOPS_KEY) sops decrypt infra/compose/prod.enc.env | \
-	  awk -F= '/^[A-Z_]+=/{n++} /change-me/{p++} END{printf "%d keys, %d still change-me\n", n, p+0}'
+	@SOPS_AGE_KEY_FILE=$(SOPS_KEY) bash -o pipefail -c 'sops decrypt infra/compose/prod.enc.env | awk -F= '"'"'/^[A-Z_]+=/{n++} /change-me/{p++} END{printf "%d keys, %d still change-me\n", n, p+0}'"'"''
 ```
 
 (Recipes are TAB-indented.)
