@@ -24,7 +24,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [web, api]
+        include:
+          - { app: web, context: apps/web }
+          - { app: api, context: apps/api }
+          - { app: runner, context: infra/runner }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -43,7 +46,7 @@ jobs:
       - name: Build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: apps/${{ matrix.app }}
+          context: ${{ matrix.context }}
           load: true
           push: false
           tags: ${{ steps.meta.outputs.tags }}
@@ -64,9 +67,18 @@ jobs:
 
   deploy:
     needs: build
-    # Enabled in Phase 2 once the self-hosted runner exists inside the VM.
-    if: false
+    # Off until the VM's runner is registered: set the repository variable
+    # DEPLOY_ENABLED=true (Settings → Secrets and variables → Actions → Variables).
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: [self-hosted, portfolio-deploy]
     timeout-minutes: 15
     steps:
-      - run: echo "deploy placeholder (Phase 2)"
+      - name: Check out the released commit on the VM
+        run: |
+          git -C /opt/portfolio fetch --depth 1 origin "${GITHUB_SHA}"
+          git -C /opt/portfolio checkout --detach --force FETCH_HEAD
+      - name: Deploy
+        run: /opt/portfolio/scripts/deploy.sh
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          SMOKE_PUBLIC_URL: https://christopherguzman.me
