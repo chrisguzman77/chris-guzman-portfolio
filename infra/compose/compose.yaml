@@ -1,0 +1,104 @@
+# Production stack on the Proxmox VM (4 GiB RAM). No service publishes a host
+# port: the only way in is the Cloudflare Tunnel, which reaches services by name
+# on this network. Deployed by scripts/deploy.sh.
+name: portfolio
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres:
+    <<: *service
+    image: pgvector/pgvector:0.8.6-pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      DIRECTUS_DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?}
+      PORTFOLIO_DB_PASSWORD: ${PORTFOLIO_DB_PASSWORD:?}
+      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 768m
+
+  directus:
+    <<: *service
+    image: directus/directus:12.3.1
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      SECRET: ${DIRECTUS_SECRET:?}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?}
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: directus
+      DB_USER: directus
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?}
+      PUBLIC_URL: https://cms.christopherguzman.me
+      WEBSOCKETS_ENABLED: "false"
+      TELEMETRY: "false"
+    volumes:
+      - directus-uploads:/directus/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8055/server/ping"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    mem_limit: 512m
+
+  api:
+    <<: *service
+    image: ghcr.io/chrisguzman77/chris-guzman-portfolio/api:${IMAGE_TAG:?}
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      API_APP_VERSION: ${IMAGE_TAG:?}
+      API_DATABASE_URL: postgresql+asyncpg://portfolio:${PORTFOLIO_DB_PASSWORD:?}@postgres:5432/portfolio
+      API_CORS_ORIGINS: '["https://christopherguzman.me","https://www.christopherguzman.me"]'
+    mem_limit: 384m
+
+  web:
+    <<: *service
+    image: ghcr.io/chrisguzman77/chris-guzman-portfolio/web:${IMAGE_TAG:?}
+    mem_limit: 256m
+
+  cloudflared:
+    <<: *service
+    image: cloudflare/cloudflared:2026.9.3
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?}
+    depends_on: [web, api, directus]
+    mem_limit: 128m
+
+  # Ephemeral deploy runner. Never listed in scripts/deploy.sh's default
+  # services, so a deploy cannot restart it mid-job. The Docker socket makes it
+  # root-equivalent on this VM (see docs/adr/0006-runner-in-compose.md).
+  runner:
+    <<: *service
+    image: ghcr.io/chrisguzman77/chris-guzman-portfolio/runner:${RUNNER_TAG:-latest}
+    environment:
+      GITHUB_RUNNER_TOKEN: ${GITHUB_RUNNER_TOKEN:?}
+      GITHUB_RUNNER_REPO: ${GITHUB_RUNNER_REPO:-chrisguzman77/chris-guzman-portfolio}
+    group_add: ["${DOCKER_GID:?}"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Same path inside and out, so relative bind mounts in this file resolve on the host.
+      - /opt/portfolio:/opt/portfolio
+      - /etc/portfolio/age.key:/etc/portfolio/age.key:ro
+    mem_limit: 768m
+
+volumes:
+  postgres-data:
+  directus-uploads:

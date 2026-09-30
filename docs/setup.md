@@ -10,16 +10,17 @@ Ordered checklist of every external account and machine this project needs. Each
 5. Secrets: generate an age key (`age-keygen -o ~/.config/sops/age/keys.txt`) and have its public key added to `.sops.yaml`. On macOS, sops looks for the key under `~/Library/Application Support/sops/age/keys.txt`, so add `export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"` to your shell profile (the Linux VM sets the same variable to `/etc/portfolio/age.key`). Test with `sops decrypt infra/compose/prod.enc.env | head -2`.
 
 ## Domain and Cloudflare (Phase 2)
-- Buy a domain on Cloudflare Registrar; zone on Cloudflare DNS; enable Always Use HTTPS.
-- Zero Trust: create a tunnel; create Access applications for `cms.`, `grafana.`, `status.`, `analytics.`.
+- Domain `christopherguzman.me` on Cloudflare Registrar; SSL/TLS Full (strict); Always Use HTTPS.
+- Tunnel, Access, fallback Worker and cache rule: see [`infra/cloudflare/README.md`](../infra/cloudflare/README.md).
 
 ## Proxmox VM (Phase 2)
-- Ubuntu 24.04 cloud-init VM: 4 vCPU, 8 GB RAM, 60 GB disk, static LAN IP.
-- Run `infra/vm/bootstrap.sh`; generate the VM age key at `/etc/portfolio/age.key`.
+- How VM 400 was built and how to bootstrap it: [`infra/vm/README.md`](../infra/vm/README.md).
 
 ## GitHub (Phase 2)
-- Register the self-hosted runner (label `portfolio-deploy`).
-- Settings → Actions: require approval for all outside collaborators.
+- Settings → Actions → General: require approval for all external contributors; default token permissions read-only.
+- Fine-grained PAT `portfolio-runner`: this repository only, Administration read and write, 1-year expiry → `GITHUB_RUNNER_TOKEN` in `prod.enc.env`.
+- GHCR packages `web`, `api`, `runner` set to public so the VM pulls without credentials.
+- First deploy and turning on automatic deploys: [`docs/runbook.md`](runbook.md).
 
 ## Email, Turnstile, GitHub PAT (Phase 4)
 - Resend account + domain DKIM/SPF records; Turnstile site key; GitHub PAT with `read:user`.

@@ -27,6 +27,8 @@ Boundaries that matter:
 - Directus is never publicly reachable except its admin UI behind Cloudflare Access. Assets are proxied through `web`.
 - `web` never fetches the CMS at build time; CI has no route to it.
 - Only `api` and `directus` hold Postgres credentials, each for its own database.
+- Production (`infra/compose/compose.yaml`) publishes no host ports; cloudflared reaches services by name. The VM firewall denies all inbound traffic except SSH from the LAN, on IPv4 and IPv6.
+- Deploys run on an ephemeral runner inside the stack and are pinned to commit SHAs ([ADR 0006](adr/0006-runner-in-compose.md)); operations are in the [runbook](runbook.md).
 
 Decisions are recorded in [`adr/`](adr/README.md). Phase-by-phase delivery is in the [design spec](superpowers/specs/2026-09-16-portfolio-design.md).
 
