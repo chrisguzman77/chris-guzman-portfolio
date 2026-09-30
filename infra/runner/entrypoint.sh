@@ -25,6 +25,9 @@ if [[ -z "${registration_token}" ]]; then
   exit 1
 fi
 
+# A restart that did not follow a completed job leaves local config behind;
+# config.sh refuses to run over it. --replace handles the GitHub side.
+rm -f .runner .credentials .credentials_rsaparams
 ./config.sh --unattended --ephemeral --replace --disableupdate \
   --url "https://github.com/${GITHUB_RUNNER_REPO}" \
   --token "${registration_token}" \

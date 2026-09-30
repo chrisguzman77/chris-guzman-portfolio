@@ -1144,3 +1144,15 @@ The runner is the `runner` service in `infra/compose/compose.yaml`, built from `
 - A push to `main` deploys via the runner and the smoke test passes, including the public check.
 - Stopping `web` serves the fallback page; a VM reboot recovers every service unattended.
 - The runner re-registers after each job (Settings → Actions → Runners shows `portfolio-vm` Idle again).
+
+## Amendments after the final review (2026-09-29)
+
+1. `infra/runner/entrypoint.sh` removes `.runner`, `.credentials` and `.credentials_rsaparams` before `config.sh`, so a restart that did not follow a completed job no longer crash-loops.
+2. New `scripts/sync-repo.sh [ref]` is the single way to move the VM checkout (fetch, detached checkout, `chown 1001` when root); it replaces host `git pull` and the shallow fetch in CI.
+3. `release.yml`: workflow permissions are `contents: read` only; `build` gets `packages: write`; `deploy` gets `permissions: {}`, runs only for `refs/heads/main` with `DEPLOY_ENABLED`, and checks out via `sync-repo.sh "${GITHUB_SHA}"`.
+4. `scripts/deploy.sh` honours `SKIP_MIGRATIONS=1` for rollbacks across a migration.
+5. `GITHUB_RUNNER_REPO` is no longer a secret: defaulted in `compose.yaml` and moved out of the "Stored in prod.enc.env" section of `prod.env.example`.
+6. New `scripts/secrets-check.sh` (used by `make secrets-check`) fails on decryption errors, missing required keys or `change-me` values and prints only key names.
+7. `infra/vm/bootstrap.sh` removes an empty age key file before `age-keygen`, which refuses to overwrite it.
+8. `docs/runbook.md` uses `sync-repo.sh` everywhere, sets `SMOKE_PUBLIC_URL` on the first deploy, documents `SKIP_MIGRATIONS=1` rollbacks and adds a Recovery note.
+9. ADR 0006 states the runner's real controls (owner-only write access, fork PR approval, `main`-only deploy job) and that the runner re-registers after restarts.

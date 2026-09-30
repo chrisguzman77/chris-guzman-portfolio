@@ -45,5 +45,5 @@ prod-config:   ## Validate the production compose file
 secrets-edit:  ## Edit the encrypted production secrets (opens $$EDITOR)
 	SOPS_AGE_KEY_FILE=$(SOPS_KEY) sops edit infra/compose/prod.enc.env
 
-secrets-check: ## Confirm prod secrets decrypt and count placeholder values (never prints secrets)
-	@SOPS_AGE_KEY_FILE=$(SOPS_KEY) bash -o pipefail -c 'sops decrypt infra/compose/prod.enc.env | awk -F= '"'"'/^[A-Z_]+=/{n++} /change-me/{p++} END{printf "%d keys, %d still change-me\n", n, p+0}'"'"''
+secrets-check: ## Check prod secrets decrypt, have every key, and no change-me values (never prints values)
+	@SOPS_AGE_KEY_FILE=$(SOPS_KEY) scripts/secrets-check.sh

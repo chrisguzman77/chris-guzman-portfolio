@@ -10,6 +10,7 @@ The runner is the `runner` service in `infra/compose/compose.yaml`, built from `
 
 ## Consequences
 - Rebuilding the VM restores the runner with the rest of the stack; no hand-installed service.
-- The socket mount makes the runner root-equivalent on the VM. Mitigations: repo-scoped, ephemeral, only `push` to `main` targets its label, fork PRs need approval, the PAT is unset before jobs start.
+- The socket mount makes the runner root-equivalent on the VM. Mitigations: repo-scoped, ephemeral, the PAT is unset before jobs start, and the deploy job only runs for `main` (a `github.ref` check) with `DEPLOY_ENABLED` set. Any workflow could target the runner's label, so the real controls are that only the owner has write access and fork pull requests need approval.
 - Every deployed version is an immutable image tag, so rollback is one command.
 - The runner itself is updated deliberately (`SERVICES=runner`), never by the deploy it is running.
+- The runner re-registers after restarts (VM reboot, `docker restart`): the entrypoint clears stale local config before `config.sh`.

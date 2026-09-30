@@ -3,6 +3,7 @@
 #
 #   IMAGE_TAG=<git sha> scripts/deploy.sh                    # CI deploy, rollback
 #   IMAGE_TAG=latest INCLUDE_RUNNER=1 scripts/deploy.sh      # first deploy on the VM (sudo)
+#   IMAGE_TAG=<older sha> SKIP_MIGRATIONS=1 scripts/deploy.sh   # rollback across a migration
 #
 # Secrets are decrypted from infra/compose/prod.enc.env into a private temp file
 # that is deleted on exit. ENV_FILE=<path> skips decryption (local testing only).
@@ -34,8 +35,12 @@ echo "==> Deploying ${IMAGE_TAG}: ${SERVICES}"
 # shellcheck disable=SC2086 # SERVICES is an intentional word list
 compose pull ${SERVICES}
 compose up -d --wait postgres
-echo "==> Migrating"
-compose run --rm --no-deps api alembic upgrade head
+if [[ "${SKIP_MIGRATIONS:-0}" == 1 ]]; then
+  echo "==> Skipping migrations (SKIP_MIGRATIONS=1)"
+else
+  echo "==> Migrating"
+  compose run --rm --no-deps api alembic upgrade head
+fi
 # shellcheck disable=SC2086
 compose up -d --wait --wait-timeout 180 --remove-orphans ${SERVICES}
 echo "==> Smoke testing"

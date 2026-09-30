@@ -5,9 +5,9 @@ Production is VM 400 (`192.168.1.50`) on the Proxmox host, reached from the inte
 ## First deploy (once, after bootstrap)
 
 1. The release workflow has run on main at least once (so web, api and runner images exist), and all three GHCR packages — web, api, runner — are public (GitHub → Packages → each → Package settings → Change visibility).
-2. `.sops.yaml` lists the VM's age public key and `prod.enc.env` has real values, including CLOUDFLARE_TUNNEL_TOKEN and GITHUB_RUNNER_TOKEN (make secrets-check on the laptop reports 0 still change-me).
-3. `sudo git -C /opt/portfolio pull`
-4. `sudo IMAGE_TAG=latest INCLUDE_RUNNER=1 /opt/portfolio/scripts/deploy.sh`
+2. `.sops.yaml` lists the VM's age public key and `prod.enc.env` has a real value for every key under "Stored in prod.enc.env" in `infra/compose/prod.env.example`, including `CLOUDFLARE_TUNNEL_TOKEN` and `GITHUB_RUNNER_TOKEN`. `make secrets-check` on the laptop reports `secrets look ready`.
+3. `sudo /opt/portfolio/scripts/sync-repo.sh` (checks out `main` and keeps the checkout owned by the runner uid 1001)
+4. `sudo IMAGE_TAG=latest INCLUDE_RUNNER=1 SMOKE_PUBLIC_URL=https://christopherguzman.me /opt/portfolio/scripts/deploy.sh`
 5. GitHub → Settings → Actions → Runners shows `portfolio-vm` (Idle).
 6. GitHub → Settings → Secrets and variables → Actions → Variables → `DEPLOY_ENABLED` = `true`.
 
@@ -21,14 +21,21 @@ Merge to `main`. `release.yml` builds, scans and pushes images, then the `deploy
 sudo IMAGE_TAG=<previous good sha> /opt/portfolio/scripts/deploy.sh
 ```
 
-Image tags are full commit SHAs (Actions → release → a green run). Database migrations are not rolled back automatically; write a down-migration if one is needed.
+If a migration shipped between the two versions, skip the migration step (the older image cannot find the newer revision recorded in the database):
+
+```bash
+sudo IMAGE_TAG=<previous good sha> SKIP_MIGRATIONS=1 /opt/portfolio/scripts/deploy.sh
+```
+
+Image tags are full commit SHAs (Actions → release → a green run). The database schema stays at the newer revision either way; a rollback across a destructive migration needs a down-migration.
 
 ## Update the runner
 
 Dependabot bumps `infra/runner/Dockerfile`; after the release builds it:
 
 ```bash
-cd /opt/portfolio && sudo git pull
+sudo /opt/portfolio/scripts/sync-repo.sh
+cd /opt/portfolio
 DEPLOYED=$(docker inspect -f '{{.Config.Image}}' portfolio-api-1 | cut -d: -f2)
 sudo IMAGE_TAG="$DEPLOYED" SERVICES=runner scripts/deploy.sh
 ```
@@ -55,3 +62,7 @@ docker logs --tail 100 portfolio-api-1
 1. Site shows "Back shortly": the fallback Worker is covering. Check the VM is up (Proxmox UI) and `docker ps` on it.
 2. `Error 1033`: cloudflared is not connected. `docker logs portfolio-cloudflared-1`.
 3. After a Proxmox host reboot, VM 400 starts first (`startup order=1`) and every container restarts on its own (`restart: unless-stopped`).
+
+## Recovery
+
+A VM reboot restarts everything. The runner re-registers on its own: its entrypoint clears the stale local runner config before registering again.

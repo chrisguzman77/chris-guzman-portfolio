@@ -90,7 +90,7 @@ services:
     image: ghcr.io/chrisguzman77/chris-guzman-portfolio/runner:${RUNNER_TAG:-latest}
     environment:
       GITHUB_RUNNER_TOKEN: ${GITHUB_RUNNER_TOKEN:?}
-      GITHUB_RUNNER_REPO: ${GITHUB_RUNNER_REPO:?}
+      GITHUB_RUNNER_REPO: ${GITHUB_RUNNER_REPO:-chrisguzman77/chris-guzman-portfolio}
     group_add: ["${DOCKER_GID:?}"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

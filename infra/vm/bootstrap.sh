@@ -87,6 +87,7 @@ install -m 0755 "${tmp}/age/age" "${tmp}/age/age-keygen" /usr/local/bin/
 step "VM age key at ${KEY_FILE} (readable by root and the runner uid only)"
 install -d -m 0750 -o root -g "${RUNNER_UID}" /etc/portfolio
 if [[ ! -s "${KEY_FILE}" ]]; then
+  rm -f "${KEY_FILE}"
   age-keygen -o "${KEY_FILE}"
 fi
 chown "root:${RUNNER_UID}" "${KEY_FILE}"
