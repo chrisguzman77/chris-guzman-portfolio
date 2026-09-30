@@ -10,15 +10,32 @@ updates:
     schedule: { interval: weekly }
     groups:
       api-minor: { update-types: [minor, patch] }
+  # Base-image majors (Node 24→26, Python 3.12→3.14) are upgraded by hand:
+  # they can break a stage Dependabot cannot see (e.g. the uv builder's Python).
   - package-ecosystem: docker
     directory: /apps/web
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /apps/api
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: docker
+    directory: /infra/runner
+    schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker-compose
     directory: /infra/compose
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
