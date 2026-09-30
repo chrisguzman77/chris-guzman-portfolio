@@ -135,6 +135,8 @@ jobs:
         with:
           recursive: true
           dockerfile: "**/Dockerfile"
+      - name: Build runner image
+        run: docker build -t ci-runner infra/runner
       - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           scandir: .
