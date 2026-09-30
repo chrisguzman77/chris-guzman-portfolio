@@ -12,7 +12,7 @@ Personal site of Christopher Guzman: experience, projects, blog, resume, and an 
 | `apps/web` | Next.js (App Router, TypeScript, Tailwind, shadcn) |
 | `apps/api` | FastAPI service: interactions, GitHub cache, RAG chat |
 | `infra/` | Compose stacks, Postgres init, Directus schema, Cloudflare, observability |
-| `docs/` | [Architecture](docs/architecture.md), [ADRs](docs/adr/README.md), [setup](docs/setup.md), design spec |
+| `docs/` | [Architecture](docs/architecture.md), [ADRs](docs/adr/README.md), [setup](docs/setup.md), [runbook](docs/runbook.md), design spec |
 
 ## Quick start
 
