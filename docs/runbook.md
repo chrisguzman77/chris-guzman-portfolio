@@ -4,11 +4,12 @@ Production is VM 400 (`192.168.1.50`) on the Proxmox host, reached from the inte
 
 ## First deploy (once, after bootstrap)
 
-1. `.sops.yaml` lists the VM's age public key and `prod.enc.env` has real values (`make secrets-check` on the laptop reports `0 still change-me`).
-2. `sudo git -C /opt/portfolio pull`
-3. `sudo IMAGE_TAG=latest INCLUDE_RUNNER=1 /opt/portfolio/scripts/deploy.sh`
-4. GitHub → Settings → Actions → Runners shows `portfolio-vm` (Idle).
-5. GitHub → Settings → Secrets and variables → Actions → Variables → `DEPLOY_ENABLED` = `true`.
+1. The release workflow has run on main at least once (so web, api and runner images exist), and all three GHCR packages — web, api, runner — are public (GitHub → Packages → each → Package settings → Change visibility).
+2. `.sops.yaml` lists the VM's age public key and `prod.enc.env` has real values, including CLOUDFLARE_TUNNEL_TOKEN and GITHUB_RUNNER_TOKEN (make secrets-check on the laptop reports 0 still change-me).
+3. `sudo git -C /opt/portfolio pull`
+4. `sudo IMAGE_TAG=latest INCLUDE_RUNNER=1 /opt/portfolio/scripts/deploy.sh`
+5. GitHub → Settings → Actions → Runners shows `portfolio-vm` (Idle).
+6. GitHub → Settings → Secrets and variables → Actions → Variables → `DEPLOY_ENABLED` = `true`.
 
 ## Normal deploys
 
@@ -27,10 +28,12 @@ Image tags are full commit SHAs (Actions → release → a green run). Database 
 Dependabot bumps `infra/runner/Dockerfile`; after the release builds it:
 
 ```bash
-cd /opt/portfolio && sudo IMAGE_TAG=latest INCLUDE_RUNNER=1 SERVICES=runner scripts/deploy.sh
+cd /opt/portfolio && sudo git pull
+DEPLOYED=$(docker inspect -f '{{.Config.Image}}' portfolio-api-1 | cut -d: -f2)
+sudo IMAGE_TAG="$DEPLOYED" SERVICES=runner scripts/deploy.sh
 ```
 
-Run this while no deploy is in progress.
+Run it while no deploy is in progress: recreating the runner mid-job kills that job. IMAGE_TAG is the currently deployed version, so the migration step it runs is a no-op.
 
 ## Status and logs
 
@@ -44,7 +47,7 @@ docker logs --tail 100 portfolio-api-1
 
 - **A database or Directus password:** `make secrets-edit` on the laptop, commit, merge; the next deploy applies it. Postgres role passwords also need `ALTER ROLE … PASSWORD` inside the database.
 - **Tunnel token:** Zero Trust → Tunnels → `portfolio` → Refresh token; update `CLOUDFLARE_TUNNEL_TOKEN`; deploy.
-- **Runner PAT (expires yearly):** create a new `portfolio-runner` token, update `GITHUB_RUNNER_TOKEN`, deploy with `INCLUDE_RUNNER=1 SERVICES=runner`.
+- **Runner PAT (expires yearly):** create a new portfolio-runner token, update GITHUB_RUNNER_TOKEN with make secrets-edit, merge, then run the "Update the runner" commands. Normal deploys never restart the runner, so they do not apply this value.
 - **Age keys:** generate a new key, add it to `.sops.yaml`, `sops updatekeys infra/compose/prod.enc.env`, remove the old recipient, `updatekeys` again.
 
 ## Outage checklist
