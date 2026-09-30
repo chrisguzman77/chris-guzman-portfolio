@@ -30,7 +30,7 @@ apt-get update -q
 apt-get install -y -q ca-certificates curl git ufw unattended-upgrades
 
 step "Docker Engine and Compose plugin (Docker's apt repository)"
-if ! command -v docker >/dev/null 2>&1; then
+if ! docker compose version >/dev/null 2>&1; then
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
@@ -56,6 +56,11 @@ sed -i 's/^IPV6=.*/IPV6=yes/' /etc/default/ufw
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow from "${LAN_CIDR}" to any port 22 proto tcp comment 'ssh from LAN'
+# Never lock out the session running this script, whatever LAN_CIDR says.
+while read -r peer; do
+  [[ -n "${peer}" ]] || continue
+  ufw allow from "${peer}" to any port 22 proto tcp comment 'ssh from bootstrap session'
+done < <(ss -Htn state established '( sport = :22 )' | awk '{print $4}' | sed -E 's/^\[?([^]]*)\]?:[0-9]+$/\1/' | sed 's/^::ffff://' | sort -u)
 ufw --force enable
 
 step "Automatic security updates (reboot at 04:30 when required)"
@@ -81,8 +86,8 @@ install -m 0755 "${tmp}/age/age" "${tmp}/age/age-keygen" /usr/local/bin/
 
 step "VM age key at ${KEY_FILE} (readable by root and the runner uid only)"
 install -d -m 0750 -o root -g "${RUNNER_UID}" /etc/portfolio
-if [[ ! -f "${KEY_FILE}" ]]; then
-  age-keygen -o "${KEY_FILE}" 2>/dev/null
+if [[ ! -s "${KEY_FILE}" ]]; then
+  age-keygen -o "${KEY_FILE}"
 fi
 chown "root:${RUNNER_UID}" "${KEY_FILE}"
 chmod 0440 "${KEY_FILE}"
@@ -97,7 +102,7 @@ if ! git config --system --get-all safe.directory 2>/dev/null | grep -qx "${REPO
 fi
 
 step "Done"
-echo "VM age public key (send this line to Claude; it is safe to share):"
+echo "VM age public key (add it to .sops.yaml, then run sops updatekeys; safe to share):"
 age-keygen -y "${KEY_FILE}"
 echo
 echo "Log out and back in so '${ADMIN_USER}' can use docker without sudo."
