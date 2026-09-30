@@ -10,6 +10,9 @@ ARG AGE_SHA256=cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
 
 USER 0:0
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# The runner never runs npm (JS actions use the node binary directly). Dropping
+# the bundled npm removes vulnerable transitive packages such as node-tar
+# (CVE-2026-59873) that Trivy flags and upstream has not yet updated.
 RUN curl -fsSLo /usr/local/lib/docker/cli-plugins/docker-compose \
       "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-x86_64" \
  && echo "${COMPOSE_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c - \
@@ -22,7 +25,10 @@ RUN curl -fsSLo /usr/local/lib/docker/cli-plugins/docker-compose \
       "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/age-${AGE_VERSION}-linux-amd64.tar.gz" \
  && echo "${AGE_SHA256}  /tmp/age.tgz" | sha256sum -c - \
  && tar -xzf /tmp/age.tgz -C /usr/local/bin --strip-components=1 age/age age/age-keygen \
- && rm /tmp/age.tgz
+ && rm /tmp/age.tgz \
+ && rm -rf /home/runner/externals/node*/lib/node_modules/npm \
+           /home/runner/externals/node*/bin/npm \
+           /home/runner/externals/node*/bin/npx
 
 COPY --chmod=0755 entrypoint.sh /usr/local/bin/runner-entrypoint
 USER 1001:1001
