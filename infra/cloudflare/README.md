@@ -27,6 +27,14 @@ Application `Directus admin` protects `cms.christopherguzman.me`. Policy `Chris 
 
 `api.` and `cms.` are deliberately not routed through the Worker: API clients should see real status codes, and the CMS is behind Access.
 
-## Cache rule for static assets
+## Static asset caching
 
-Caching → Cache Rules → Create rule `next static`: URI Path starts with `/_next/static/` → Eligible for cache, Edge TTL override 1 year, Browser TTL respect origin. Check with `curl -sI https://christopherguzman.me/_next/static/<any file> | grep -i cf-cache-status` twice; the second shows `HIT`.
+No cache rule is needed. Cloudflare caches `.js`/`.css` by default, and Next.js serves `/_next/static/*` with `cache-control: public, max-age=31536000, immutable`, so the edge keeps them for a year (verified 2026-10-01: `cf-cache-status: HIT`). Re-check with `curl -sI https://christopherguzman.me/_next/static/<any file> | grep -i cf-cache-status`. Add a rule only if a future asset type isn't cached by default.
+
+## External uptime monitor
+
+Better Stack (free tier) checks `https://christopherguzman.me/api/healthz` every 3 minutes and emails the owner. It runs outside the home network, so it reports VM, home-internet, and tunnel outages; the fallback Worker returns 503, which the monitor counts as down.
+
+## Worker routes
+
+Domain → Workers Routes: `christopherguzman.me/*` and `www.christopherguzman.me/*` → `portfolio-fallback`. Verified 2026-10-01: www 301 → apex, and with `web` stopped the apex returns 503 "Back shortly" with `retry-after: 300` and `cache-control: no-store` while `api.` keeps returning 200.
