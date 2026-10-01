@@ -125,8 +125,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-      - name: Fallback Worker tests
-        run: node --test infra/cloudflare/worker-fallback.test.mjs
+      - name: Fallback Worker and CMS bootstrap tests
+        run: node --test infra/cloudflare/worker-fallback.test.mjs infra/directus/lib.test.mjs
       - name: Validate compose files
         run: |
           docker compose -f infra/compose/compose.dev.yaml config -q

@@ -47,8 +47,11 @@ services:
       PUBLIC_URL: https://cms.christopherguzman.me
       WEBSOCKETS_ENABLED: "false"
       TELEMETRY: "false"
+      DIRECTUS_WEB_TOKEN: ${DIRECTUS_WEB_TOKEN:?}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?}
     volumes:
       - directus-uploads:/directus/uploads
+      - ../directus:/directus/bootstrap:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8055/server/ping"]
       interval: 15s
@@ -71,7 +74,13 @@ services:
   web:
     <<: *service
     image: ghcr.io/chrisguzman77/chris-guzman-portfolio/web:${IMAGE_TAG:?}
-    mem_limit: 256m
+    environment:
+      DIRECTUS_URL: http://directus:8055
+      DIRECTUS_TOKEN: ${DIRECTUS_WEB_TOKEN:?}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?}
+      API_INTERNAL_URL: http://api:8000
+      SITE_URL: https://christopherguzman.me
+    mem_limit: 384m
 
   cloudflared:
     <<: *service

@@ -1,0 +1,78 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { getResume } from "@/lib/directus/queries";
+import type { Resume } from "@/lib/directus/schemas";
+
+import ResumePage from "./page";
+
+vi.mock("@/lib/directus/queries", () => ({ getResume: vi.fn() }));
+
+const full: Resume = { file: "abc-123", version_label: "fall-2026", updated_at: "2026-10-01" };
+
+afterEach(() => {
+  cleanup();
+  vi.mocked(getResume).mockReset();
+});
+
+describe("/resume", () => {
+  it("shows the prompt and title", async () => {
+    vi.mocked(getResume).mockResolvedValue(full);
+    render(await ResumePage());
+
+    expect(screen.getByText("$ open resume.pdf")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Resume" })).toBeTruthy();
+  });
+
+  it("renders the bar, the download button, and the inline PDF on wide screens", async () => {
+    vi.mocked(getResume).mockResolvedValue(full);
+    const { container } = render(await ResumePage());
+
+    expect(screen.getByText("Christopher Guzman, Resume")).toBeTruthy();
+    expect(screen.getByText("version fall-2026 · updated Oct 1, 2026")).toBeTruthy();
+
+    const download = screen.getByRole("link", { name: /download pdf/i });
+    expect(download.getAttribute("href")).toBe("/cms-assets/abc-123");
+    expect(download.hasAttribute("download")).toBe(true);
+
+    const object = container.querySelector("object");
+    expect(object?.getAttribute("data")).toBe("/cms-assets/abc-123");
+    expect(object?.getAttribute("type")).toBe("application/pdf");
+    const frame = object?.parentElement;
+    expect(frame?.className).toContain("hidden");
+    expect(frame?.className).toContain("md:block");
+    expect(object?.querySelector('a[href="/cms-assets/abc-123"]')).not.toBeNull();
+  });
+
+  it("omits missing parts of the version line", async () => {
+    vi.mocked(getResume).mockResolvedValue({ ...full, version_label: null });
+    render(await ResumePage());
+
+    expect(screen.getByText("updated Oct 1, 2026")).toBeTruthy();
+    expect(screen.queryByText(/version/)).toBeNull();
+  });
+
+  it("omits the version line entirely when neither part is set", async () => {
+    vi.mocked(getResume).mockResolvedValue({ ...full, version_label: null, updated_at: null });
+    render(await ResumePage());
+
+    expect(screen.queryByText(/updated/)).toBeNull();
+    expect(screen.getByRole("link", { name: /download pdf/i })).toBeTruthy();
+  });
+
+  it.each([null, { file: null, version_label: null, updated_at: null }])(
+    "shows the empty state when there is no PDF (%o)",
+    async (resume) => {
+      vi.mocked(getResume).mockResolvedValue(resume);
+      const { container } = render(await ResumePage());
+
+      expect(screen.getByText(/Resume coming soon\./)).toBeTruthy();
+      expect(screen.getByRole("link", { name: /experience/i }).getAttribute("href")).toBe(
+        "/experience",
+      );
+      expect(screen.queryByRole("link", { name: /download pdf/i })).toBeNull();
+      expect(container.querySelector("object")).toBeNull();
+    },
+  );
+});

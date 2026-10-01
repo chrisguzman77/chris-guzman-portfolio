@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/compose/compose.dev.yaml
 
-.PHONY: help up down logs ps build migrate test lint dev-web dev-api prod-config secrets-edit secrets-check
+.PHONY: help up down logs ps build migrate cms-bootstrap test lint dev-web dev-api prod-config secrets-edit secrets-check
 
 help:          ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -22,6 +22,9 @@ build:
 
 migrate:       ## Apply API migrations against the compose database
 	$(COMPOSE) run --rm api alembic upgrade head
+
+cms-bootstrap: ## Create Directus schema, web token, Flow, and seed content (idempotent)
+	$(COMPOSE) exec -T directus node /directus/bootstrap/bootstrap.mjs
 
 test:          ## Run web and api test suites
 	cd apps/web && pnpm test
