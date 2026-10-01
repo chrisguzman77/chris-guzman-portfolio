@@ -21,7 +21,6 @@ function secretMatches(given: string | null, expected: string): boolean {
 export async function POST(request: Request) {
   const expected = serverEnv().revalidateSecret;
   if (!expected || !secretMatches(request.headers.get("x-revalidate-secret"), expected)) {
-    console.warn("revalidate: rejected a request with a missing or wrong secret");
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

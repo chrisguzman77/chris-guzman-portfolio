@@ -6,6 +6,21 @@ const stringList = z
   .nullable()
   .transform((v) => v ?? []);
 
+// Links rendered as hrefs: anything that is not an absolute http(s) URL (e.g.
+// "javascript:...") becomes null so the item still renders, just without the link.
+const httpUrl = z
+  .string()
+  .nullable()
+  .transform((v) => {
+    if (!v) return null;
+    try {
+      const { protocol } = new URL(v);
+      return protocol === "http:" || protocol === "https:" ? v : null;
+    } catch {
+      return null;
+    }
+  });
+
 export const ProfileSchema = z.object({
   name: z.string(),
   intro: z.string(),
@@ -55,7 +70,7 @@ export const CertificationSchema = z.object({
   name: z.string(),
   issuer: z.string(),
   date: z.string().nullable(),
-  url: z.string().nullable(),
+  url: httpUrl,
 });
 
 export const ProjectSchema = z.object({
@@ -67,8 +82,8 @@ export const ProjectSchema = z.object({
   type: z.enum(["personal", "competition"]),
   award: z.string().nullable(),
   tech: stringList,
-  repo_url: z.string().nullable(),
-  live_url: z.string().nullable(),
+  repo_url: httpUrl,
+  live_url: httpUrl,
   cover: z.string().nullable(),
   date: z.string().nullable(),
   featured: z.boolean(),

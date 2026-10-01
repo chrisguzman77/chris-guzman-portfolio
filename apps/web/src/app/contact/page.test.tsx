@@ -67,6 +67,41 @@ describe("/contact", () => {
     );
   });
 
+  it("does not crash on malformed profile URLs and falls back to the site defaults", async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ...profile,
+      github_url: "not a url",
+      linkedin_url: "javascript:alert(1)",
+    });
+    render(await ContactPage());
+
+    expect(screen.getByText("@chrisguzman77")).toBeTruthy();
+    expect(screen.getByText("christopher-emmanuel-guzman")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /open github/i }).getAttribute("href")).toBe(
+      "https://github.com/chrisguzman77",
+    );
+    expect(screen.getByRole("link", { name: /open linkedin/i }).getAttribute("href")).toBe(
+      "https://www.linkedin.com/in/christopher-emmanuel-guzman/",
+    );
+  });
+
+  it("treats empty-string email and URLs like missing ones", async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ...profile,
+      email: "",
+      github_url: "",
+      linkedin_url: "",
+    });
+    render(await ContactPage());
+
+    expect(screen.getByText("chguzman@augusta.edu")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /send email/i }).getAttribute("href")).toBe(
+      "mailto:chguzman@augusta.edu",
+    );
+    expect(screen.getByText("@chrisguzman77")).toBeTruthy();
+    expect(screen.getByText("christopher-emmanuel-guzman")).toBeTruthy();
+  });
+
   it("offers the email action (mailto fallback in jsdom, which has no clipboard)", async () => {
     vi.mocked(getProfile).mockResolvedValue(profile);
     render(await ContactPage());

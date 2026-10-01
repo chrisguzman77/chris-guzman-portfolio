@@ -120,6 +120,27 @@ describe("content schemas", () => {
     expect(PostSchema.safeParse({ ...post, body: null }).success).toBe(false);
   });
 
+  it("keeps only http(s) project and certification links, nulling anything else", () => {
+    const parsed = ProjectSchema.parse({
+      ...project,
+      repo_url: "javascript:alert(1)",
+      live_url: "https://offres.example.com",
+    });
+    expect(parsed.repo_url).toBeNull();
+    expect(parsed.live_url).toBe("https://offres.example.com");
+    expect(ProjectSchema.parse({ ...project, live_url: "data:text/html,hi" }).live_url).toBeNull();
+    expect(ProjectSchema.parse({ ...project, repo_url: "http://example.com/r" }).repo_url).toBe(
+      "http://example.com/r",
+    );
+
+    const cert = { id: 1, name: "Sec+", issuer: "CompTIA", date: null };
+    expect(CertificationSchema.parse({ ...cert, url: "javascript:alert(1)" }).url).toBeNull();
+    expect(CertificationSchema.parse({ ...cert, url: "not a url" }).url).toBeNull();
+    expect(CertificationSchema.parse({ ...cert, url: "https://comptia.org/c" }).url).toBe(
+      "https://comptia.org/c",
+    );
+  });
+
   it("parses an empty resume singleton", () => {
     expect(ResumeSchema.parse({ file: null, version_label: null, updated_at: null })).toEqual({
       file: null,

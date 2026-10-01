@@ -82,6 +82,26 @@ describe("GET /blog/rss.xml", () => {
     expect(childText(items[1], "pubDate")).toBe("Wed, 02 Sep 2026 00:00:00 GMT");
   });
 
+  it("strips XML-illegal control characters so the feed stays parseable", async () => {
+    vi.mocked(getPosts).mockResolvedValue([
+      { ...tricky, title: "Back\u0008space", excerpt: "Bell\u0007 and form\u000Cfeed" },
+    ]);
+    const doc = parse(await (await GET()).text());
+
+    const item = doc.getElementsByTagName("item")[0];
+    const childText = (tag: string) =>
+      Array.from(item.children).find((c) => c.tagName === tag)?.textContent;
+    expect(childText("title")).toBe("Backspace");
+    expect(childText("description")).toBe("Bell and formfeed");
+  });
+
+  it("builds pubDate from the date part of a datetime value", async () => {
+    vi.mocked(getPosts).mockResolvedValue([{ ...tricky, published_at: "2026-10-14T09:30:00" }]);
+    const xml = await (await GET()).text();
+
+    expect(xml).toContain("<pubDate>Wed, 14 Oct 2026 00:00:00 GMT</pubDate>");
+  });
+
   it("returns a valid empty feed when there are no posts", async () => {
     vi.mocked(getPosts).mockResolvedValue([]);
     const res = await GET();

@@ -212,6 +212,14 @@ describe("HomePage sections", () => {
     expect(screen.getByRole("link", { name: /all posts/ }).getAttribute("href")).toBe("/blog");
   });
 
+  it("leaves vertical spacing of home experience rows to ExperienceEntry", async () => {
+    render(await HomePage());
+
+    const item = screen.getByText("Acme Labs").closest("li")!;
+    expect(classes(item)).not.toContain("py-2.5");
+    expect(item.querySelector("article")!.className).toContain("py-4");
+  });
+
   it("does not render the Blog section at all when there are no posts", async () => {
     vi.mocked(getPosts).mockResolvedValue([]);
     render(await HomePage());

@@ -12,13 +12,17 @@ const XML_ESCAPES: Record<string, string> = {
   "'": "&apos;",
 };
 
+// Control characters that XML 1.0 forbids even when escaped (tab, LF, CR are allowed).
+// eslint-disable-next-line no-control-regex
+const XML_ILLEGAL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+
 function escapeXml(value: string): string {
-  return value.replace(/[&<>"']/g, (ch) => XML_ESCAPES[ch]);
+  return value.replace(XML_ILLEGAL, "").replace(/[&<>"']/g, (ch) => XML_ESCAPES[ch]);
 }
 
 /** RFC 822 date at 00:00 UTC, e.g. "Wed, 14 Oct 2026 00:00:00 GMT". */
 function rfc822(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toUTCString();
+  return new Date(`${isoDate.slice(0, 10)}T00:00:00Z`).toUTCString();
 }
 
 export async function GET(): Promise<Response> {

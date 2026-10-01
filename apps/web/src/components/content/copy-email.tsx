@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy, Mail } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 const buttonClass =
   "inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-background";
@@ -13,6 +13,9 @@ const assumeAvailable = () => true;
 export function CopyEmail({ email }: { email: string }) {
   const canCopy = useSyncExternalStore(subscribe, clipboardAvailable, assumeAvailable);
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
 
   if (!canCopy || status === "failed") {
     return (
@@ -27,7 +30,8 @@ export function CopyEmail({ email }: { email: string }) {
     try {
       await navigator.clipboard.writeText(email);
       setStatus("copied");
-      setTimeout(() => setStatus("idle"), 2000);
+      clearTimeout(resetTimer.current);
+      resetTimer.current = setTimeout(() => setStatus("idle"), 2000);
     } catch {
       setStatus("failed");
     }

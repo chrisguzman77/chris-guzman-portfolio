@@ -23,15 +23,27 @@ const valueClass = "mb-2 break-all font-mono text-xs text-muted-foreground";
 const openClass =
   "inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-background";
 
+// A CMS value that is empty or not an http(s) URL falls back to the site default,
+// so a bad edit in Directus can never crash the page or render an unsafe href.
+function profileUrl(value: string | undefined, fallback: string): string {
+  if (!value) return fallback;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:" ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function lastPathSegment(url: string): string {
   return new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? url;
 }
 
 export default async function ContactPage() {
   const profile = await getProfile();
-  const email = profile?.email ?? FALLBACK_EMAIL;
-  const linkedin = profile?.linkedin_url ?? siteConfig.links.linkedin;
-  const github = profile?.github_url ?? siteConfig.links.github;
+  const email = profile?.email || FALLBACK_EMAIL;
+  const linkedin = profileUrl(profile?.linkedin_url, siteConfig.links.linkedin);
+  const github = profileUrl(profile?.github_url, siteConfig.links.github);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 pb-16">

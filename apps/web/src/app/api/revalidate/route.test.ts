@@ -108,6 +108,13 @@ describe("POST /api/revalidate", () => {
     expect(revalidateTag).toHaveBeenCalledWith("profile", { expire: 0 });
   });
 
+  it("logs nothing for unauthorized requests", async () => {
+    await POST(request(json({ collection: "projects" })));
+    await POST(request(json({ collection: "projects" }), "wrong-secret-value"));
+
+    expect(logs).toEqual([]);
+  });
+
   it("logs the collection but never a secret", async () => {
     await POST(request(json({ collection: "experience" }), SECRET));
     await POST(request(json({ collection: "experience" }), "wrong-secret-value"));

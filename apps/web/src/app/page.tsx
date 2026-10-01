@@ -124,7 +124,7 @@ export default async function HomePage() {
           />
           <ol className="mt-2 divide-y divide-dashed divide-border">
             {homeRoles.map((entry) => (
-              <li key={entry.id} className="py-2.5">
+              <li key={entry.id}>
                 <ExperienceEntry entry={entry} compact />
               </li>
             ))}
