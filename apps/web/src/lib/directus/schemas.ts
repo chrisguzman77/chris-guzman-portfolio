@@ -26,8 +26,8 @@ export const ProfileSchema = z.object({
   intro: z.string(),
   email: z.string(),
   location: z.string(),
-  github_url: z.string().url(),
-  linkedin_url: z.string().url(),
+  github_url: httpUrl,
+  linkedin_url: httpUrl,
   seo_description: z.string(),
 });
 

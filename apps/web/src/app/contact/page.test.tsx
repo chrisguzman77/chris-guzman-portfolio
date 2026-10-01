@@ -67,11 +67,11 @@ describe("/contact", () => {
     );
   });
 
-  it("does not crash on malformed profile URLs and falls back to the site defaults", async () => {
+  it("falls back to the site defaults when the schema nulled the profile URLs", async () => {
     vi.mocked(getProfile).mockResolvedValue({
       ...profile,
-      github_url: "not a url",
-      linkedin_url: "javascript:alert(1)",
+      github_url: null,
+      linkedin_url: null,
     });
     render(await ContactPage());
 
@@ -85,12 +85,12 @@ describe("/contact", () => {
     );
   });
 
-  it("treats empty-string email and URLs like missing ones", async () => {
+  it("treats an empty-string email like a missing one", async () => {
     vi.mocked(getProfile).mockResolvedValue({
       ...profile,
       email: "",
-      github_url: "",
-      linkedin_url: "",
+      github_url: null,
+      linkedin_url: null,
     });
     render(await ContactPage());
 

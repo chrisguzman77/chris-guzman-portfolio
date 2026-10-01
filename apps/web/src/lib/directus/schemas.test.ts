@@ -40,7 +40,7 @@ const project = {
 };
 
 describe("content schemas", () => {
-  it("parses a valid profile and rejects a non-URL GitHub link", () => {
+  it("parses a valid profile and nulls profile links that are not http(s) URLs", () => {
     const profile = {
       name: "Christopher Guzman",
       intro: "Hi.",
@@ -51,7 +51,16 @@ describe("content schemas", () => {
       seo_description: "Portfolio.",
     };
     expect(ProfileSchema.parse(profile)).toEqual(profile);
-    expect(ProfileSchema.safeParse({ ...profile, github_url: "not a url" }).success).toBe(false);
+    const bad = ProfileSchema.parse({
+      ...profile,
+      github_url: "not a url",
+      linkedin_url: "javascript:alert(1)",
+    });
+    expect(bad.github_url).toBeNull();
+    expect(bad.linkedin_url).toBeNull();
+    const empty = ProfileSchema.parse({ ...profile, github_url: "", linkedin_url: null });
+    expect(empty.github_url).toBeNull();
+    expect(empty.linkedin_url).toBeNull();
   });
 
   it("parses experience and turns null JSON lists into []", () => {
