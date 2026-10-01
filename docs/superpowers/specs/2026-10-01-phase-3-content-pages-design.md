@@ -31,7 +31,7 @@ Turn the live placeholder at https://christopherguzman.me into the real site: ev
   | surface (cards) | `#161b22` | `#ffffff` |
   | border | `#21262d` / `#30363d` | `#e6e8eb` / `#d0d4da` |
   | text / muted | `#e6edf3` / `#9da7b3` | `#16191d` / `#4b5563` |
-  | accent | `#7ee2b8` | `#0f8a62` |
+  | accent | `#7ee2b8` | `#0d7a57` |
   | live (status, "current" pill) | `#3fb950` | `#15803d` |
 
   Contrast is checked for both themes (WCAG AA for body text).
@@ -42,7 +42,7 @@ Turn the live placeholder at https://christopherguzman.me into the real site: ev
 
 ## Layout shared by every page
 
-- **Header**: `~/chris-guzman` (links home), then `experience · education · projects · blog · resume · contact`, then the theme toggle. Always a gap between the logo and the links. Below the `md` breakpoint the links collapse into a menu button (accessible disclosure, focus-trapped, Escape closes).
+- **Header**: `~/chris-guzman` (links home), then `experience · education · projects · blog · resume · contact`, then the theme toggle. Always a gap between the logo and the links. Below the `md` breakpoint the links collapse into a menu button (accessible disclosure, Escape closes and returns focus).
 - **Footer**: `© <year> Christopher Guzman`, GitHub, LinkedIn, RSS icons.
 - **Page header pattern**: a mono prompt (`$ cat experience.log`) above an `h1`. **No caption under any page title.**
 - **404**: same layout, prompt `$ cd <path>: no such page`, links to the main pages.
@@ -104,7 +104,7 @@ A section with no published projects is not rendered. Each card: award badge (wh
 
 ### `/projects/[slug]`
 
-Prompt `$ cat projects/<slug>.md`, title, award badge, type label, date, tech tags, repo and live links (Lucide icons), cover image, markdown write-up, gallery. `generateStaticParams` returns `[]`; unknown or unpublished slugs return 404.
+Prompt `$ cat projects/<slug>.md`, title, award badge, type label, date, tech tags, repo and live links (Lucide icons), cover image, markdown write-up (images inline). Unknown or unpublished slugs return 404.
 
 ### `/blog`
 
@@ -132,7 +132,7 @@ Prompt `$ ping chris`, `h1` "Get in touch". Three cards: **Email** (`profile.ema
 
 ## Content model (Directus)
 
-Every collection has `status` (`draft` | `published`, default `draft`) except singletons; the web reader can read **published items only**.
+Every collection has `status` (`draft` | `published`, default `draft`) except singletons. The site shows **published items only**; because unlicensed Directus 12 cannot filter permissions, the web app enforces this on every query (the read token never leaves the server).
 
 | Collection | Fields |
 |---|---|
@@ -141,7 +141,7 @@ Every collection has `status` (`draft` | `published`, default `draft`) except si
 | `education` | `status`, `sort`, `school`, `location`, `end_date`, `degrees` (JSON list of `{kind: "degree"\|"minor", name}`), `coursework` (JSON string list) |
 | `involvement` | `status`, `sort`, `organization`, `role`, `year`, `summary` |
 | `certifications` | `status`, `sort`, `name`, `issuer`, `date`, `url` |
-| `projects` | `status`, `sort`, `slug` (unique), `title`, `summary`, `body` (markdown), `type` (`personal` \| `competition`), `award` (optional text), `tech` (JSON string list), `repo_url`, `live_url`, `cover` (file), `gallery` (files), `date`, `featured` (bool) |
+| `projects` | `status`, `sort`, `slug` (unique), `title`, `summary`, `body` (markdown, images inline), `type` (`personal` \| `competition`), `award` (optional text), `tech` (JSON string list), `repo_url`, `live_url`, `cover` (file), `date`, `featured` (bool) |
 | `posts` | `status`, `slug` (unique), `title`, `published_at` (date), `excerpt`, `body` (markdown), `tags` (JSON string list), `cover` (file) |
 | `resume` (singleton) | `file` (PDF), `version_label`, `updated_at` (date) |
 
@@ -168,18 +168,18 @@ Visitor ──► Cloudflare ──► Next.js serves the cached page; first req
 - **Reads**: `lib/directus/` fetches `http://directus:8055/items/...` server-side with the read-only token (`DIRECTUS_TOKEN`), validates every response with zod, and tags each fetch (`profile`, `experience`, `projects`, `projects:<slug>`, `posts`, `posts:<slug>`, ...) with `revalidate: 86400` as the backstop.
 - **Writes trigger refresh**: any create/update/delete in a content collection calls the revalidate route (cheap; drafts are never shown because reads filter `status = published`). The route rejects requests without the correct secret (constant-time compare) and only accepts known collection names.
 - **Assets**: `GET /cms-assets/[id]` streams the file from Directus with the token and `Cache-Control: public, max-age=31536000, immutable`; only file IDs referenced by published content or the resume singleton are served. Markdown bodies have `/assets/<id>` rewritten to `/cms-assets/<id>`. `cms.christopherguzman.me` stays behind Cloudflare Access.
-- **No CMS at build time**: dynamic routes use `generateStaticParams() => []`; everything renders on first request and is then cached. `next build` in CI must pass with no Directus and no API.
+- **No CMS at build time**: every page that reads Directus calls `connection()`, so it renders per request; the Directus responses themselves are cached by tag, so renders stay cheap and Directus sees almost no traffic. `next build` in CI must pass with no Directus and no API.
 - **Markdown**: unified (remark-parse, remark-gfm, remark-rehype, rehype-sanitize, rehype-slug, rehype-pretty-code with Shiki themes matching both modes). Sanitization runs even though only Chris writes content.
 
 ## Directus bootstrap (schema as code)
 
 `infra/directus/` holds:
 
-- `snapshot.yaml`: the collections and fields above, applied with `directus schema apply --yes`.
+- `schema.mjs`: the collections and fields above; `bootstrap.mjs` creates whatever is missing through the REST API (additive only, never alters or deletes).
 - `bootstrap.mjs` (Node, runs inside the Directus container, no new image): idempotently ensures the `web-reader` policy (read published items in content collections + `directus_files`), a `web-reader` user with the static token from `DIRECTUS_WEB_TOKEN`, the revalidation Flow, and the seed content.
 - `seed/*.json`: the seed content.
 
-`scripts/deploy.sh` runs both after `up --wait` and before the smoke test: `compose exec -T directus npx directus schema apply --yes ...` then `compose exec -T directus node /directus/bootstrap/bootstrap.mjs`. The `directus` service mounts `infra/directus` read-only at `/directus/bootstrap`. The same commands run in dev via `make cms-bootstrap`.
+`scripts/deploy.sh` runs `compose exec -T directus node /directus/bootstrap/bootstrap.mjs` after `up --wait` and before the smoke test. The `directus` service mounts `infra/directus` read-only at `/directus/bootstrap`. The same commands run in dev via `make cms-bootstrap`.
 
 ## Configuration and secrets
 
@@ -221,7 +221,7 @@ Per-page `metadata` (title template `%s · Christopher Guzman`, descriptions fro
 ## Execution shape
 
 1. **Foundation** (sequential, one task each, all on branch `feat/phase-3`):
-   - F1: Directus bootstrap: snapshot, policy/user/token, Flow, seed, deploy.sh + compose + env changes, `make cms-bootstrap`.
+   - F1: Directus bootstrap: schema, policy/user/token, Flow, seed, deploy.sh + compose + env changes, `make cms-bootstrap`.
    - F2: Web foundation: theme tokens, fonts, dark default, header/footer/mobile menu, `lib/directus` (client, zod schemas, tagged queries), markdown pipeline, `/cms-assets/[id]`, shared components (page header, section heading, project card, award badge, experience entry, post list item, live status, brand icons, empty state, 404).
 2. **Six parallel tracks** (subagents in isolated git worktrees branched from the foundation; each owns only its route files and tests and does not edit shared components; a needed shared change is reported back instead):
    - A: homepage. B: experience + education. C: projects list + detail. D: blog list + post + RSS. E: resume + contact. F: revalidate route, sitemap, robots, OG images, JSON-LD, metadata.
