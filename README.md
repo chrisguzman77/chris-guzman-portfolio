@@ -2,6 +2,8 @@
 
 Personal site of Christopher Guzman: experience, projects, blog, resume, and an AI chat grounded in the site's content. Self-hosted on a Proxmox VM behind a Cloudflare Tunnel.
 
+Live at **https://christopherguzman.me**. Every merge to `main` builds, scans, and deploys automatically.
+
 [![ci](https://github.com/chrisguzman77/chris-guzman-portfolio/actions/workflows/ci.yml/badge.svg)](https://github.com/chrisguzman77/chris-guzman-portfolio/actions/workflows/ci.yml)
 [![release](https://github.com/chrisguzman77/chris-guzman-portfolio/actions/workflows/release.yml/badge.svg)](https://github.com/chrisguzman77/chris-guzman-portfolio/actions/workflows/release.yml)
 
