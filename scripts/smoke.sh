@@ -42,6 +42,8 @@ check "web /api/healthz" in_service web wget -qO- http://127.0.0.1:3000/api/heal
 check "api /health reports db ok" in_service api python -c \
   "import json,sys,urllib.request as u; sys.exit(json.load(u.urlopen('http://127.0.0.1:8000/health', timeout=3))['db'] != 'ok')" || status=1
 check "directus /server/ping" in_service directus wget -qO- http://127.0.0.1:8055/server/ping || status=1
+check "web / renders the profile" in_service web sh -c "wget -qO- http://127.0.0.1:3000/ | grep -q 'Christopher Guzman'" || status=1
+check "web /experience renders CMS content" in_service web sh -c "wget -qO- http://127.0.0.1:3000/experience | grep -q 'SIEGE CyberOps'" || status=1
 if [[ -n "${SMOKE_PUBLIC_URL:-}" ]]; then
   check "public ${SMOKE_PUBLIC_URL}/api/healthz" curl -fsS --max-time 10 "${SMOKE_PUBLIC_URL}/api/healthz" || status=1
 fi

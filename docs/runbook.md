@@ -50,9 +50,23 @@ scripts/smoke.sh
 docker logs --tail 100 portfolio-api-1
 ```
 
+## Content (CMS)
+
+Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Directus login). Collections: `profile`, `experience`, `education`, `involvement`, `certifications`, `projects`, `posts`, `resume`.
+
+- **Only `published` items appear on the site.** Drafts are never shown: every read filters `status = published`.
+- **Saving any item refreshes the site.** The revalidation Flow posts the collection name to `http://web:3000/api/revalidate`, which expires that collection's cached data immediately (`revalidateTag(collection, { expire: 0 })`), so the next visit to an affected page renders the new content. Every cached read also expires after 24 hours as a backstop.
+- **Seed content and deletes.** Every deploy runs the CMS bootstrap (`==> CMS bootstrap` in the deploy log). It seeds a collection (from `infra/directus/seed/`) only while that collection is completely empty and never changes existing items, so CMS edits and individual deletes survive deploys. Deleting **every** item in a collection, however, makes it empty, and the next deploy re-seeds it. To clear a section from the site, **set its items to `draft` instead of deleting them.**
+- **First Phase 3 deploy.** The bootstrap runs after the containers start, so on the very first deploy that adds the CMS collections the site can briefly serve empty sections (or fallback values) until the bootstrap finishes and the Flow refreshes the cache. Later deploys are unaffected.
+- **Images in project or post bodies.** Upload the file in Directus and insert it into the markdown. The site rewrites `/assets/<id>` to `/cms-assets/<id>` and serves a file only while published content references it.
+- **Resume.** Export a copy of the resume **without the phone number** (the repo and site are public; never commit the PDF). In Directus open the `resume` singleton, upload the PDF into `file`, set `version_label` (e.g. `fall-2026`) and `updated_at`, save. `/resume` then shows the PDF and the Download button.
+- **Re-run the bootstrap by hand:** on the VM it runs on every deploy; locally `make cms-bootstrap`.
+- **Optional hardening:** `/api/revalidate` is only ever called by Directus over the Docker network (`http://web:3000`), so a Cloudflare WAF custom rule that blocks `christopherguzman.me/api/revalidate` at the edge removes the public endpoint entirely. The route already rejects requests without the secret (401, not logged).
+
 ## Rotate secrets
 
 - **A database or Directus password:** `make secrets-edit` on the laptop, commit, merge; the next deploy applies it. Postgres role passwords also need `ALTER ROLE … PASSWORD` inside the database.
+- **`DIRECTUS_WEB_TOKEN` or `REVALIDATE_SECRET`:** generate a value with `openssl rand -hex 32`, `make secrets-edit`, `make secrets-check`, commit, merge. The deploy recreates `web` with the new value and the CMS bootstrap updates the `web-reader` user's token and the revalidation Flow's secret header to match.
 - **Tunnel token:** Zero Trust → Tunnels → `portfolio` → Refresh token; update `CLOUDFLARE_TUNNEL_TOKEN`; deploy.
 - **Runner PAT (expires yearly):** create a new portfolio-runner token, update GITHUB_RUNNER_TOKEN with make secrets-edit, merge, then run the "Update the runner" commands. Normal deploys never restart the runner, so they do not apply this value.
 - **Age keys:** generate a new key, add it to `.sops.yaml`, `sops updatekeys infra/compose/prod.enc.env`, remove the old recipient, `updatekeys` again.
