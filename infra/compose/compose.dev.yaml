@@ -37,8 +37,11 @@ services:
       DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:-directus}
       PUBLIC_URL: http://localhost:8055
       WEBSOCKETS_ENABLED: "false"
+      DIRECTUS_WEB_TOKEN: ${DIRECTUS_WEB_TOKEN:-dev-web-token}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-dev-revalidate-secret}
     volumes:
       - directus-uploads:/directus/uploads
+      - ../directus:/directus/bootstrap:ro
     ports:
       - "127.0.0.1:${DIRECTUS_PORT:-8055}:8055"
 
@@ -55,6 +58,12 @@ services:
 
   web:
     build: ../../apps/web
+    environment:
+      DIRECTUS_URL: http://directus:8055
+      DIRECTUS_TOKEN: ${DIRECTUS_WEB_TOKEN:-dev-web-token}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-dev-revalidate-secret}
+      API_INTERNAL_URL: http://api:8000
+      SITE_URL: http://localhost:3000
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
 

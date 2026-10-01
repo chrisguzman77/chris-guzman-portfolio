@@ -1,0 +1,81 @@
+[
+  {
+    "status": "published",
+    "sort": 1,
+    "company": "Augusta University, College of Allied Health Professions",
+    "role": "Software Engineer Intern",
+    "location": "Augusta, GA",
+    "start_date": "2026-08-01",
+    "end_date": null,
+    "highlights": [
+      "Shipped a 3D walkable radiation-therapy clinic simulator (Three.js/TypeScript): 19 rooms, NPC behavior, a guided patient-journey state machine, and an SDK contract connecting 29 arcade learning apps to a SvelteKit/FastAPI/PostgreSQL platform.",
+      "Eliminated frame-rate stalls by profiling the render loop: removed ~55 per-room point lights from the forward renderer, capped device pixel ratio, distance-gated NPC updates, and added an adaptive quality floor.",
+      "Refactored two single-file simulators (10,600+ and 1,700+ lines of embedded JavaScript) into ~30 Vite-built TypeScript modules, with a transpile-and-token-diff harness proving each migration behavior-identical."
+    ],
+    "tech": ["three.js", "typescript", "vite", "sveltekit", "fastapi", "postgresql"],
+    "show_on_home": true
+  },
+  {
+    "status": "published",
+    "sort": 2,
+    "company": "Jubilee Farms",
+    "role": "Full Stack Engineer, Contract",
+    "location": "Remote",
+    "start_date": "2026-03-01",
+    "end_date": null,
+    "highlights": [
+      "Maintain a production ASP.NET/jQuery shipping and order-tracking system used daily by a live aquaculture operation, integrated with the Caspio REST API.",
+      "Diagnosed a silent save failure caused by invalid JSON escaping across 18 payload fields; rewrote the serialization so records containing quotes or apostrophes persist instead of being dropped.",
+      "Cut order-grid rendering from 112ms to 23ms (79%) by replacing O(n×m) jQuery lookups with pre-indexed Maps and DocumentFragment batch DOM writes."
+    ],
+    "tech": ["asp.net", "jquery", "javascript", "rest apis"],
+    "show_on_home": true
+  },
+  {
+    "status": "published",
+    "sort": 3,
+    "company": "ACM@AU",
+    "role": "Lead Developer",
+    "location": "Augusta, GA",
+    "start_date": "2026-01-01",
+    "end_date": null,
+    "highlights": [
+      "Shipped the chapter's production website (SvelteKit/TypeScript frontend, FastAPI/PostgreSQL backend) on a self-managed Oracle Cloud ARM VM behind a Cloudflare Tunnel, Dockerized with Alembic migrations and nightly backups.",
+      "Designed authentication end to end: JWT access and rotating refresh tokens with token-family theft detection, Argon2 hashing, TOTP 2FA, email verification, and step-up sudo mode for admins.",
+      "Built a block-based CMS with owner/editor permissions enforced server-side per request for officer page and event editing."
+    ],
+    "tech": ["sveltekit", "typescript", "fastapi", "postgresql", "docker"],
+    "show_on_home": true
+  },
+  {
+    "status": "published",
+    "sort": 4,
+    "company": "SteelGate LLC",
+    "role": "AI/ML Engineer / Data Scientist Intern",
+    "location": "Hybrid",
+    "start_date": "2026-06-01",
+    "end_date": "2026-07-31",
+    "highlights": [
+      "Engineered a TLS-secured pipeline across Apache, Filebeat, Logstash, Elasticsearch, and Kibana on Kubernetes, securing every in-cluster hop with TLS and mTLS.",
+      "Trained an autoencoder for anomaly detection, engineering 10 features from 600k logs with sin/cos time encoding.",
+      "Fixed a threshold calibration failure producing 267 false positives on clean data by moving median/MAD thresholding into log-space with a volume gate, cutting false positives to zero."
+    ],
+    "tech": ["kubernetes", "elk", "python", "pytorch"],
+    "show_on_home": true
+  },
+  {
+    "status": "published",
+    "sort": 5,
+    "company": "SIEGE CyberOps",
+    "role": "GRC Analyst Intern",
+    "location": "Augusta, GA",
+    "start_date": "2025-06-01",
+    "end_date": "2026-06-30",
+    "highlights": [
+      "Conducted 100+ third-party security risk assessments evaluating MFA, SSO, encryption, and handling of regulated data (PII, PHI, GLBA, FERPA), assigning risk scores by exposure and control maturity.",
+      "Led weekly GRC meetings and presented risk metrics dashboards to cybersecurity leadership."
+    ],
+    "tech": ["risk assessment", "compliance"],
+    "show_on_home": true
+  }
+]

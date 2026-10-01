@@ -43,6 +43,8 @@ else
 fi
 # shellcheck disable=SC2086
 compose up -d --wait --wait-timeout 180 --remove-orphans ${SERVICES}
+echo "==> CMS bootstrap"
+compose exec -T directus node /directus/bootstrap/bootstrap.mjs
 echo "==> Smoke testing"
 "${ROOT}/scripts/smoke.sh"
 docker image prune -f >/dev/null
