@@ -31,6 +31,7 @@ vi.mock("@/lib/directus/queries", () => ({
 }));
 vi.mock("@/components/content/live-status", () => ({
   LiveStatus: () => <p>status</p>,
+  LiveStatusFallback: () => <p>checking</p>,
 }));
 
 afterEach(cleanup);

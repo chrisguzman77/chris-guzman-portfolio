@@ -1,8 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { ExperienceEntry } from "@/components/content/experience-entry";
-import { LiveStatus } from "@/components/content/live-status";
+import { LiveStatus, LiveStatusFallback } from "@/components/content/live-status";
 import { PostListItem } from "@/components/content/post-list-item";
 import { ProjectCard } from "@/components/content/project-card";
 import { SectionHeading } from "@/components/content/section-heading";
@@ -60,12 +61,18 @@ export default async function HomePage() {
           </div>
           <div className="order-3 md:mt-4">
             {profile?.intro ? (
-              <p className="mb-4 max-w-[46ch] text-[15.5px] leading-relaxed text-muted-foreground">
+              <p
+                data-cms="profile-intro"
+                className="mb-4 max-w-[46ch] text-[15.5px] leading-relaxed text-muted-foreground"
+              >
                 {profile.intro}
               </p>
             ) : null}
             <div className="mb-5">
-              <LiveStatus />
+              {/* Streams in: a slow or down API never delays the rest of the page. */}
+              <Suspense fallback={<LiveStatusFallback />}>
+                <LiveStatus />
+              </Suspense>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
               <Link href="/resume" className={primaryButton}>

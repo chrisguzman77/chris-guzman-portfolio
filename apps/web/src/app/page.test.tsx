@@ -17,6 +17,7 @@ vi.mock("@/lib/directus/queries", () => ({
 
 vi.mock("@/components/content/live-status", () => ({
   LiveStatus: () => <p>status line stub</p>,
+  LiveStatusFallback: () => <p>checking</p>,
 }));
 
 const profile: Profile = {
@@ -121,6 +122,8 @@ describe("HomePage hero", () => {
     expect(screen.getByText("$ whoami")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "Chris From Profile" })).toBeTruthy();
     expect(screen.getByText(profile.intro)).toBeTruthy();
+    // scripts/smoke.sh greps for this marker to prove profile content came from the CMS.
+    expect(screen.getByText(profile.intro).getAttribute("data-cms")).toBe("profile-intro");
     expect(screen.getByText("status line stub")).toBeTruthy();
 
     expect(screen.getByRole("link", { name: "Download resume" }).getAttribute("href")).toBe(
@@ -150,6 +153,7 @@ describe("HomePage hero", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: siteConfig.name })).toBeTruthy();
     expect(screen.queryByText(profile.intro)).toBeNull();
+    expect(document.querySelector('[data-cms="profile-intro"]')).toBeNull();
     expect(screen.getByRole("link", { name: "GitHub" }).getAttribute("href")).toBe(
       siteConfig.links.github,
     );
