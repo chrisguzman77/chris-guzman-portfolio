@@ -11,9 +11,20 @@ import "./globals.css";
 const sans = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" });
 
+const siteUrl = process.env.SITE_URL || "https://christopherguzman.me";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: { default: siteConfig.name, template: `%s · ${siteConfig.name}` },
   description: siteConfig.description,
+  openGraph: {
+    type: "website",
+    siteName: siteConfig.name,
+    locale: "en_US",
+    title: siteConfig.name,
+    description: siteConfig.description,
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -9,6 +9,7 @@ import { SectionHeading } from "@/components/content/section-heading";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
 import { sectionNumbers } from "@/lib/format";
+import { personJsonLd, serializeJsonLd } from "@/lib/seo";
 import { siteConfig } from "@/lib/site";
 
 type HomeSection = "projects" | "experience" | "blog";
@@ -43,6 +44,10 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(personJsonLd(profile)) }}
+      />
       <section className="grid gap-6 py-12 md:grid-cols-[1.35fr_1fr] md:items-center md:gap-8 md:py-16">
         {/* Narrow screens: `contents` lifts these blocks into the grid so order-1/2/3 puts the
             photo between the name and the intro. md+: a normal left column beside the photo. */}
