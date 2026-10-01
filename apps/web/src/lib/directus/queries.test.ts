@@ -216,12 +216,17 @@ describe("singletons", () => {
   });
 
   it("getProfile returns null when invalid, empty, or unavailable", async () => {
-    get.mockResolvedValueOnce({ ...profile, github_url: "nope" });
+    get.mockResolvedValueOnce({ ...profile, name: null });
     await expect(getProfile()).resolves.toBeNull();
     get.mockResolvedValueOnce(null);
     await expect(getProfile()).resolves.toBeNull();
     get.mockRejectedValueOnce(new DirectusUnavailableError("down"));
     await expect(getProfile()).resolves.toBeNull();
+  });
+
+  it("getProfile keeps the profile when only a link is malformed, nulling that link", async () => {
+    get.mockResolvedValueOnce({ ...profile, github_url: "nope" });
+    await expect(getProfile()).resolves.toMatchObject({ name: profile.name, github_url: null });
   });
 
   it("getResume parses the singleton", async () => {
