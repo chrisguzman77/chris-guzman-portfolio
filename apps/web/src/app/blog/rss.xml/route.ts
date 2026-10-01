@@ -13,7 +13,6 @@ const XML_ESCAPES: Record<string, string> = {
 };
 
 // Control characters that XML 1.0 forbids even when escaped (tab, LF, CR are allowed).
-// eslint-disable-next-line no-control-regex
 const XML_ILLEGAL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
 
 function escapeXml(value: string): string {
