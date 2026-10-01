@@ -80,7 +80,7 @@ services:
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?}
       API_INTERNAL_URL: http://api:8000
       SITE_URL: https://christopherguzman.me
-    mem_limit: 256m
+    mem_limit: 384m
 
   cloudflared:
     <<: *service

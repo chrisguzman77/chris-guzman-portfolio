@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import { DirectusClient, planSchema, planSeed, sameJson, seedKeys } from "./lib.mjs";
+import {
+  DirectusClient,
+  adminLoginFailure,
+  planSchema,
+  planSeed,
+  sameJson,
+  seedKeys,
+} from "./lib.mjs";
 import { CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const EMPTY = { collections: [], fields: [], relations: [] };
@@ -198,4 +205,47 @@ test("DirectusClient returns null for 204", async () => {
   const { impl } = fakeFetch([{ status: 204 }]);
   const api = new DirectusClient("http://directus:8055", impl);
   assert.equal(await api.patch("/users/1", { token: "t" }), null);
+});
+
+test("adminLoginFailure explains stale admin credentials on 401 without printing them", () => {
+  const msg = adminLoginFailure(401, '{"errors":[{"message":"Invalid user credentials."}]}');
+  assert.match(msg, /DIRECTUS_ADMIN_EMAIL/);
+  assert.match(msg, /DIRECTUS_ADMIN_PASSWORD/);
+  assert.match(msg, /prod\.enc\.env/);
+  assert.match(msg, /no longer match/);
+  assert.match(msg, /2FA/);
+  assert.match(msg, /runbook/);
+});
+
+test("adminLoginFailure covers 400 invalid credentials and OTP, but not other 400s", () => {
+  assert.ok(adminLoginFailure(400, '{"errors":[{"extensions":{"code":"INVALID_CREDENTIALS"}}]}'));
+  assert.ok(adminLoginFailure(400, '{"errors":[{"extensions":{"code":"INVALID_OTP"}}]}'));
+  const payload = '{"errors":[{"extensions":{"code":"INVALID_PAYLOAD"}}]}';
+  assert.equal(adminLoginFailure(400, payload), null);
+  assert.equal(adminLoginFailure(500, "boom"), null);
+});
+
+test("DirectusClient.login replaces a 401 with the stale-credentials message", async () => {
+  const { impl } = fakeFetch([
+    {
+      status: 401,
+      body: {
+        errors: [
+          { message: "Invalid user credentials.", extensions: { code: "INVALID_CREDENTIALS" } },
+        ],
+      },
+    },
+  ]);
+  const api = new DirectusClient("http://directus:8055", impl);
+  await assert.rejects(api.login("me@example.com", "s3cret-pw"), (err) => {
+    assert.match(err.message, /no longer match the live Directus admin user/);
+    assert.doesNotMatch(err.message, /me@example\.com|s3cret-pw/);
+    return true;
+  });
+});
+
+test("DirectusClient.login keeps the raw error for other failures", async () => {
+  const { impl } = fakeFetch([{ status: 503, body: { errors: [{ message: "Unavailable" }] } }]);
+  const api = new DirectusClient("http://directus:8055", impl);
+  await assert.rejects(api.login("me@example.com", "pw"), /POST \/auth\/login -> 503/);
 });

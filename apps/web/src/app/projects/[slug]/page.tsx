@@ -86,7 +86,7 @@ export default async function ProjectPage({ params }: Props) {
       {project.cover ? (
         <div className="relative mt-8 aspect-video overflow-hidden rounded-[10px] border border-border">
           {/* unoptimized: /cms-assets already serves immutable, CDN-cached files, and the
-              256 MB web container should not resize arbitrary CMS uploads with sharp. */}
+              384 MB web container should not resize arbitrary CMS uploads with sharp. */}
           <Image
             src={`/cms-assets/${project.cover}`}
             alt={`${project.title} cover image`}

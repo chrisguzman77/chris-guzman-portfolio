@@ -82,6 +82,24 @@ export const seedKeys = {
   projects: (i) => i.slug,
 };
 
+/**
+ * The message for a rejected admin login, or null when the failure is something
+ * else. Directus reads ADMIN_EMAIL/ADMIN_PASSWORD only on first install, so a 401
+ * here means the env no longer matches the live admin user. Never includes the values.
+ */
+export function adminLoginFailure(status, body) {
+  const credentials =
+    status === 401 || (status === 400 && /INVALID_CREDENTIALS|INVALID_OTP|otp/i.test(body));
+  if (!credentials) return null;
+  return [
+    `admin login rejected (${status}): DIRECTUS_ADMIN_EMAIL / DIRECTUS_ADMIN_PASSWORD in`,
+    "infra/compose/prod.enc.env no longer match the live Directus admin user (the password",
+    "was changed in the Directus UI, or 2FA was enabled on that account). Directus only reads",
+    "them at first install. Fix: make secrets-edit so they match the current admin login,",
+    "keep 2FA off for that account, commit, merge, deploy (docs/runbook.md, Rotate secrets).",
+  ].join(" ");
+}
+
 export class DirectusClient {
   constructor(baseUrl, fetchImpl = globalThis.fetch) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
@@ -90,7 +108,14 @@ export class DirectusClient {
   }
 
   async login(email, password) {
-    const data = await this.request("POST", "/auth/login", { email, password });
+    let data;
+    try {
+      data = await this.request("POST", "/auth/login", { email, password });
+    } catch (err) {
+      const message = adminLoginFailure(err.status, err.body ?? "");
+      if (message) throw new Error(message, { cause: err });
+      throw err;
+    }
     this.token = data.access_token;
   }
 
@@ -118,7 +143,10 @@ export class DirectusClient {
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(`${method} ${path} -> ${res.status}: ${text.slice(0, 500)}`);
+      throw Object.assign(new Error(`${method} ${path} -> ${res.status}: ${text.slice(0, 500)}`), {
+        status: res.status,
+        body: text,
+      });
     }
     return text ? JSON.parse(text).data : null;
   }
