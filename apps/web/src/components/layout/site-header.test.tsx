@@ -13,9 +13,8 @@ afterEach(cleanup);
 describe("SiteHeader", () => {
   it("links the ~/chris-guzman logo home with an accessible name", () => {
     render(<SiteHeader />);
-    const home = screen.getByRole("link", { name: "Christopher Guzman home" });
+    const home = screen.getByRole("link", { name: /chris-guzman/ });
     expect(home.getAttribute("href")).toBe("/");
-    expect(home.textContent).toBe("~/chris-guzman");
   });
 
   it("renders all six nav links in order", () => {

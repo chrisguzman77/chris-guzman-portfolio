@@ -11,15 +11,19 @@ import { NavLink } from "./nav-link";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const [openedAt, setOpenedAt] = useState<string | null>(null);
-  const open = openedAt === pathname;
+  const [open, setOpen] = useState(false);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setOpen(false);
+  }
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setOpenedAt(null);
+        setOpen(false);
         buttonRef.current?.focus();
       }
     }
@@ -36,7 +40,7 @@ export function MobileNav() {
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
         aria-controls="mobile-menu"
-        onClick={() => setOpenedAt(open ? null : pathname)}
+        onClick={() => setOpen(!open)}
       >
         {open ? <X className="size-5" /> : <Menu className="size-5" />}
       </Button>
@@ -49,7 +53,7 @@ export function MobileNav() {
         <ul className="mx-auto flex max-w-5xl flex-col px-6 py-2 font-mono text-sm">
           {siteConfig.nav.map((item) => (
             <li key={item.href}>
-              <NavLink href={item.href} className="block py-2.5" onClick={() => setOpenedAt(null)}>
+              <NavLink href={item.href} className="block py-2.5" onClick={() => setOpen(false)}>
                 {item.label}
               </NavLink>
             </li>

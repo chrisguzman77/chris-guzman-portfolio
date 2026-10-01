@@ -55,6 +55,20 @@ describe("MobileNav", () => {
     render(<MobileNav />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     fireEvent.click(screen.getByRole("link", { name: "contact" }));
-    expect(screen.getByRole("button", { name: "Open menu" })).toBeTruthy();
+    const button = screen.getByRole("button", { name: "Open menu" });
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(document.getElementById("mobile-menu")?.hidden).toBe(true);
+  });
+
+  it("stays closed when navigating away and back to the page it was opened on", () => {
+    const { rerender } = render(<MobileNav />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    nav.pathname = "/projects";
+    rerender(<MobileNav />);
+    nav.pathname = "/";
+    rerender(<MobileNav />);
+    const button = screen.getByRole("button", { name: "Open menu" });
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(document.getElementById("mobile-menu")?.hidden).toBe(true);
   });
 });

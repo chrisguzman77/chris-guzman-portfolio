@@ -10,12 +10,8 @@ export function SiteHeader() {
   return (
     <header className="relative border-b border-border">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-8 px-6 font-mono text-xs">
-        <Link
-          href="/"
-          aria-label="Christopher Guzman home"
-          className="shrink-0 text-accent-brand hover:opacity-80"
-        >
-          ~/chris-guzman
+        <Link href="/" className="shrink-0 text-accent-brand hover:opacity-80">
+          ~/chris-guzman<span className="sr-only"> (Christopher Guzman, home)</span>
         </Link>
         <div className="flex items-center gap-4">
           <nav aria-label="Main" className="hidden items-center gap-4 md:flex">
