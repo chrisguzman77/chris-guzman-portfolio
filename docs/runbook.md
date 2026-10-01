@@ -33,6 +33,8 @@ Rolling back to an image from before Phase 3 (no CMS content) also needs `SKIP_C
 sudo IMAGE_TAG=<pre-Phase-3 sha> SKIP_CONTENT_SMOKE=1 /opt/portfolio/scripts/deploy.sh
 ```
 
+The content checks also fail on purpose if the site has no CMS content to show: the profile intro is empty, or every experience role is a draft. If that is intentional, re-run the failed deploy on the VM with `SKIP_CONTENT_SMOKE=1` (same command as above with the current sha), and publish content again before the next merge.
+
 Image tags are full commit SHAs (Actions → release → a green run). The database schema stays at the newer revision either way; a rollback across a destructive migration needs a down-migration.
 
 ## Update the runner
