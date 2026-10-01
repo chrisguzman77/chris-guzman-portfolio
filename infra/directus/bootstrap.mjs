@@ -1,11 +1,12 @@
 // Idempotent Directus bootstrap. Runs inside the directus container:
 //   node /directus/bootstrap/bootstrap.mjs
 // Creates missing schema, the read-only web-reader policy/role/user (token from
-// DIRECTUS_WEB_TOKEN), the revalidation Flow, and insert-only seed content.
-// Never deletes anything and never overwrites content Chris edited in the CMS.
+// DIRECTUS_WEB_TOKEN), the revalidation Flow, and seed content
+// (only into collections that are completely empty). Never deletes anything and
+// never overwrites content Chris edited in the CMS.
 import { readFile } from "node:fs/promises";
 
-import { DirectusClient, planSchema, planSeed, seedKeys } from "./lib.mjs";
+import { DirectusClient, planSchema, planSeed, sameJson } from "./lib.mjs";
 import { CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const BASE_URL = "http://127.0.0.1:8055";
@@ -71,6 +72,9 @@ async function ensurePolicy(api) {
       app_access: false,
     });
     created++;
+  } else if (policy.admin_access !== false || policy.app_access !== false) {
+    await api.patch(`/policies/${policy.id}`, { admin_access: false, app_access: false });
+    console.log("policy: admin_access/app_access re-asserted false");
   }
   const existing = await api.get(
     `/permissions${q({ filter: JSON.stringify({ policy: { _eq: policy.id } }), limit: "-1" })}`,
@@ -144,6 +148,11 @@ async function ensureFlow(api, secret) {
     // expose $trigger.keys, and an undefined key renders invalid JSON.
     body: '{"collection":"{{$trigger.collection}}"}',
   };
+  const triggerOptions = {
+    type: "action",
+    scope: ["items.create", "items.update", "items.delete"],
+    collections: CONTENT_COLLECTIONS,
+  };
   let flow = await findOne(api, "/flows", { name: { _eq: FLOW_NAME } });
   if (!flow) {
     flow = await api.post("/flows", {
@@ -152,11 +161,7 @@ async function ensureFlow(api, secret) {
       status: "active",
       trigger: "event",
       accountability: "activity",
-      options: {
-        type: "action",
-        scope: ["items.create", "items.update", "items.delete"],
-        collections: CONTENT_COLLECTIONS,
-      },
+      options: triggerOptions,
     });
     const op = await api.post("/operations", {
       flow: flow.id,
@@ -176,12 +181,16 @@ async function ensureFlow(api, secret) {
     key: { _eq: "revalidate" },
   });
   if (!op) throw new Error(`flow "${FLOW_NAME}" exists but has no "revalidate" operation`);
-  if (JSON.stringify(op.options) !== JSON.stringify(options)) {
-    await api.patch(`/operations/${op.id}`, { options });
-    console.log("flow: exists, request options synced");
-    return;
+  const synced = [];
+  if (!sameJson(flow.options, triggerOptions)) {
+    await api.patch(`/flows/${flow.id}`, { options: triggerOptions });
+    synced.push("trigger");
   }
-  console.log("flow: exists");
+  if (!sameJson(op.options, options)) {
+    await api.patch(`/operations/${op.id}`, { options });
+    synced.push("request");
+  }
+  console.log(synced.length ? `flow: exists, ${synced.join(" + ")} options synced` : "flow: exists");
 }
 
 async function loadSeed(name) {
@@ -193,18 +202,17 @@ async function ensureSeed(api) {
   let inserted = 0;
   for (const name of SEED_ORDER) {
     const seed = await loadSeed(name);
-    const keyFn = seedKeys[name];
     if (SINGLETONS.includes(name)) {
       const current = await api.get(`/items/${name}`);
       const existing = current?.id == null ? [] : [current];
-      if (planSeed(existing, [seed], keyFn).length > 0) {
+      if (planSeed(existing, [seed]).length > 0) {
         await api.patch(`/items/${name}`, seed);
         inserted++;
       }
       continue;
     }
     const existing = await api.get(`/items/${name}${q({ fields: "*", limit: "-1" })}`);
-    const inserts = planSeed(existing, seed, keyFn);
+    const inserts = planSeed(existing, seed);
     if (inserts.length > 0) await api.post(`/items/${name}`, inserts);
     inserted += inserts.length;
   }

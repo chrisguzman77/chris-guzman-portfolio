@@ -145,7 +145,7 @@ Every collection has `status` (`draft` | `published`, default `draft`) except si
 | `posts` | `status`, `slug` (unique), `title`, `published_at` (date), `excerpt`, `body` (markdown), `tags` (JSON string list), `cover` (file) |
 | `resume` (singleton) | `file` (PDF), `version_label`, `updated_at` (date) |
 
-### Seed content (from the resume, inserted only if missing)
+### Seed content (from the resume, inserted only into empty collections)
 
 - `profile`: name, the approved intro, email `chguzman@augusta.edu`, location Augusta, GA, GitHub and LinkedIn URLs, SEO description.
 - `experience` (all published, `show_on_home = true`): AU College of Allied Health Professions (Software Engineer Intern, Aug 2026–present); Jubilee Farms (Full Stack Engineer, Contract, Mar 2026–present, Remote); ACM@AU (Lead Developer, Jan 2026–present); SteelGate LLC (AI/ML Engineer / Data Scientist Intern, Jun–Jul 2026, Hybrid); SIEGE CyberOps (GRC Analyst Intern, Jun 2025–Jun 2026). Highlights are the resume bullets, lightly shortened; tech from the resume.
@@ -154,7 +154,7 @@ Every collection has `status` (`draft` | `published`, default `draft`) except si
 - `projects`: OFFRes / OFFPay (`competition`, award "Capital One Best Financial Hack", featured); Cyber Threat Lakehouse (`personal`, featured); ACM@AU platform (`personal`, featured); This portfolio (`personal`). Bodies are short write-ups built only from resume facts.
 - `posts`, `certifications`: empty. `resume`: no file (Chris uploads the phone-less PDF).
 
-**Seeding never overwrites.** Each seed item has a stable key (singleton existence, or `slug` / `company`+`role` / `organization`); if it exists, it is left alone, so Chris's CMS edits survive every deploy. Deleting a seeded item in the CMS does re-create it on the next deploy; to remove one for good, set it to `draft` instead (documented in the runbook).
+**Seeding runs on every deploy but only fills a collection while it is completely empty** (and a singleton while it has no row), so once Chris has any content in a collection, deleting, renaming, or reordering it always sticks.
 
 ## How content reaches the page
 

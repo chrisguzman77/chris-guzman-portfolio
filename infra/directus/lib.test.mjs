@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import { DirectusClient, planSchema, planSeed, seedKeys } from "./lib.mjs";
+import { DirectusClient, planSchema, planSeed, sameJson, seedKeys } from "./lib.mjs";
 import { CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const EMPTY = { collections: [], fields: [], relations: [] };
@@ -100,31 +100,36 @@ test("schema declares every content collection, status on non-singletons, unique
   assert.equal(projectFields.some((f) => f.field === "gallery"), false);
 });
 
-test("planSeed inserts only items whose key is missing", () => {
-  const existing = [{ id: 1, slug: "a", title: "Edited by Chris" }];
-  const seed = [
-    { slug: "a", title: "Seed A" },
-    { slug: "b", title: "Seed B" },
-  ];
-  assert.deepEqual(planSeed(existing, seed, seedKeys.projects), [{ slug: "b", title: "Seed B" }]);
+test("planSeed on an empty collection returns every seed item", () => {
+  const seed = [{ slug: "a" }, { slug: "b" }];
+  assert.deepEqual(planSeed([], seed), seed);
 });
 
-test("planSeed is idempotent: a second run plans zero inserts", () => {
+test("planSeed on a collection with any item returns nothing, even an unrelated one", () => {
+  const existing = [{ id: 1, slug: "renamed-by-chris" }];
+  assert.deepEqual(planSeed(existing, [{ slug: "a" }, { slug: "b" }]), []);
+});
+
+test("planSeed is idempotent: a second run after seeding plans nothing", () => {
   const seed = [{ slug: "a" }, { slug: "b" }];
-  const first = planSeed([], seed, seedKeys.projects);
+  const first = planSeed([], seed);
   assert.equal(first.length, 2);
   const afterFirst = first.map((item, i) => ({ id: i + 1, ...item }));
-  assert.deepEqual(planSeed(afterFirst, seed, seedKeys.projects), []);
+  assert.deepEqual(planSeed(afterFirst, seed), []);
 });
 
-test("planSeed never returns an existing item (no updates), even if fields differ", () => {
-  const existing = [{ id: 7, company: "Acme", role: "Intern", location: "Changed" }];
-  const seed = [{ company: "Acme", role: "Intern", location: "Original" }];
-  assert.deepEqual(planSeed(existing, seed, seedKeys.experience), []);
+test("planSeed does not re-create a seed item Chris deleted while others remain", () => {
+  const existing = [{ id: 2, slug: "b" }];
+  assert.deepEqual(planSeed(existing, [{ slug: "a" }, { slug: "b" }]), []);
 });
 
-test("planSeed de-duplicates seed items with the same key", () => {
-  assert.deepEqual(planSeed([], [{ slug: "a" }, { slug: "a" }], seedKeys.projects), [{ slug: "a" }]);
+test("sameJson ignores object key order but not values or array order", () => {
+  assert.equal(sameJson({ a: 1, b: { c: [1, 2] } }, { b: { c: [1, 2] }, a: 1 }), true);
+  assert.equal(sameJson({ a: 1 }, { a: 2 }), false);
+  assert.equal(sameJson({ c: ["x", "y"] }, { c: ["y", "x"] }), false);
+  assert.equal(sameJson({ a: 1 }, { a: 1, b: 2 }), false);
+  assert.equal(sameJson(false, false), true);
+  assert.equal(sameJson(false, null), false);
 });
 
 test("seedKeys: singletons, experience company+role, education, involvement, projects", () => {
@@ -141,8 +146,8 @@ test("seedKeys: singletons, experience company+role, education, involvement, pro
   assert.equal(seedKeys.education({ school: "AU" }), "AU");
   assert.equal(seedKeys.involvement({ organization: "ACM@AU" }), "ACM@AU");
   assert.equal(seedKeys.projects({ slug: "this-portfolio" }), "this-portfolio");
-  assert.equal(planSeed([{ id: 1 }], [{ name: "x" }], seedKeys.profile).length, 0);
-  assert.equal(planSeed([], [{ name: "x" }], seedKeys.profile).length, 1);
+  assert.equal(planSeed([{ id: 1 }], [{ name: "x" }]).length, 0);
+  assert.equal(planSeed([], [{ name: "x" }]).length, 1);
 });
 
 test("seed files: valid JSON, no phone number, unique keys", async () => {

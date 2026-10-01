@@ -54,21 +54,25 @@ export function planSchema(existing, desired) {
   return [...collections, ...fields, ...relations];
 }
 
-/** Seed items whose key is not already present (insert-only, de-duplicated). */
-export function planSeed(existingItems, seedItems, keyFn) {
-  const seen = new Set(existingItems.map(keyFn));
-  const inserts = [];
-  for (const item of seedItems) {
-    const key = keyFn(item);
-    if (!seen.has(key)) {
-      seen.add(key);
-      inserts.push(item);
-    }
-  }
-  return inserts;
+/**
+ * Seed a collection only while it is completely empty (any status). Once it has
+ * any item, nothing is planned, so deleting or renaming content always sticks.
+ */
+export function planSeed(existingItems, seedItems) {
+  return existingItems.length === 0 ? [...seedItems] : [];
 }
 
-/** Stable identity of a seed item per collection. Singletons: one row or none. */
+/** Deep equality for JSON values; object key order is ignored (jsonb reorders keys). */
+export function sameJson(a, b) {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
+}
+
+/** Stable identity of a seed item per collection (used to check seed files for duplicates). */
 export const seedKeys = {
   profile: () => "singleton",
   resume: () => "singleton",
