@@ -30,8 +30,8 @@ export function ExperienceEntry({
       </p>
       {!compact && entry.highlights.length > 0 && (
         <ul className="my-2 list-disc space-y-1 pl-[18px] text-[13.5px] leading-relaxed text-foreground/85">
-          {entry.highlights.map((highlight) => (
-            <li key={highlight}>{highlight}</li>
+          {entry.highlights.map((highlight, index) => (
+            <li key={`${index}-${highlight}`}>{highlight}</li>
           ))}
         </ul>
       )}

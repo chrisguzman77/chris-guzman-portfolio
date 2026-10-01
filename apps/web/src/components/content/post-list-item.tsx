@@ -25,10 +25,8 @@ export function PostListItem({ post }: { post: Post }) {
               </li>
             ))}
           </ul>
-        ) : (
-          <span />
-        )}
-        <Button asChild variant="outline" className="h-9 px-3.5 text-[13px]">
+        ) : null}
+        <Button asChild variant="outline" className="ml-auto h-9 px-3.5 text-[13px]">
           <Link href={`/blog/${post.slug}`} aria-label={`Read post: ${post.title}`}>
             Read post
             <ArrowRight aria-hidden="true" />

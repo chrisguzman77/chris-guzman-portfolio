@@ -57,4 +57,16 @@ describe("LiveStatus", () => {
     expect(screen.getByText("degraded · self-hosted on Proxmox")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("reports degraded when a 200 response has invalid JSON", async () => {
+    fetchMock.mockResolvedValue(new Response("not json", { status: 200 }));
+    render(await LiveStatus());
+    expect(screen.getByText("degraded · self-hosted on Proxmox")).toBeTruthy();
+  });
+
+  it("reports degraded when a 200 response reports db down", async () => {
+    fetchMock.mockResolvedValue(Response.json({ status: "ok", db: "down" }));
+    render(await LiveStatus());
+    expect(screen.getByText("degraded · self-hosted on Proxmox")).toBeTruthy();
+  });
 });

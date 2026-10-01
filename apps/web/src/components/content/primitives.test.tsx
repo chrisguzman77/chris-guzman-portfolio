@@ -19,6 +19,11 @@ describe("PageHeader", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Experience" })).toBeTruthy();
     expect(container.querySelectorAll("p")).toHaveLength(1);
   });
+
+  it("carries no outer margin or padding on its root", () => {
+    const { container } = render(<PageHeader prompt="$ ls" title="Title" />);
+    expect((container.firstElementChild as HTMLElement).className).not.toMatch(/\b(m|p)[btxylr]?-/);
+  });
 });
 
 describe("SectionHeading", () => {
@@ -27,6 +32,11 @@ describe("SectionHeading", () => {
     const heading = screen.getByRole("heading", { level: 2, name: "Featured projects" });
     expect(heading.id).toBe("featured");
     expect(heading.textContent).toBe("01Featured projects");
+  });
+
+  it("carries no outer margin or padding on its root", () => {
+    const { container } = render(<SectionHeading number="01" title="Featured" />);
+    expect((container.firstElementChild as HTMLElement).className).not.toMatch(/\b(m|p)[btxylr]?-/);
   });
 
   it("renders an optional right-side link", () => {

@@ -16,7 +16,7 @@ export function SectionHeading({
   id?: string;
 }) {
   return (
-    <div className="mb-[18px] flex items-baseline justify-between gap-4">
+    <div className="flex items-baseline justify-between gap-4">
       <h2 id={id} className="text-xl font-semibold tracking-tight">
         <span
           aria-hidden="true"
