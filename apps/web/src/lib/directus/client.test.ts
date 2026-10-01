@@ -64,4 +64,11 @@ describe("directusGet", () => {
     fetchMock.mockResolvedValue(Response.json({}));
     await expect(directusGet("resume", ["resume"])).resolves.toBeNull();
   });
+
+  it("throws DirectusUnavailableError when the 200 body is not valid JSON", async () => {
+    fetchMock.mockResolvedValue(new Response("<html>oops", { status: 200 }));
+    const err = await directusGet("profile", ["profile"]).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DirectusUnavailableError);
+    expect((err as Error).cause).toBeInstanceOf(SyntaxError);
+  });
 });

@@ -3,8 +3,8 @@ import { connection } from "next/server";
 import { serverEnv } from "@/lib/env";
 
 export class DirectusUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "DirectusUnavailableError";
   }
 }
@@ -32,6 +32,12 @@ export async function directusGet(path: string, tags: string[]): Promise<unknown
   if (!res.ok) {
     throw new DirectusUnavailableError(`Directus returned ${res.status} for ${path}`);
   }
-  const body = (await res.json()) as { data?: unknown };
-  return body.data ?? null;
+  try {
+    const body = (await res.json()) as { data?: unknown };
+    return body.data ?? null;
+  } catch (error) {
+    throw new DirectusUnavailableError(`Directus returned invalid JSON for ${path}`, {
+      cause: error,
+    });
+  }
 }

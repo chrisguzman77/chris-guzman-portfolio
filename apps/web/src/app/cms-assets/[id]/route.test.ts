@@ -73,4 +73,23 @@ describe("GET /cms-assets/[id]", () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));
     expect((await call(ID)).status).toBe(502);
   });
+
+  it("sandboxes and forces download for non-allow-listed types such as SVG", async () => {
+    referenced.mockResolvedValue(true);
+    fetchMock.mockResolvedValue(
+      new Response("<svg/>", { headers: { "content-type": "image/svg+xml" } }),
+    );
+    const res = await call(ID);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+    expect(res.headers.get("content-disposition")).toBe("attachment");
+  });
+
+  it.each(["image/png", "application/pdf"])("does not sandbox %s", async (type) => {
+    referenced.mockResolvedValue(true);
+    fetchMock.mockResolvedValue(new Response("x", { headers: { "content-type": type } }));
+    const res = await call(ID);
+    expect(res.headers.get("content-security-policy")).toBeNull();
+    expect(res.headers.get("content-disposition")).toBeNull();
+  });
 });
