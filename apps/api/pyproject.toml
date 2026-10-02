@@ -7,19 +7,19 @@ requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.141",
   "uvicorn[standard]>=0.53",
-  "pydantic>=2.13",
+  "pydantic[email]>=2.13",
   "pydantic-settings>=2.15",
   "sqlalchemy[asyncio]>=2.0.54",
   "asyncpg>=0.31",
   "alembic>=1.20",
   "structlog>=26.1",
+  "httpx>=0.28",
 ]
 
 [dependency-groups]
 dev = [
   "pytest>=9.1",
   "pytest-asyncio>=1.4",
-  "httpx>=0.28",
   "ruff>=0.16",
   "pyright>=1.1.414",
 ]
