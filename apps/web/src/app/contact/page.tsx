@@ -34,7 +34,7 @@ export default async function ContactPage() {
   const github = profile?.github_url ?? siteConfig.links.github;
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 pb-16">
+    <div className="mx-auto w-full max-w-5xl px-6 py-10">
       <PageHeader prompt="$ ping chris" title="Get in touch" />
       <div className="mt-4 grid items-start gap-4 md:grid-cols-[1.7fr_1fr]">
         <section
