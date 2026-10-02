@@ -92,7 +92,13 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
 
 ## GitHub activity
 
-The API refreshes the contribution calendar when it is an hour old (checked every 10 minutes). If GitHub fails, the last copy keeps showing. With no `GITHUB_ACTIVITY_TOKEN` the home page hides the section. Check it with:
+The API refreshes the contribution calendar when it is an hour old (checked every 10 minutes). If GitHub fails, the last copy keeps showing. Without `GITHUB_ACTIVITY_TOKEN` the home page hides the section only if nothing was ever cached: once a calendar has been fetched, removing or revoking the token keeps serving that last copy indefinitely. To hide the section after removing the token, delete the cached row:
+
+```bash
+docker exec -it portfolio-postgres-1 psql -U postgres -d portfolio -c "delete from github_activity_cache;"
+```
+
+Check it with:
 
 ```bash
 curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200

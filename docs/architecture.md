@@ -59,17 +59,17 @@ sequenceDiagram
 ```mermaid
 flowchart LR
   B[Browser] -- POST /v1/contact --> A[api]
-  A -- rate limit, then Turnstile --> A
+  A -- siteverify --> T[Cloudflare Turnstile]
   A --> P[(postgres)]
   A -. background send .-> R[Resend]
   A -. retry job, every 5 min .-> R
   W[web · home page server] -- GET /v1/github/activity --> A
   A -- cached calendar --> P
-  A -. hourly refresh job .-> G[GitHub GraphQL]
+  A -. refresh when an hour old, checked every 10 min .-> G[GitHub GraphQL]
 ```
 
 - **Contact:** the browser posts to `api.christopherguzman.me/v1/contact`. The API applies the rate limit, verifies Turnstile, saves the message in Postgres, then sends the email through Resend in the background. A retry job resends failed or stuck messages.
-- **GitHub activity:** the home page server reads `http://api:8000/v1/github/activity`, which serves the calendar cached in Postgres. A job refreshes it hourly from GitHub's GraphQL API.
+- **GitHub activity:** the home page server reads `http://api:8000/v1/github/activity`, which serves the calendar cached in Postgres. A job refreshes it from GitHub's GraphQL API when it is an hour old (checked every 10 minutes).
 - Rate limits and both jobs run inside the API process ([ADR 0007](adr/0007-in-process-rate-limits-and-jobs.md)).
 
 | Failure | Result |
