@@ -4,6 +4,8 @@ export type ServerEnv = {
   apiInternalUrl: string | undefined;
   revalidateSecret: string | undefined;
   siteUrl: string;
+  turnstileSiteKey: string | undefined;
+  publicApiUrl: string;
 };
 
 function read(name: string): string | undefined {
@@ -23,5 +25,7 @@ export function serverEnv(): ServerEnv {
     apiInternalUrl: readUrl("API_INTERNAL_URL"),
     revalidateSecret: read("REVALIDATE_SECRET"),
     siteUrl: readUrl("SITE_URL") ?? "https://christopherguzman.me",
+    turnstileSiteKey: read("TURNSTILE_SITE_KEY"),
+    publicApiUrl: readUrl("PUBLIC_API_URL") ?? "https://api.christopherguzman.me",
   };
 }

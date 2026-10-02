@@ -24,6 +24,14 @@ describe("PageHeader", () => {
     const { container } = render(<PageHeader prompt="$ ls" title="Title" />);
     expect((container.firstElementChild as HTMLElement).className).not.toMatch(/\b(m|p)[btxylr]?-/);
   });
+
+  it("sets the title at 30px with 16px under the prompt", () => {
+    render(<PageHeader prompt="$ ls" title="Title" />);
+    const h1 = screen.getByRole("heading", { level: 1, name: "Title" });
+    expect(h1.className).toContain("text-3xl");
+    expect(h1.className).toContain("mt-4");
+    expect(h1.className).not.toContain("text-4xl");
+  });
 });
 
 describe("SectionHeading", () => {
