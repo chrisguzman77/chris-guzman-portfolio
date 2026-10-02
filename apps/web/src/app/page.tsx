@@ -7,13 +7,15 @@ import { LiveStatus, LiveStatusFallback } from "@/components/content/live-status
 import { PostListItem } from "@/components/content/post-list-item";
 import { ProjectCard } from "@/components/content/project-card";
 import { SectionHeading } from "@/components/content/section-heading";
+import { GitHubActivity } from "@/components/content/github-activity";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
-import { sectionNumbers } from "@/lib/format";
+import { lastPathSegment, sectionNumbers } from "@/lib/format";
+import { getGithubActivity } from "@/lib/github-activity";
 import { personJsonLd, serializeJsonLd } from "@/lib/seo";
 import { siteConfig } from "@/lib/site";
 
-type HomeSection = "projects" | "experience" | "blog";
+type HomeSection = "projects" | "experience" | "activity" | "blog";
 
 const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
@@ -22,11 +24,12 @@ const outlineButton = `inline-flex items-center gap-2 rounded-md border border-i
 const ghostLink = `inline-flex items-center gap-2 rounded-md py-2 pr-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground ${focusRing}`;
 
 export default async function HomePage() {
-  const [profile, projects, experience, posts] = await Promise.all([
+  const [profile, projects, experience, posts, activity] = await Promise.all([
     getProfile(),
     getProjects(),
     getExperience(),
     getPosts(),
+    getGithubActivity(),
   ]);
 
   const name = profile?.name ?? siteConfig.name;
@@ -40,6 +43,7 @@ export default async function HomePage() {
   const visible: HomeSection[] = [];
   if (featured.length > 0) visible.push("projects");
   if (homeRoles.length > 0) visible.push("experience");
+  if (activity) visible.push("activity");
   if (latestPosts.length > 0) visible.push("blog");
   const numbers = sectionNumbers(visible);
 
@@ -136,6 +140,20 @@ export default async function HomePage() {
               </li>
             ))}
           </ol>
+        </section>
+      ) : null}
+
+      {activity ? (
+        <section className="border-t border-border py-9">
+          <SectionHeading
+            number={numbers.activity}
+            title="GitHub activity"
+            href={githubUrl}
+            linkLabel={`@${lastPathSegment(githubUrl)}`}
+          />
+          <div className="mt-4">
+            <GitHubActivity activity={activity} profileUrl={githubUrl} />
+          </div>
         </section>
       ) : null}
 
