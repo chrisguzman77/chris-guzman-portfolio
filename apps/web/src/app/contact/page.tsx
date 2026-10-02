@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/content/page-header";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { getProfile } from "@/lib/directus/queries";
 import { serverEnv } from "@/lib/env";
+import { lastPathSegment } from "@/lib/format";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -23,10 +24,6 @@ const iconClass =
 const valueClass = "break-all font-mono text-[11px] text-muted-foreground";
 const openClass =
   "ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-background";
-
-function lastPathSegment(url: string): string {
-  return new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? url;
-}
 
 export default async function ContactPage() {
   const profile = await getProfile();
