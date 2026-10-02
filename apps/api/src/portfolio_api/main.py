@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from portfolio_api.clients.email import ResendSender
+from portfolio_api.clients.github import GitHubGraphQL
 from portfolio_api.clients.turnstile import CloudflareTurnstile
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker, ping
@@ -16,8 +17,9 @@ from portfolio_api.jobs import Job, run_forever
 from portfolio_api.observability import configure_logging
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.request_id import install_request_id
-from portfolio_api.routers import contact, health
+from portfolio_api.routers import contact, github, health
 from portfolio_api.services.contact import ContactService
+from portfolio_api.services.github import GitHubActivityService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -55,6 +57,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.contact_service = contact_service
     jobs.append(Job("contact-retry", 300, contact_service.retry_due))
+    github_source = GitHubGraphQL(http, settings.github_token) if settings.github_token else None
+    github_activity = GitHubActivityService(sessions, github_source, login=settings.github_login)
+    app.state.github_activity = github_activity
+    if github_source is not None:
+        # Checked every 10 minutes; GitHub is called only when the copy is an hour old.
+        jobs.append(Job("github-refresh", 600, github_activity.refresh_if_stale))
     install_error_handlers(app)
     install_request_id(app)
     app.add_middleware(
@@ -65,4 +73,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(health.router)
     app.include_router(contact.router)
+    app.include_router(github.router)
     return app
