@@ -3,8 +3,9 @@
 import { Check, Copy, Mail } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+// Same compact size as the Open buttons beside it on /contact.
 const buttonClass =
-  "inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-background";
+  "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-background";
 
 const subscribe = () => () => {};
 const clipboardAvailable = () => typeof navigator.clipboard?.writeText === "function";
@@ -20,7 +21,7 @@ export function CopyEmail({ email }: { email: string }) {
   if (!canCopy || status === "failed") {
     return (
       <a href={`mailto:${email}`} className={buttonClass}>
-        <Mail className="size-4" aria-hidden />
+        <Mail className="size-3.5" aria-hidden />
         Send email
       </a>
     );
@@ -41,11 +42,11 @@ export function CopyEmail({ email }: { email: string }) {
   return (
     <button type="button" onClick={copy} className={buttonClass}>
       {copied ? (
-        <Check className="size-4 text-accent-brand" aria-hidden />
+        <Check className="size-3.5 text-accent-brand" aria-hidden />
       ) : (
-        <Copy className="size-4" aria-hidden />
+        <Copy className="size-3.5" aria-hidden />
       )}
-      <span aria-live="polite">{copied ? "Copied" : "Copy address"}</span>
+      <span aria-live="polite">{copied ? "Copied" : "Copy"}</span>
     </button>
   );
 }

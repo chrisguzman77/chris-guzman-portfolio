@@ -38,22 +38,22 @@ describe("CopyEmail", () => {
     setClipboard({ writeText });
     render(<CopyEmail email="chguzman@augusta.edu" />);
 
-    await click("Copy address");
+    await click("Copy");
 
     expect(writeText).toHaveBeenCalledWith("chguzman@augusta.edu");
     expect(screen.getByText("Copied").getAttribute("aria-live")).toBe("polite");
   });
 
-  it("returns to 'Copy address' after 2 seconds", async () => {
+  it("returns to 'Copy' after 2 seconds", async () => {
     setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
     render(<CopyEmail email="chguzman@augusta.edu" />);
 
-    await click("Copy address");
+    await click("Copy");
     advance(1999);
     expect(screen.getByText("Copied")).toBeTruthy();
     advance(1);
 
-    expect(screen.getByRole("button", { name: "Copy address" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
     expect(screen.queryByText("Copied")).toBeNull();
   });
 
@@ -61,7 +61,7 @@ describe("CopyEmail", () => {
     setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
     render(<CopyEmail email="chguzman@augusta.edu" />);
 
-    await click("Copy address");
+    await click("Copy");
     advance(1500);
     await click("Copied");
     advance(1000);
@@ -76,7 +76,7 @@ describe("CopyEmail", () => {
     setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
     const { unmount } = render(<CopyEmail email="chguzman@augusta.edu" />);
 
-    await click("Copy address");
+    await click("Copy");
     expect(vi.getTimerCount()).toBe(1);
     unmount();
 
@@ -96,7 +96,7 @@ describe("CopyEmail", () => {
     setClipboard({ writeText: vi.fn().mockRejectedValue(new Error("denied")) });
     render(<CopyEmail email="chguzman@augusta.edu" />);
 
-    await click("Copy address");
+    await click("Copy");
 
     const link = screen.getByRole("link", { name: /send email/i });
     expect(link.getAttribute("href")).toBe("mailto:chguzman@augusta.edu");
