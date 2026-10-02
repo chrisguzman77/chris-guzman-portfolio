@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
 import type { Experience, Post, Profile, Project } from "@/lib/directus/schemas";
+import { getGithubActivity } from "@/lib/github-activity";
 import { siteConfig } from "@/lib/site";
 
 import HomePage from "./page";
@@ -14,6 +15,8 @@ vi.mock("@/lib/directus/queries", () => ({
   getExperience: vi.fn(),
   getPosts: vi.fn(),
 }));
+
+vi.mock("@/lib/github-activity", () => ({ getGithubActivity: vi.fn() }));
 
 vi.mock("@/components/content/live-status", () => ({
   LiveStatus: () => <p>status line stub</p>,
@@ -84,6 +87,12 @@ const experience: Experience[] = [
   role({ id: 3, company: "Globex", end_date: "2026-07-01" }),
 ];
 
+const activity = {
+  total: 42,
+  weeks: [{ days: [{ date: "2026-09-14", count: 3, level: 4 }] }],
+  fetched_at: "2026-10-02T12:00:00Z",
+};
+
 const posts: Post[] = [
   post({ id: 1, slug: "p1", title: "Post One" }),
   post({ id: 2, slug: "p2", title: "Post Two" }),
@@ -108,6 +117,7 @@ beforeEach(() => {
   vi.mocked(getProjects).mockResolvedValue(projects);
   vi.mocked(getExperience).mockResolvedValue(experience);
   vi.mocked(getPosts).mockResolvedValue(posts);
+  vi.mocked(getGithubActivity).mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -246,5 +256,38 @@ describe("HomePage sections", () => {
       expect.stringMatching(/^02Blog/),
     ]);
     expect(screen.queryByRole("link", { name: /all projects/ })).toBeNull();
+  });
+});
+
+describe("HomePage GitHub activity", () => {
+  it("shows GitHub activity after Experience and numbers it", async () => {
+    vi.mocked(getGithubActivity).mockResolvedValue(activity);
+    vi.mocked(getPosts).mockResolvedValue([]);
+    render(await HomePage());
+
+    expect(numberedHeadings()).toEqual([
+      expect.stringMatching(/^01Featuredprojects/),
+      expect.stringMatching(/^02Experience/),
+      expect.stringMatching(/^03GitHubactivity/),
+    ]);
+    const handle = screen.getByRole("link", { name: "@profile-gh" });
+    expect(handle.getAttribute("href")).toBe("https://github.com/profile-gh");
+    expect(handle.getAttribute("target")).toBe("_blank");
+    expect(handle.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it("hides the section and keeps Blog as 03 when activity is unavailable", async () => {
+    render(await HomePage());
+
+    const headings = numberedHeadings();
+    expect(headings.some((h) => h.includes("GitHubactivity"))).toBe(false);
+    expect(headings.at(-1)).toMatch(/^03Blog/);
+  });
+
+  it("numbers Blog 04 when activity is shown", async () => {
+    vi.mocked(getGithubActivity).mockResolvedValue(activity);
+    render(await HomePage());
+
+    expect(numberedHeadings().at(-1)).toMatch(/^04Blog/);
   });
 });

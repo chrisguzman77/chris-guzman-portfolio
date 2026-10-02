@@ -24,6 +24,14 @@ describe("PageHeader", () => {
     const { container } = render(<PageHeader prompt="$ ls" title="Title" />);
     expect((container.firstElementChild as HTMLElement).className).not.toMatch(/\b(m|p)[btxylr]?-/);
   });
+
+  it("sets the title at 30px with 16px under the prompt", () => {
+    render(<PageHeader prompt="$ ls" title="Title" />);
+    const h1 = screen.getByRole("heading", { level: 1, name: "Title" });
+    expect(h1.className).toContain("text-3xl");
+    expect(h1.className).toContain("mt-4");
+    expect(h1.className).not.toContain("text-4xl");
+  });
 });
 
 describe("SectionHeading", () => {
@@ -48,9 +56,25 @@ describe("SectionHeading", () => {
         linkLabel="all projects"
       />,
     );
-    expect(screen.getByRole("link", { name: "all projects" }).getAttribute("href")).toBe(
-      "/projects",
+    const link = screen.getByRole("link", { name: "all projects" });
+    expect(link.getAttribute("href")).toBe("/projects");
+    expect(link.getAttribute("target")).toBeNull();
+  });
+
+  it("opens an external link in a new tab", () => {
+    render(
+      <SectionHeading
+        number="03"
+        title="GitHub activity"
+        href="https://github.com/octo"
+        linkLabel="@octo"
+      />,
     );
+    const link = screen.getByRole("link", { name: "@octo" });
+    expect(link.getAttribute("href")).toBe("https://github.com/octo");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(link.textContent).toBe("@octo →");
   });
 
   it("renders an optional count instead of a link", () => {

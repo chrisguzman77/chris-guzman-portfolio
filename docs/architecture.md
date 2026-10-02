@@ -54,6 +54,32 @@ sequenceDiagram
 - **Assets.** `/cms-assets/<id>` streams files from Directus with the read-only token (`Cache-Control: public, max-age=31536000, immutable`) and only for IDs referenced by published content or the resume; `cms.christopherguzman.me` stays behind Cloudflare Access.
 - **Schema as code.** `infra/directus/bootstrap.mjs` runs inside the Directus container on every deploy: it creates missing collections and fields (never alters or deletes), the read-only `web-reader` policy and token, the revalidation Flow, and seed items for collections that are still empty.
 
+## Interactions (Phase 4)
+
+```mermaid
+flowchart LR
+  B[Browser] -- POST /v1/contact --> A[api]
+  A -- siteverify --> T[Cloudflare Turnstile]
+  A --> P[(postgres)]
+  A -. background send .-> R[Resend]
+  A -. retry job, every 5 min .-> R
+  W[web · home page server] -- GET /v1/github/activity --> A
+  A -- cached calendar --> P
+  A -. refresh when an hour old, checked every 10 min .-> G[GitHub GraphQL]
+```
+
+- **Contact:** the browser posts to `api.christopherguzman.me/v1/contact`. The API applies the rate limit, verifies Turnstile, saves the message in Postgres, then sends the email through Resend in the background. A retry job resends failed or stuck messages.
+- **GitHub activity:** the home page server reads `http://api:8000/v1/github/activity`, which serves the calendar cached in Postgres. A job refreshes it from GitHub's GraphQL API when it is an hour old (checked every 10 minutes).
+- Rate limits and both jobs run inside the API process ([ADR 0007](adr/0007-in-process-rate-limits-and-jobs.md)).
+
+| Failure | Result |
+|---|---|
+| API down | Contact form shows the email fallback; heatmap hidden; rest of both pages unaffected |
+| Resend down / key revoked | Message saved, retried every 5 min up to 5 attempts |
+| Turnstile down | `503`; form shows the email fallback |
+| GitHub down / token revoked | Last cached heatmap keeps showing |
+| Accounts not set up yet | Form shows "coming soon"; heatmap hidden |
+
 ## Notes
 
 - FastAPI's `/docs` and `/openapi.json` are intentionally public (the API contract is part of the showcase).

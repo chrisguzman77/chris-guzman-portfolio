@@ -72,6 +72,38 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
 - **Re-run the bootstrap by hand:** on the VM it runs on every deploy; locally `make cms-bootstrap`.
 - **Optional hardening:** `/api/revalidate` is only ever called by Directus over the Docker network (`http://web:3000`), so a Cloudflare WAF custom rule that blocks `christopherguzman.me/api/revalidate` at the edge removes the public endpoint entirely. The route already rejects requests without the secret (401, not logged).
 
+## Contact messages
+
+- Messages are saved before any email is sent. The API retries failed or stuck sends every 5 minutes, up to 5 attempts.
+- Read recent messages on the VM:
+
+  ```bash
+  docker exec -it portfolio-postgres-1 psql -U postgres -d portfolio -c "select created_at, name, email, email_status, attempts, last_error from contact_submissions order by created_at desc limit 20;"
+  ```
+
+- Retry one that gave up (after fixing the cause, e.g. a new Resend key):
+
+  ```bash
+  docker exec -it portfolio-postgres-1 psql -U postgres -d portfolio -c "update contact_submissions set attempts = 0, updated_at = now() - interval '6 minutes' where id = '<id>';"
+  ```
+
+  The next retry run (within 5 minutes) sends it.
+- Until `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set, `/contact` shows "Contact form coming soon" and the API answers `503 contact_unavailable`. Without `RESEND_API_KEY` or `CONTACT_TO`, messages are saved and wait as `pending`.
+
+## GitHub activity
+
+The API refreshes the contribution calendar when it is an hour old (checked every 10 minutes). If GitHub fails, the last copy keeps showing. Without `GITHUB_ACTIVITY_TOKEN` the home page hides the section only if nothing was ever cached: once a calendar has been fetched, removing or revoking the token keeps serving that last copy indefinitely. To hide the section after removing the token, delete the cached row:
+
+```bash
+docker exec -it portfolio-postgres-1 psql -U postgres -d portfolio -c "delete from github_activity_cache;"
+```
+
+Check it with:
+
+```bash
+curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
+```
+
 ## Rotate secrets
 
 - **A database password:** `make secrets-edit` on the laptop, commit, merge; the next deploy applies it. Postgres role passwords also need `ALTER ROLE … PASSWORD` inside the database.
@@ -79,6 +111,10 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
 - **`DIRECTUS_WEB_TOKEN` or `REVALIDATE_SECRET`:** generate a value with `openssl rand -hex 32`, `make secrets-edit`, `make secrets-check`, commit, merge. The deploy recreates `web` with the new value and the CMS bootstrap updates the `web-reader` user's token and the revalidation Flow's secret header to match.
 - **Tunnel token:** Zero Trust → Tunnels → `portfolio` → Refresh token; update `CLOUDFLARE_TUNNEL_TOKEN`; deploy.
 - **Runner PAT (expires yearly):** create a new portfolio-runner token, update GITHUB_RUNNER_TOKEN with make secrets-edit, merge, then run the "Update the runner" commands. Normal deploys never restart the runner, so they do not apply this value.
+- **Resend API key:** create a new key in Resend, `make secrets-edit` to set `RESEND_API_KEY`, merge, then delete the old key in Resend.
+- **Turnstile keys:** rotate the secret in the Turnstile widget settings, update `TURNSTILE_SECRET_KEY` (and `TURNSTILE_SITE_KEY` if it changed) with `make secrets-edit`, merge.
+- **GitHub activity token (expires yearly):** create a new fine-grained token (public repositories, read-only), set `GITHUB_ACTIVITY_TOKEN` with `make secrets-edit`, merge.
+- **Contact inbox:** change `CONTACT_TO` (e.g. after graduation) with `make secrets-edit`, merge.
 - **Age keys:** generate a new key, add it to `.sops.yaml`, `sops updatekeys infra/compose/prod.enc.env`, remove the old recipient, `updatekeys` again.
 
 ## Outage checklist

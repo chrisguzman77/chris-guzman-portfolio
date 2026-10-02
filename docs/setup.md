@@ -24,7 +24,13 @@ Ordered checklist of every external account and machine this project needs. Each
 - First deploy and turning on automatic deploys: [`docs/runbook.md`](runbook.md).
 
 ## Email, Turnstile, GitHub PAT (Phase 4)
-- Resend account + domain DKIM/SPF records; Turnstile site key; GitHub PAT with `read:user`.
+Local development needs none of this: `compose.dev.yaml` uses Turnstile's published test keys and no Resend key (messages stay `pending`).
+
+1. **Resend:** sign up, add domain `christopherguzman.me`, add the DNS records it lists (DKIM, SPF/MX for its sending subdomain, DMARC if not present) in Cloudflare DNS, wait for "Verified", create an API key with "Sending access" for that domain.
+2. **Turnstile:** Cloudflare dashboard → Turnstile → add widget, hostnames `christopherguzman.me` and `localhost`, mode Managed. This gives a site key and a secret key.
+3. **GitHub:** Settings → Public profile → enable "Include private contributions on my profile". Settings → Developer settings → fine-grained token, public repositories read-only, no extra permissions, 1-year expiry.
+4. **Secrets:** `make secrets-edit` to add `RESEND_API_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `GITHUB_ACTIVITY_TOKEN`, `CONTACT_TO`; add the same keys to `infra/compose/prod.env.example`; `make secrets-check`; commit and merge.
+5. **Optional:** a Cloudflare rate-limiting rule on `api.christopherguzman.me/v1/contact` as a second layer (the free plan allows one rule).
 
 ## Anthropic (Phase 5)
 - API key for Claude Sonnet 5; set a monthly spend limit in the console.

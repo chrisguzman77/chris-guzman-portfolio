@@ -10,3 +10,4 @@ One file per decision, numbered, never edited after acceptance (superseded inste
 | [0004](0004-sops-age-secrets.md) | Secrets as SOPS+age encrypted files in the repo |
 | [0005](0005-self-hosted-runner-deploys.md) | Deploy via an ephemeral self-hosted GitHub Actions runner inside the VM |
 | [0006](0006-runner-in-compose.md) | Deploy runner as a Compose service; deploys pinned to commit SHAs |
+| [0007](0007-in-process-rate-limits-and-jobs.md) | In-process rate limits and background jobs; single API instance, no Redis |

@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+const linkClass = "shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground";
+
 export function SectionHeading({
   number,
   title,
@@ -27,13 +29,17 @@ export function SectionHeading({
         {title}
       </h2>
       {href && linkLabel ? (
-        <Link
-          href={href}
-          className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {linkLabel}
-          <span aria-hidden="true"> →</span>
-        </Link>
+        href.startsWith("http") ? (
+          <a href={href} target="_blank" rel="noopener noreferrer" className={linkClass}>
+            {linkLabel}
+            <span aria-hidden="true"> →</span>
+          </a>
+        ) : (
+          <Link href={href} className={linkClass}>
+            {linkLabel}
+            <span aria-hidden="true"> →</span>
+          </Link>
+        )
       ) : count ? (
         <span className="shrink-0 font-mono text-xs text-muted-foreground">{count}</span>
       ) : null}

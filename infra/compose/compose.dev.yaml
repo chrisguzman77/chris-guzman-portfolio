@@ -53,6 +53,11 @@ services:
     environment:
       API_DATABASE_URL: postgresql+asyncpg://portfolio:${PORTFOLIO_DB_PASSWORD:-portfolio}@postgres:5432/portfolio
       API_CORS_ORIGINS: '["http://localhost:3000"]'
+      # Cloudflare's published Turnstile test secret: every token passes.
+      API_TURNSTILE_SECRET: 1x0000000000000000000000000000000AA
+      API_CONTACT_TO: ${CONTACT_TO:-dev@example.com}
+      API_RESEND_API_KEY: ${RESEND_API_KEY:-}
+      API_GITHUB_TOKEN: ${GITHUB_ACTIVITY_TOKEN:-}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
 
@@ -64,6 +69,9 @@ services:
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:-dev-revalidate-secret}
       API_INTERNAL_URL: http://api:8000
       SITE_URL: http://localhost:3000
+      # Cloudflare's published Turnstile test site key (always passes).
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      PUBLIC_API_URL: http://localhost:8000
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
 
