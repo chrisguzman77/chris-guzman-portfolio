@@ -8,6 +8,7 @@ import {
   formatRange,
   graduationLabel,
   isCurrent,
+  lastPathSegment,
   sectionNumbers,
   sortExperience,
 } from "./format";
@@ -105,5 +106,14 @@ describe("sectionNumbers", () => {
 
   it("returns an empty map for no sections", () => {
     expect(sectionNumbers([])).toEqual({});
+  });
+});
+
+describe("lastPathSegment", () => {
+  it.each([
+    ["https://github.com/chrisguzman77", "chrisguzman77"],
+    ["https://www.linkedin.com/in/christopher-emmanuel-guzman/", "christopher-emmanuel-guzman"],
+  ])("%s", (url, expected) => {
+    expect(lastPathSegment(url)).toBe(expected);
   });
 });

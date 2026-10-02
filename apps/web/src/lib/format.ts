@@ -51,3 +51,7 @@ export function sectionNumbers<T extends string>(visible: T[]): Record<T, string
     visible.map((key, index) => [key, String(index + 1).padStart(2, "0")]),
   ) as Record<T, string>;
 }
+
+export function lastPathSegment(url: string): string {
+  return new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? url;
+}
