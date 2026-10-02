@@ -139,8 +139,8 @@ Compose passes the secret ones as `${VAR:-}` (not `:?`), so the stack deploys be
 ### Home: GitHub activity
 
 - New section "GitHub activity" after Experience and before Blog, using `SectionHeading` with link label `@chrisguzman77` to the GitHub profile. Section numbering stays automatic (`sectionNumbers` gains `activity`; a hidden section is skipped).
-- Server component fetching `${API_INTERNAL_URL}/v1/github/activity` with a 300 s cache, inside `Suspense`, so a slow API never delays the page. Any error, non-200 or schema mismatch (zod) hides the section.
-- Card: month labels, a 7-row grid of weeks, footer `N contributions in the last year · updated hourly` and a less/more legend. Desktop shows 52 weeks; below `md` only the last 22 weeks show (older columns hidden with CSS).
+- Fetched on the server from `${API_INTERNAL_URL}/v1/github/activity` together with the page's other data (section numbers depend on whether it shows, so it cannot stream in later). A 1.5 s timeout and a module memo (successes kept 300 s, failures 60 s) keep a slow or hung API from delaying the page more than once a minute. Any error, non-200 or schema mismatch (zod) hides the section.
+- Card: month labels, a 7-row grid of weeks, footer `N contributions in the last year · updated hourly` and a less/more legend. Desktop shows the full year GitHub returns (52–53 weeks); below `md` only the last 22 weeks show (older columns hidden with CSS).
 - Cells use the accent at four strengths plus an empty color, defined as semantic tokens for both themes. Each cell has a `title` like `3 contributions on Sep 14, 2026` (`No contributions on …` for zero, `1 contribution on …` singular).
 - Accessibility: the grid is one `role="img"` with `aria-label="N GitHub contributions in the last year"`; the card links to the GitHub profile (new tab, `rel="noopener noreferrer"`).
 
