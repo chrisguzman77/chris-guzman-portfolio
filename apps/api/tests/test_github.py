@@ -102,8 +102,10 @@ async def test_graphql_client_maps_the_calendar() -> None:
 )
 async def test_graphql_failures_raise_github_error(response: httpx.Response) -> None:
     http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: response))
-    with pytest.raises(GitHubError):
+    with pytest.raises(GitHubError) as exc_info:
         await GitHubGraphQL(http, "gh_tok").fetch("chrisguzman77")
+    if response.status_code == 401:
+        assert "gh_tok" not in str(exc_info.value)
 
 
 async def test_refresh_stores_and_get_returns_it(db: Sessions) -> None:
@@ -132,12 +134,31 @@ async def test_refresh_if_stale_only_refreshes_after_an_hour(db: Sessions) -> No
     service = GitHubActivityService(db, source, login="x", clock=clock)
     await service.refresh_if_stale()  # nothing cached
     assert source.calls == 1
+    cached = await service.get()
+    assert cached is not None and cached.total == 3
     clock.now += timedelta(minutes=59)
     await service.refresh_if_stale()
     assert source.calls == 1
     clock.now += timedelta(minutes=1)
+    # Update the source to return different data on the second fetch
+    source.result = Activity(
+        total=7,
+        weeks=[
+            ActivityWeek(
+                days=[
+                    ActivityDay(date="2026-09-13", count=1, level=1),
+                    ActivityDay(date="2026-09-14", count=6, level=4),
+                ]
+            )
+        ],
+    )
     await service.refresh_if_stale()
     assert source.calls == 2
+    # Verify the cache was updated with new data
+    updated = await service.get()
+    assert updated is not None
+    assert updated.total == 7
+    assert updated.fetched_at == clock.now
 
 
 async def test_without_a_token_refresh_is_a_no_op(db: Sessions) -> None:
