@@ -30,7 +30,7 @@ Deferred: a Grafana table of chats (Phase 6), a second "checker" model call, tru
 
 | Area | Decision |
 |---|---|
-| Model | Groq `openai/gpt-oss-120b`, temperature 0.2, `reasoning_effort: "low"`, reasoning hidden, max 400 completion tokens, 20 s timeout |
+| Model | Groq `openai/gpt-oss-120b`, temperature 0.2, `reasoning_effort: "low"`, reasoning hidden, max 700 completion tokens (the cap includes hidden reasoning tokens), 20 s timeout |
 | Groq free limits (checked 2026-10-02) | 30 req/min, 1,000 req/day, 8,000 tokens/min, 200,000 tokens/day |
 | Embeddings | `BAAI/bge-small-en-v1.5` via `fastembed`, 384 dims, CPU, model baked into the API image |
 | Sources indexed | Everything published: profile, experience, education, involvement, certifications, projects, posts, resume PDF |
@@ -64,7 +64,7 @@ Dates, tech lists, and highlights are written into the markdown in plain sentenc
 
 ### Chunking and hashing
 
-- Split on headings, then paragraphs, into chunks of at most ~260 words (≈350 tokens) with ~40 words of overlap. Every chunk starts with the document title.
+- Split into blocks (paragraphs, each heading kept with the paragraph after it), then pack blocks greedily into chunks of at most ~260 words (≈350 tokens). A block longer than that is split into word windows with ~40 words of overlap. Every chunk starts with the document title.
 - `content_hash = sha256(embedding_model + "\n" + chunk_text)`.
 
 ### Sync
@@ -84,7 +84,7 @@ Embedding is CPU-bound and runs in a worker thread so the event loop stays respo
 
 - **On publish:** the existing revalidation Flow gets a second operation, chained after `revalidate`, that sends `POST http://api:8000/internal/reindex` with `X-Internal-Secret`. The endpoint returns 202 right away; a background task waits 5 seconds (several Flow calls within that window collapse into one sync), then syncs.
 - **Nightly:** a lifespan job runs a sync once every 24 hours.
-- **Startup:** if `rag_chunks` is empty, a sync runs in the background.
+- **Startup:** the nightly job also runs once when the API starts (a sync with no changes embeds nothing).
 - **By hand:** `portfolio-api reindex` (`make reindex` on the VM).
 
 `/internal/*` returns 404 unless the secret matches and the request has no `CF-Connecting-IP` header (anything through the Cloudflare Tunnel has one), so it is reachable only from containers on the VM.
@@ -154,7 +154,7 @@ Chat is enabled when `API_GROQ_API_KEY`, `API_DIRECTUS_TOKEN`, and `API_TURNSTIL
 Migration adds (pgvector extension already exists in the `portfolio` DB):
 
 - `rag_documents`: `id`, `source_type`, `source_id`, `title`, `url`, `updated_at`; unique `(source_type, source_id)`.
-- `rag_chunks`: `id`, `document_id` (FK, cascade), `ordinal`, `content`, `content_hash` (unique per document), `embedding vector(384)`, `embedding_model`, `tsv` (generated `to_tsvector('english', content)`); HNSW index (`vector_cosine_ops`) and GIN index on `tsv`.
+- `rag_chunks`: `id`, `document_id` (FK, cascade), `content`, `content_hash` (unique per document), `embedding vector(384)`, `embedding_model`, `tsv` (generated `to_tsvector('english', content)`); HNSW index (`vector_cosine_ops`) and GIN index on `tsv`.
 - `chat_sessions`: `id` (uuid), `ip_hash`, `question_count`, `created_at`.
 - `chat_messages`: `id`, `session_id` (FK, cascade), `question`, `answer`, `outcome` (enum `chat_outcome`: answered, no_match, uncited, error), `sources` (jsonb), `input_tokens`, `output_tokens`, `created_at`.
 - `chat_usage_daily`: `day` (date, PK), `tokens`, `requests`.
@@ -183,8 +183,10 @@ Seeded with `enabled: true` and three questions: "What projects has Chris built?
 
 `bootstrap.mjs` also:
 
-- creates an `api-reader` user with the existing read-only policy and the token `DIRECTUS_API_TOKEN` (synced every run, like the web token);
-- adds the `reindex` operation to the revalidation Flow, chained after `revalidate`, and keeps its options in sync.
+- creates an `api-reader` role and user with the existing read-only policy and the token `DIRECTUS_API_TOKEN` (synced every run, like the web token), only when `DIRECTUS_API_TOKEN` is set;
+- adds the `reindex` operation to the revalidation Flow, run after `revalidate` whether it succeeds or fails, and keeps its options in sync, only when `INTERNAL_API_SECRET` is set.
+
+Both are optional so deploys keep working before Chris adds the new secrets.
 
 ## Web
 
@@ -240,9 +242,9 @@ All use the existing `{"error": {code, message}}` shape and `X-Request-ID`.
   - RRF merge and the per-document cap; the cutoff; the citation check and `NO_ANSWER`
   - session ownership, expiry, and the 10-question cap; limits; the budget gate; usage upsert; the retention job
   - internal endpoint guard; the Groq client's request shape and error mapping (mocked HTTP)
-- **Retrieval golden test (CI):** `apps/api/tests/rag/golden.yaml`, 15 questions against documents built from `infra/directus/seed/*.json` (no Directus needed), each with its expected source; runs the real embedder and asserts hit@5 ≥ 0.9 (14 of 15). CI caches the fastembed model.
+- **Retrieval golden test (CI):** `apps/api/tests/rag/golden.yaml`, 15 questions against documents built from `infra/directus/seed/*.json` (no Directus needed), each with its expected source; runs the real embedder and asserts hit@5 ≥ 0.9 (14 of 15). CI downloads the model (~130 MB) on each API run.
 - **Web tests (vitest):** shortcut label per platform and touch; the shortcut toggles the panel; Esc and focus return; suggested question submits; type-out skipped under reduced motion; each error code shows its line; clear starts a new session; launcher hidden when disabled.
-- **`make chat-eval` (by hand, real Groq):** `apps/api/evals/chat.yaml` with ~15 answerable questions (each with facts the answer must contain and its expected source) and ~10 that must be refused (unanswerable, off-topic, injection attempts). Runs inside the `api` container on the VM (where the Groq key lives; the eval file ships in the image) and prints a pass/fail report with every answer. Chris reads it once; the cutoff and prompt are tuned until it is clean.
+- **`make chat-eval` (by hand, real Groq):** `apps/api/src/portfolio_api/evals/chat_eval.yaml` (package data, so it ships in the image) with ~15 answerable questions (each with facts the answer must contain and its expected source) and ~10 that must be refused (unanswerable, off-topic, injection attempts). Runs inside the `api` container on the VM (where the Groq key lives) and prints a pass/fail report with every answer. Chris reads it once; the cutoff and prompt are tuned until it is clean.
 
 ## Ops
 
