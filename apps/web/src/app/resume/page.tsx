@@ -17,7 +17,7 @@ export default async function ResumePage() {
   const resume = await getResume();
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 pb-16">
+    <div className="mx-auto w-full max-w-5xl px-6 py-10">
       <PageHeader prompt="$ open resume.pdf" title="Resume" />
       {resume?.file ? (
         <ResumeViewer

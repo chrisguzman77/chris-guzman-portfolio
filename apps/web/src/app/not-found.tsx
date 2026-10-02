@@ -11,7 +11,7 @@ const LINKS = [
 
 export default function NotFound() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 pb-16">
+    <div className="mx-auto w-full max-w-5xl px-6 py-10">
       <PageHeader prompt="$ cd: no such page" title="Page not found" />
       <nav aria-label="Main pages">
         <ul className="flex flex-wrap gap-3">
