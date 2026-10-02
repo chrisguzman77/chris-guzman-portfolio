@@ -69,6 +69,11 @@ services:
       API_APP_VERSION: ${IMAGE_TAG:?}
       API_DATABASE_URL: postgresql+asyncpg://portfolio:${PORTFOLIO_DB_PASSWORD:?}@postgres:5432/portfolio
       API_CORS_ORIGINS: '["https://christopherguzman.me","https://www.christopherguzman.me"]'
+      # Phase 4: optional until Chris's secrets PR; empty means the feature is off.
+      API_TURNSTILE_SECRET: ${TURNSTILE_SECRET_KEY:-}
+      API_RESEND_API_KEY: ${RESEND_API_KEY:-}
+      API_CONTACT_TO: ${CONTACT_TO:-}
+      API_GITHUB_TOKEN: ${GITHUB_ACTIVITY_TOKEN:-}
     mem_limit: 384m
 
   web:
@@ -80,6 +85,8 @@ services:
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?}
       API_INTERNAL_URL: http://api:8000
       SITE_URL: https://christopherguzman.me
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      PUBLIC_API_URL: https://api.christopherguzman.me
     mem_limit: 384m
 
   cloudflared:

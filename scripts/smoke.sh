@@ -8,6 +8,8 @@
 # and /experience must list at least one role (an <h3>) instead of its empty state.
 # SKIP_CONTENT_SMOKE=1 skips them, e.g. when rolling back to an image older than
 # Phase 3, which has no CMS content.
+#
+# The api also gets a route check for /v1/github/activity: 200 or 503 both pass.
 set -euo pipefail
 
 PROJECT="${COMPOSE_PROJECT_NAME:-portfolio}"
@@ -47,6 +49,14 @@ status=0
 check "web /api/healthz" in_service web wget -qO- http://127.0.0.1:3000/api/healthz || status=1
 check "api /health reports db ok" in_service api python -c \
   "import json,sys,urllib.request as u; sys.exit(json.load(u.urlopen('http://127.0.0.1:8000/health', timeout=3))['db'] != 'ok')" || status=1
+# 200 (cached calendar) and 503 (nothing fetched yet / no token) both prove the route is wired.
+check "api /v1/github/activity is routed" in_service api python -c "
+import sys, urllib.error, urllib.request
+try:
+    status = urllib.request.urlopen('http://127.0.0.1:8000/v1/github/activity', timeout=3).status
+except urllib.error.HTTPError as err:
+    status = err.code
+sys.exit(status not in (200, 503))" || status=1
 check "directus /server/ping" in_service directus wget -qO- http://127.0.0.1:8055/server/ping || status=1
 if [[ "${SKIP_CONTENT_SMOKE:-0}" == 1 ]]; then
   echo "skip  CMS content checks (SKIP_CONTENT_SMOKE=1)"
