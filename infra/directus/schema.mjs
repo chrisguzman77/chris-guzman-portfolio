@@ -12,9 +12,10 @@ export const CONTENT_COLLECTIONS = [
   "projects",
   "posts",
   "resume",
+  "chat_settings",
 ];
 
-export const SINGLETONS = ["profile", "resume"];
+export const SINGLETONS = ["profile", "resume", "chat_settings"];
 
 const half = { width: "half" };
 
@@ -255,5 +256,9 @@ export const collections = [
     collection: "resume",
     meta: { singleton: true, icon: "description" },
     fields: [file("file", "file"), string("version_label", half), date("updated_at")],
+  },  {
+    collection: "chat_settings",
+    meta: { singleton: true, icon: "forum" },
+    fields: [boolean("enabled"), tags("suggested_questions")],
   },
 ];

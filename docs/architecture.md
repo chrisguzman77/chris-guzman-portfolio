@@ -80,6 +80,19 @@ flowchart LR
 | GitHub down / token revoked | Last cached heatmap keeps showing |
 | Accounts not set up yet | Form shows "coming soon"; heatmap hidden |
 
+## Chat (Phase 5)
+
+```
+publish in Directus ─Flow─> web /api/revalidate
+                     └────> api /internal/reindex ─(5 s debounce)─> sync: Directus → markdown → chunks → bge-small → pgvector + tsvector
+browser ⌘K ─> terminal ─Turnstile─> POST /v1/chat/sessions
+                 └─ question ─> POST /v1/chat/sessions/{id}/messages
+                                  → limits, budget → hybrid search (RRF) → cutoff
+                                  → Groq gpt-oss-120b (ChatModel) → citation check → JSON answer
+```
+
+The API owns the index and chat tables in the `portfolio` database; it reads Directus with its own read-only token. `/internal/*` is reachable only from containers on the VM (secret header, and requests through the Cloudflare Tunnel are refused). See ADR 0008.
+
 ## Notes
 
 - FastAPI's `/docs` and `/openapi.json` are intentionally public (the API contract is part of the showcase).

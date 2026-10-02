@@ -32,8 +32,12 @@ Local development needs none of this: `compose.dev.yaml` uses Turnstile's publis
 4. **Secrets:** `make secrets-edit` to add `RESEND_API_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `GITHUB_ACTIVITY_TOKEN`, `CONTACT_TO`; add the same keys to `infra/compose/prod.env.example`; `make secrets-check`; commit and merge.
 5. **Optional:** a Cloudflare rate-limiting rule on `api.christopherguzman.me/v1/contact` as a second layer (the free plan allows one rule).
 
-## Anthropic (Phase 5)
-- API key for Claude Sonnet 5; set a monthly spend limit in the console.
+## Groq and chat secrets (Phase 5)
+
+1. Create a free account at console.groq.com (no card), create an API key, and turn on Zero Data Retention under data controls if the free plan offers it.
+2. Generate three random values on your Mac: `openssl rand -hex 32` (run it three times) for `DIRECTUS_API_TOKEN`, `INTERNAL_API_SECRET`, `CHAT_HASH_SALT`.
+3. `make secrets-edit`, add `GROQ_API_KEY` and the three values, save; `make secrets-check`; commit and push. Never paste these values anywhere else.
+4. After the deploy: `make chat-eval` on the VM, read the report, then switch chat on in Directus (Chat Settings → enabled).
 
 ## Cloudflare R2 (Phase 6)
 - Bucket for encrypted backups with a 30-day lifecycle rule; scoped API token.

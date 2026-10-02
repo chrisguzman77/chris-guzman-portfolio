@@ -104,11 +104,21 @@ Check it with:
 curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 ```
 
+## Ask about Chris (chat)
+
+- **Switch on/off:** Directus → Chat Settings → `enabled`. Off hides the launcher within seconds (Flow revalidation) and the API refuses new questions within a minute. Suggested questions are edited in the same place (the first four are shown).
+- **Re-index now:** `make reindex` on the VM. Publishing in Directus already triggers one (the Flow's `reindex` step, debounced 5 s), and one runs nightly and at API startup.
+- **Read chats:** `make chats` (last 7 days) or `DAYS=30 make chats`. Outcomes: `answered`, `no_match` (nothing relevant, model not called), `uncited` (model answered without citing; the visitor saw the fixed reply, the raw answer is shown here), `error` (Groq failed). Chats are deleted after 30 days.
+- **Check answer quality:** `make chat-eval` (~10 minutes, uses about a third of the day's Groq quota). Every line should be PASS; a FAIL shows the answer and why.
+- **Budget:** 180,000 tokens per UTC day (`API_CHAT_DAILY_TOKEN_BUDGET`); when spent, the terminal says chat is resting until tomorrow.
+- **Switch provider:** add a class implementing `ChatModel` (`apps/api/src/portfolio_api/clients/groq.py` shows the shape), select it in `main.py`, add its key to secrets.
+
 ## Rotate secrets
 
 - **A database password:** `make secrets-edit` on the laptop, commit, merge; the next deploy applies it. Postgres role passwords also need `ALTER ROLE … PASSWORD` inside the database.
 - **Directus admin password (`DIRECTUS_ADMIN_PASSWORD`):** Directus reads `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD` only at first install; afterwards the CMS bootstrap uses them to log in on every deploy. Rotate in this order: (1) change the password in the Directus UI (user menu → your account), (2) `make secrets-edit` to set the same value in `prod.enc.env`, commit, merge, (3) the deploy picks it up. Changing only the env (or only the UI) makes the bootstrap fail with `admin login rejected (401): ... no longer match the live Directus admin user`; fix it by making `prod.enc.env` match the current admin login and redeploying. Keep **2FA off** on this admin account: the bootstrap logs in with email and password only, so enabling 2FA breaks every deploy. (If 2FA is ever wanted, the future option is a static admin token for the bootstrap instead of a password login.)
 - **`DIRECTUS_WEB_TOKEN` or `REVALIDATE_SECRET`:** generate a value with `openssl rand -hex 32`, `make secrets-edit`, `make secrets-check`, commit, merge. The deploy recreates `web` with the new value and the CMS bootstrap updates the `web-reader` user's token and the revalidation Flow's secret header to match.
+- **`GROQ_API_KEY`, `DIRECTUS_API_TOKEN`, `INTERNAL_API_SECRET`:** change in `make secrets-edit`, push; the next deploy syncs the Directus token and the Flow secret. **`CHAT_HASH_SALT`:** changing it only means existing sessions stop matching their visitors (they get "session ended").
 - **Tunnel token:** Zero Trust → Tunnels → `portfolio` → Refresh token; update `CLOUDFLARE_TUNNEL_TOKEN`; deploy.
 - **Runner PAT (expires yearly):** create a new portfolio-runner token, update GITHUB_RUNNER_TOKEN with make secrets-edit, merge, then run the "Update the runner" commands. Normal deploys never restart the runner, so they do not apply this value.
 - **Resend API key:** create a new key in Resend, `make secrets-edit` to set `RESEND_API_KEY`, merge, then delete the old key in Resend.

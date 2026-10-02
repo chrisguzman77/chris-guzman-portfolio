@@ -1,7 +1,9 @@
 // Idempotent Directus bootstrap. Runs inside the directus container:
 //   node /directus/bootstrap/bootstrap.mjs
 // Creates missing schema, the read-only web-reader policy/role/user (token from
-// DIRECTUS_WEB_TOKEN), the revalidation Flow, and seed content
+// DIRECTUS_WEB_TOKEN), the optional api-reader user (token from DIRECTUS_API_TOKEN),
+// the revalidation Flow, the optional reindex step (secret from INTERNAL_API_SECRET),
+// and seed content
 // (only into collections that are completely empty). Never deletes anything and
 // never overwrites content Chris edited in the CMS.
 import { readFile } from "node:fs/promises";
@@ -10,11 +12,30 @@ import { DirectusClient, planSchema, planSeed, sameJson } from "./lib.mjs";
 import { CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const BASE_URL = "http://127.0.0.1:8055";
-const READER_NAME = "web-reader";
-const READER_EMAIL = "web-reader@christopherguzman.me";
+const WEB_READER = {
+  name: "web-reader",
+  email: "web-reader@christopherguzman.me",
+  firstName: "Web",
+  lastName: "Reader",
+};
+const API_READER = {
+  name: "api-reader",
+  email: "api-reader@christopherguzman.me",
+  firstName: "API",
+  lastName: "Reader",
+};
 const FLOW_NAME = "revalidate site";
 const REVALIDATE_URL = "http://web:3000/api/revalidate";
-const SEED_ORDER = ["profile", "resume", "experience", "education", "involvement", "projects"];
+const REINDEX_URL = "http://api:8000/internal/reindex";
+const SEED_ORDER = [
+  "profile",
+  "resume",
+  "chat_settings",
+  "experience",
+  "education",
+  "involvement",
+  "projects",
+];
 
 function env(name) {
   const value = process.env[name];
@@ -61,11 +82,11 @@ async function findOne(api, path, filter) {
 }
 
 async function ensurePolicy(api) {
-  let policy = await findOne(api, "/policies", { name: { _eq: READER_NAME } });
+  let policy = await findOne(api, "/policies", { name: { _eq: WEB_READER.name } });
   let created = 0;
   if (!policy) {
     policy = await api.post("/policies", {
-      name: READER_NAME,
+      name: WEB_READER.name,
       icon: "visibility",
       description: "Read-only access for the Next.js site: content collections and files.",
       admin_access: false,
@@ -97,11 +118,11 @@ async function ensurePolicy(api) {
   return policy.id;
 }
 
-async function ensureRole(api, policyId) {
-  let role = await findOne(api, "/roles", { name: { _eq: READER_NAME } });
+async function ensureRole(api, policyId, name) {
+  let role = await findOne(api, "/roles", { name: { _eq: name } });
   let created = 0;
   if (!role) {
-    role = await api.post("/roles", { name: READER_NAME, icon: "visibility" });
+    role = await api.post("/roles", { name, icon: "visibility" });
     created++;
   }
   const link = await findOne(api, "/access", {
@@ -112,28 +133,28 @@ async function ensureRole(api, policyId) {
     await api.post("/access", { role: role.id, policy: policyId });
     created++;
   }
-  console.log(`role: ${created} created`);
+  console.log(`role ${name}: ${created} created`);
   return role.id;
 }
 
-async function ensureUser(api, roleId, token) {
-  const user = await findOne(api, "/users", { email: { _eq: READER_EMAIL } });
+async function ensureUser(api, roleId, token, reader) {
+  const user = await findOne(api, "/users", { email: { _eq: reader.email } });
   if (!user) {
     await api.post("/users", {
-      email: READER_EMAIL,
-      first_name: "Web",
-      last_name: "Reader",
+      email: reader.email,
+      first_name: reader.firstName,
+      last_name: reader.lastName,
       role: roleId,
       status: "active",
       token,
     });
-    console.log("user: created");
+    console.log(`user ${reader.name}: created`);
     return;
   }
   // Directus masks stored tokens on read, so set it every run; this is what
-  // makes rotating DIRECTUS_WEB_TOKEN take effect on the next deploy.
+  // makes rotating a reader token take effect on the next deploy.
   await api.patch(`/users/${user.id}`, { token });
-  console.log("user: exists, token synced");
+  console.log(`user ${reader.name}: exists, token synced`);
 }
 
 async function ensureFlow(api, secret) {
@@ -174,7 +195,7 @@ async function ensureFlow(api, secret) {
     });
     await api.patch(`/flows/${flow.id}`, { operation: op.id });
     console.log("flow: created");
-    return;
+    return { flow, op };
   }
   const op = await findOne(api, "/operations", {
     flow: { _eq: flow.id },
@@ -191,6 +212,43 @@ async function ensureFlow(api, secret) {
     synced.push("request");
   }
   console.log(synced.length ? `flow: exists, ${synced.join(" + ")} options synced` : "flow: exists");
+  return { flow, op };
+}
+
+async function ensureReindex(api, flow, revalidateOp, internalSecret) {
+  const options = {
+    method: "POST",
+    url: REINDEX_URL,
+    headers: [
+      { header: "X-Internal-Secret", value: internalSecret },
+      { header: "Content-Type", value: "application/json" },
+    ],
+    body: "{}",
+  };
+  let op = await findOne(api, "/operations", {
+    flow: { _eq: flow.id },
+    key: { _eq: "reindex" },
+  });
+  if (!op) {
+    op = await api.post("/operations", {
+      flow: flow.id,
+      name: "Reindex chat",
+      key: "reindex",
+      type: "request",
+      position_x: 37,
+      position_y: 1,
+      options,
+    });
+    console.log("flow: reindex step created");
+  } else if (!sameJson(op.options, options)) {
+    await api.patch(`/operations/${op.id}`, { options });
+    console.log("flow: reindex options synced");
+  }
+  // Re-index whether or not the web revalidation succeeded.
+  if (revalidateOp.resolve !== op.id || revalidateOp.reject !== op.id) {
+    await api.patch(`/operations/${revalidateOp.id}`, { resolve: op.id, reject: op.id });
+    console.log("flow: reindex chained after revalidate");
+  }
 }
 
 async function loadSeed(name) {
@@ -222,14 +280,28 @@ async function ensureSeed(api) {
 async function main() {
   const webToken = env("DIRECTUS_WEB_TOKEN");
   const revalidateSecret = env("REVALIDATE_SECRET");
+  // Optional until Chris adds the Phase 5 secrets; deploys keep working without them.
+  const apiToken = process.env.DIRECTUS_API_TOKEN;
+  const internalSecret = process.env.INTERNAL_API_SECRET;
   await waitForPing();
   const api = new DirectusClient(BASE_URL);
   await api.login(env("ADMIN_EMAIL"), env("ADMIN_PASSWORD"));
   await ensureSchema(api);
   const policyId = await ensurePolicy(api);
-  const roleId = await ensureRole(api, policyId);
-  await ensureUser(api, roleId, webToken);
-  await ensureFlow(api, revalidateSecret);
+  const webRoleId = await ensureRole(api, policyId, WEB_READER.name);
+  await ensureUser(api, webRoleId, webToken, WEB_READER);
+  if (apiToken) {
+    const apiRoleId = await ensureRole(api, policyId, API_READER.name);
+    await ensureUser(api, apiRoleId, apiToken, API_READER);
+  } else {
+    console.log("api-reader: skipped (DIRECTUS_API_TOKEN not set)");
+  }
+  const { flow, op } = await ensureFlow(api, revalidateSecret);
+  if (internalSecret) {
+    await ensureReindex(api, flow, op, internalSecret);
+  } else {
+    console.log("flow: reindex step skipped (INTERNAL_API_SECRET not set)");
+  }
   await ensureSeed(api);
   console.log("bootstrap: done");
 }
