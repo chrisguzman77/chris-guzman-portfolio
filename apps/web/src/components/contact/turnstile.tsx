@@ -43,9 +43,15 @@ function loadTurnstile(): Promise<TurnstileApi> {
       () => (window.turnstile ? resolve(window.turnstile) : reject(new Error("no turnstile"))),
       { once: true },
     );
-    script.addEventListener("error", () => reject(new Error("turnstile failed to load")), {
-      once: true,
-    });
+    script.addEventListener(
+      "error",
+      () => {
+        // Drop the failed element so a later mount (e.g. theme change) loads it afresh.
+        script?.remove();
+        reject(new Error("turnstile failed to load"));
+      },
+      { once: true },
+    );
   });
 }
 
@@ -56,18 +62,23 @@ export function Turnstile({
   theme,
   resetSignal,
   onToken,
+  onError,
 }: {
   siteKey: string;
   theme: "light" | "dark";
   resetSignal: number;
   onToken: (token: string | null) => void;
+  // The script or widget failed; the form offers the email address instead.
+  onError: () => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
   const onTokenRef = useRef(onToken);
+  const onErrorRef = useRef(onError);
 
   useEffect(() => {
     onTokenRef.current = onToken;
+    onErrorRef.current = onError;
   });
 
   useEffect(() => {
@@ -81,14 +92,23 @@ export function Turnstile({
           appearance: "interaction-only",
           callback: (token) => onTokenRef.current(token),
           "expired-callback": () => onTokenRef.current(null),
-          "error-callback": () => onTokenRef.current(null),
+          "error-callback": () => {
+            onTokenRef.current(null);
+            onErrorRef.current();
+          },
         });
       })
-      .catch(() => onTokenRef.current(null));
+      .catch(() => {
+        if (cancelled) return;
+        onTokenRef.current(null);
+        onErrorRef.current();
+      });
     return () => {
       cancelled = true;
       if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
       widgetId.current = null;
+      // The removed widget's token goes with it; the new widget issues a fresh one.
+      onTokenRef.current(null);
     };
   }, [siteKey, theme]);
 

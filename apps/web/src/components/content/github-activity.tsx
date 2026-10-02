@@ -66,6 +66,7 @@ export function GitHubActivity({
       href={profileUrl}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label={`GitHub profile: ${totalText} ${plural(total)} in the last year (opens in a new tab)`}
       className="block rounded-[10px] border border-border bg-card p-4 transition-colors hover:border-input focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
     >
       <div

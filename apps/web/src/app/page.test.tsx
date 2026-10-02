@@ -272,6 +272,8 @@ describe("HomePage GitHub activity", () => {
     ]);
     const handle = screen.getByRole("link", { name: "@profile-gh" });
     expect(handle.getAttribute("href")).toBe("https://github.com/profile-gh");
+    expect(handle.getAttribute("target")).toBe("_blank");
+    expect(handle.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
   it("hides the section and keeps Blog as 03 when activity is unavailable", async () => {

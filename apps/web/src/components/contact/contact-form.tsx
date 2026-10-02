@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import {
   CONTACT_FIELDS,
@@ -60,6 +60,7 @@ export function ContactForm({
 }) {
   const { resolvedTheme } = useTheme();
   const formRef = useRef<HTMLFormElement>(null);
+  const sentRef = useRef<HTMLParagraphElement>(null);
   const [values, setValues] = useState<ContactValues>({ name: "", email: "", message: "" });
   const [website, setWebsite] = useState("");
   const [errors, setErrors] = useState<ContactErrors>({});
@@ -67,7 +68,18 @@ export function ContactForm({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [turnstileFailed, setTurnstileFailed] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
+
+  // The submit button unmounts on success; move focus so screen readers announce the result.
+  useEffect(() => {
+    if (sent) sentRef.current?.focus();
+  }, [sent]);
+
+  function onToken(next: string | null) {
+    setToken(next);
+    if (next) setTurnstileFailed(false);
+  }
 
   function focusFirst(found: ContactErrors): boolean {
     const first = CONTACT_FIELDS.find((field) => found[field]);
@@ -96,7 +108,8 @@ export function ContactForm({
     setBanner(null);
     if (focusFirst(found)) return;
     if (!token) {
-      setBanner("pendingToken");
+      // A failed spam check would never produce a token: offer the email address instead.
+      setBanner(turnstileFailed ? "unavailable" : "pendingToken");
       return;
     }
     setSending(true);
@@ -124,7 +137,7 @@ export function ContactForm({
 
   if (sent) {
     return (
-      <p role="status" className="text-sm text-foreground">
+      <p ref={sentRef} role="status" tabIndex={-1} className="text-sm text-foreground outline-none">
         {CONTACT_MESSAGES.sent}
       </p>
     );
@@ -160,10 +173,11 @@ export function ContactForm({
         <textarea rows={6} maxLength={CONTACT_LIMITS.messageMax} {...fieldProps("message")} />
       </Field>
       <div aria-hidden="true" className="absolute -left-[9999px] size-px overflow-hidden">
-        <label htmlFor="contact-website">Website</label>
+        {/* Named so autofill leaves it alone; still sent to the API as `website`. */}
+        <label htmlFor="contact-hp">Leave this field empty</label>
         <input
-          id="contact-website"
-          name="website"
+          id="contact-hp"
+          name="contact_hp"
           type="text"
           tabIndex={-1}
           autoComplete="off"
@@ -175,7 +189,8 @@ export function ContactForm({
         siteKey={siteKey}
         theme={resolvedTheme === "light" ? "light" : "dark"}
         resetSignal={resetSignal}
-        onToken={setToken}
+        onToken={onToken}
+        onError={() => setTurnstileFailed(true)}
       />
       {banner ? (
         <p role="alert" className="text-sm text-destructive">

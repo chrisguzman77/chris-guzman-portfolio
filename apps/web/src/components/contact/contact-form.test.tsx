@@ -96,9 +96,9 @@ describe("ContactForm", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://api.example.com/v1/contact");
     expect(JSON.parse(init.body)).toMatchObject({ turnstile_token: "tok-1", website: "" });
-    expect(screen.getByRole("status").textContent).toBe(
-      "Message sent. I'll reply to the email you gave.",
-    );
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Message sent. I'll reply to the email you gave.");
+    expect(document.activeElement).toBe(status);
     expect(screen.queryByRole("form")).toBeNull();
   });
 
@@ -174,12 +174,56 @@ describe("ContactForm", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("hides the honeypot from people and keyboards", async () => {
+  it("falls back to the email address when the Turnstile script fails to load", async () => {
+    delete window.turnstile;
     await act(async () => {
       renderForm();
     });
-    const honeypot = document.querySelector('input[name="website"]') as HTMLInputElement;
+    const script = document.getElementById("cf-turnstile-script");
+    expect(script).toBeTruthy();
+    await act(async () => {
+      script?.dispatchEvent(new Event("error"));
+    });
+    // A failed script is removed so a later mount can try again.
+    expect(document.getElementById("cf-turnstile-script")).toBeNull();
+    fill(valid);
+    await submit();
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe("Couldn't send. Email me at chris@example.com instead.");
+    expect(alert.querySelector('a[href="mailto:chris@example.com"]')).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the email address when the Turnstile widget errors", async () => {
+    turnstile.render.mockImplementation((_el, options: { "error-callback": () => void }) => {
+      options["error-callback"]();
+      return "widget-1";
+    });
+    await act(async () => {
+      renderForm();
+    });
+    fill(valid);
+    await submit();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Couldn't send. Email me at chris@example.com instead.",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("hides the honeypot from people, keyboards and autofill but still sends it as website", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+    await act(async () => {
+      renderForm();
+    });
+    expect(document.querySelector('input[name="website"]')).toBeNull();
+    const honeypot = document.querySelector('input[name="contact_hp"]') as HTMLInputElement;
+    expect(honeypot.id).toBe("contact-hp");
+    expect(honeypot.autocomplete).toBe("off");
     expect(honeypot.tabIndex).toBe(-1);
     expect(honeypot.closest('[aria-hidden="true"]')).toBeTruthy();
+    fireEvent.change(honeypot, { target: { value: "spam.example" } });
+    fill(valid);
+    await submit();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ website: "spam.example" });
   });
 });

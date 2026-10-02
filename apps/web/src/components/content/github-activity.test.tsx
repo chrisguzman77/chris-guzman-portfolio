@@ -39,7 +39,9 @@ describe("GitHubActivity", () => {
     expect(
       screen.getByRole("img", { name: "1,234 GitHub contributions in the last year" }),
     ).toBeTruthy();
-    const link = screen.getByRole("link");
+    const link = screen.getByRole("link", {
+      name: "GitHub profile: 1,234 contributions in the last year (opens in a new tab)",
+    });
     expect(link.getAttribute("href")).toBe("https://github.com/octo");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
@@ -79,6 +81,11 @@ describe("GitHubActivity", () => {
     render(<GitHubActivity activity={activity} profileUrl="https://github.com/octo" />);
     expect(
       screen.getByRole("img", { name: "1 GitHub contribution in the last year" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", {
+        name: "GitHub profile: 1 contribution in the last year (opens in a new tab)",
+      }),
     ).toBeTruthy();
   });
 });
