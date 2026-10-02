@@ -7,6 +7,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from portfolio_api.body_limit import BodySizeLimit
 from portfolio_api.clients.email import ResendSender
 from portfolio_api.clients.github import GitHubGraphQL
 from portfolio_api.clients.turnstile import CloudflareTurnstile
@@ -64,6 +65,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Checked every 10 minutes; GitHub is called only when the copy is an hour old.
         jobs.append(Job("github-refresh", 600, github_activity.refresh_if_stale))
     install_error_handlers(app)
+    # Inside the request-ID middleware (413s get an X-Request-ID); CORS stays outermost.
+    app.add_middleware(BodySizeLimit)
     install_request_id(app)
     app.add_middleware(
         CORSMiddleware,

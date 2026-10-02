@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from portfolio_api.clients.email import OutgoingEmail
 from portfolio_api.clients.turnstile import TurnstileUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
@@ -82,6 +83,7 @@ async def test_valid_message_is_saved_then_emailed(
     assert email.sender == "Portfolio <contact@christopherguzman.me>"
     assert email.subject == "Portfolio message from Ada Lovelace"
     assert "Hello Chris, let's talk about a role." in email.text
+    assert email.idempotency_key == str(row.id)
 
 
 async def test_honeypot_returns_202_and_stores_nothing(
@@ -191,6 +193,25 @@ async def test_stuck_pending_rows_are_retried(db: Sessions) -> None:
     assert sender.sent == []  # pending for less than 5 minutes: a send may still be running
     await backdate(db)
     await service.retry_due()
+    assert len(sender.sent) == 1
+
+
+class ExplodingOnceSender(FakeSender):
+    async def send(self, email: OutgoingEmail) -> None:
+        if self.attempts == 0:
+            self.attempts += 1
+            raise RuntimeError("unexpected bug")
+        await super().send(email)
+
+
+async def test_one_failing_row_does_not_stop_the_retry_batch(db: Sessions) -> None:
+    sender = ExplodingOnceSender()
+    service = ContactService(db, sender, mail_from="f", mail_to="t@example.com")
+    await service.submit(ContactForm("Ada", "ada@example.com", "Hello there!"))
+    await service.submit(ContactForm("Bob", "bob@example.com", "Hello there!"))
+    await backdate(db)
+    await service.retry_due()
+    assert sender.attempts == 2
     assert len(sender.sent) == 1
 
 

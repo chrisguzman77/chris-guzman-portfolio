@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
@@ -24,6 +25,10 @@ def app_with_routes(settings: Settings) -> FastAPI:
     @app.get("/boom")
     async def boom() -> None:  # pyright: ignore[reportUnusedFunction]
         raise ApiError(418, "teapot", "I am a teapot.", headers={"Retry-After": "7"})
+
+    @app.get("/crash")
+    async def crash() -> None:  # pyright: ignore[reportUnusedFunction]
+        raise RuntimeError("kaboom")
 
     @app.post("/echo")
     async def echo(body: Body) -> Body:  # pyright: ignore[reportUnusedFunction]
@@ -70,6 +75,68 @@ async def test_request_id_is_generated_when_missing_or_invalid(settings: Setting
     for res in (missing, invalid):
         rid = res.headers["x-request-id"]
         assert len(rid) == 32 and all(ch in "0123456789abcdef" for ch in rid)
+
+
+ORIGIN = {"Origin": "http://localhost:3000"}
+BIG = b'{"name": "' + b"x" * (64 * 1024) + b'"}'
+
+
+async def test_oversized_body_with_content_length_is_413(settings: Settings) -> None:
+    for path in ("/v1/contact", "/echo"):
+        res = await call(
+            app_with_routes(settings),
+            "POST",
+            path,
+            content=BIG,
+            headers={"Content-Type": "application/json", **ORIGIN},
+        )
+        assert res.status_code == 413
+        assert res.json()["error"]["code"] == "payload_too_large"
+        assert res.headers["access-control-allow-origin"] == "http://localhost:3000"
+        assert "x-request-id" in res.headers
+
+
+async def test_oversized_streamed_body_without_length_is_413(settings: Settings) -> None:
+    async def chunks() -> AsyncIterator[bytes]:
+        for i in range(0, len(BIG), 4096):
+            yield BIG[i : i + 4096]
+
+    res = await call(
+        app_with_routes(settings),
+        "POST",
+        "/echo",
+        content=chunks(),
+        headers={"Content-Type": "application/json"},
+    )
+    assert "content-length" not in res.request.headers
+    assert res.status_code == 413
+    assert res.json()["error"]["code"] == "payload_too_large"
+
+
+async def test_normal_bodies_pass_the_size_cap(settings: Settings) -> None:
+    async def chunks() -> AsyncIterator[bytes]:
+        yield b'{"name": '
+        yield b'"Ada"}'
+
+    app = app_with_routes(settings)
+    sized = await call(app, "POST", "/echo", json={"name": "y" * 20_000})
+    streamed = await call(
+        app, "POST", "/echo", content=chunks(), headers={"Content-Type": "application/json"}
+    )
+    assert sized.status_code == 200 and sized.json() == {"name": "y" * 20_000}
+    assert streamed.status_code == 200 and streamed.json() == {"name": "Ada"}
+
+
+async def test_unhandled_errors_are_json_500_with_request_id_and_cors(
+    settings: Settings,
+) -> None:
+    res = await call(
+        app_with_routes(settings), "GET", "/crash", headers={"X-Request-ID": "r-1", **ORIGIN}
+    )
+    assert res.status_code == 500
+    assert res.json() == {"error": {"code": "internal_error", "message": "Something went wrong."}}
+    assert res.headers["x-request-id"] == "r-1"
+    assert res.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
 def test_blank_secrets_mean_unset() -> None:

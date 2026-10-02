@@ -13,6 +13,8 @@ class OutgoingEmail:
     reply_to: str
     subject: str
     text: str
+    # Resend drops a repeat with the same key, so a retry after a lost DB write is not resent.
+    idempotency_key: str
 
 
 class EmailSendError(Exception):
@@ -32,7 +34,10 @@ class ResendSender:
         try:
             res = await self._http.post(
                 RESEND_URL,
-                headers={"Authorization": f"Bearer {self._api_key}"},
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Idempotency-Key": email.idempotency_key,
+                },
                 json={
                     "from": email.sender,
                     "to": [email.to],

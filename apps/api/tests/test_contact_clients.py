@@ -56,6 +56,7 @@ EMAIL = OutgoingEmail(
     reply_to="ada@example.com",
     subject="Portfolio message from Ada",
     text="hi",
+    idempotency_key="0b6f1c1e-0000-4000-8000-000000000001",
 )
 
 
@@ -70,6 +71,7 @@ async def test_resend_sends_plain_text_with_reply_to() -> None:
     req = seen[0]
     assert str(req.url) == "https://api.resend.com/emails"
     assert req.headers["authorization"] == "Bearer re_key"
+    assert req.headers["idempotency-key"] == "0b6f1c1e-0000-4000-8000-000000000001"
     assert json.loads(req.content) == {
         "from": EMAIL.sender,
         "to": ["chris@example.com"],

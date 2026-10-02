@@ -31,6 +31,7 @@ def build_email(row: ContactSubmission, *, sender: str, to: str) -> OutgoingEmai
         reply_to=row.email,
         subject=f"Portfolio message from {subject_name}",
         text=text,
+        idempotency_key=str(row.id),
     )
 
 
@@ -94,4 +95,8 @@ class ContactService:
         async with self._sessions() as session:
             due = await repo.due_for_retry(session, now=self._clock())
         for submission_id in due:
-            await self.deliver(submission_id)
+            try:
+                await self.deliver(submission_id)
+            except Exception:
+                # One bad row must not stall every row after it.
+                log.exception("contact retry failed", submission_id=str(submission_id))
