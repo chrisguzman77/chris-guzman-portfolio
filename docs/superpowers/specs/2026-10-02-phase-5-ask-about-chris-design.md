@@ -176,10 +176,10 @@ Makefile targets for the VM, `reindex` and `chats`, run these inside the running
 
 New singleton `chat_settings`:
 
-- `enabled` (boolean, default true)
+- `enabled` (boolean, default false)
 - `suggested_questions` (JSON list of strings, tags/list interface)
 
-Seeded with `enabled: true` and three questions: "What projects has Chris built?", "What's his security background?", "Is he open to internships?". It is added to `CONTENT_COLLECTIONS` and `SINGLETONS` so the web reader can read it and the Flow revalidates it.
+Seeded with `enabled: false` (so the launcher stays hidden until Chris has added the Groq key, read the eval report, and switched chat on) and three questions: "What projects has Chris built?", "What's his security background?", "Is he open to internships?". It is added to `CONTENT_COLLECTIONS` and `SINGLETONS` so the web reader can read it and the Flow revalidates it.
 
 `bootstrap.mjs` also:
 
