@@ -8,6 +8,11 @@ import type { Profile } from "@/lib/directus/schemas";
 import ContactPage from "./page";
 
 vi.mock("@/lib/directus/queries", () => ({ getProfile: vi.fn() }));
+vi.mock("@/components/contact/contact-form", () => ({
+  ContactForm: (props: { apiUrl: string; siteKey: string; fallbackEmail: string }) => (
+    <div data-testid="contact-form">{JSON.stringify(props)}</div>
+  ),
+}));
 
 const profile: Profile = {
   name: "Christopher Guzman",
@@ -22,24 +27,59 @@ const profile: Profile = {
 afterEach(() => {
   cleanup();
   vi.mocked(getProfile).mockReset();
+  vi.unstubAllEnvs();
 });
 
 describe("/contact", () => {
-  it("shows the prompt and title with no caption, form, or phone number", async () => {
+  it("shows the prompt and title with no caption or phone number", async () => {
     vi.mocked(getProfile).mockResolvedValue(profile);
     const { container } = render(await ContactPage());
 
     expect(screen.getByText("$ ping chris")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "Get in touch" })).toBeTruthy();
-    expect(container.querySelector("form")).toBeNull();
     expect(container.querySelector('a[href^="tel:"]')).toBeNull();
   });
 
-  it("renders the email, LinkedIn, and GitHub cards from the profile", async () => {
+  it("renders the form with the site key, public API URL and profile email", async () => {
+    vi.stubEnv("TURNSTILE_SITE_KEY", "site-key");
+    vi.stubEnv("PUBLIC_API_URL", "https://api.example.com");
     vi.mocked(getProfile).mockResolvedValue(profile);
     render(await ContactPage());
 
-    expect(screen.getByRole("heading", { level: 2, name: "Email" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Send a message" })).toBeTruthy();
+    expect(JSON.parse(screen.getByTestId("contact-form").textContent ?? "")).toEqual({
+      apiUrl: "https://api.example.com",
+      siteKey: "site-key",
+      fallbackEmail: "chris@example.com",
+    });
+  });
+
+  it("says the form is coming soon when Turnstile is not configured", async () => {
+    vi.stubEnv("TURNSTILE_SITE_KEY", "");
+    vi.mocked(getProfile).mockResolvedValue(profile);
+    render(await ContactPage());
+
+    expect(screen.queryByTestId("contact-form")).toBeNull();
+    expect(screen.getByText("Contact form coming soon. Email me directly.")).toBeTruthy();
+  });
+
+  it("lists email, LinkedIn and GitHub as compact rows under a hidden heading", async () => {
+    vi.mocked(getProfile).mockResolvedValue(profile);
+    render(await ContactPage());
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Other ways to reach me" }).className,
+    ).toContain("sr-only");
+    for (const name of ["Email", "LinkedIn", "GitHub"]) {
+      expect(screen.getByRole("heading", { level: 3, name })).toBeTruthy();
+    }
+  });
+
+  it("renders the email, LinkedIn, and GitHub rows from the profile", async () => {
+    vi.mocked(getProfile).mockResolvedValue(profile);
+    render(await ContactPage());
+
+    expect(screen.getByRole("heading", { level: 3, name: "Email" })).toBeTruthy();
     expect(screen.getByText("chris@example.com")).toBeTruthy();
     expect(screen.getByText("chris-example")).toBeTruthy();
     expect(screen.getByText("@octochris")).toBeTruthy();
