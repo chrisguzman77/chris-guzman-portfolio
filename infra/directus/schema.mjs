@@ -256,7 +256,8 @@ export const collections = [
     collection: "resume",
     meta: { singleton: true, icon: "description" },
     fields: [file("file", "file"), string("version_label", half), date("updated_at")],
-  },  {
+  },
+  {
     collection: "chat_settings",
     meta: { singleton: true, icon: "forum" },
     fields: [boolean("enabled"), tags("suggested_questions")],
