@@ -21,11 +21,16 @@ const turnstile = {
   remove: vi.fn(),
 };
 
-function stubMotion(reduce: boolean) {
+function stubMotion(reduce: boolean, desktop = false) {
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
-      matches: query === "(prefers-reduced-motion: reduce)" ? reduce : false,
+      matches:
+        query === "(prefers-reduced-motion: reduce)"
+          ? reduce
+          : query === "(min-width: 768px)"
+            ? desktop
+            : false,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })),
@@ -230,5 +235,72 @@ describe("ChatTerminal", () => {
     expect(
       screen.getByRole("separator", { name: "Resize terminal" }).getAttribute("aria-valuenow"),
     ).toBe("90");
+  });
+
+  it("uses the dark palette on pure black whatever the site theme", async () => {
+    await renderTerminal();
+    const region = screen.getByRole("region", { name: "Ask about Chris" });
+    expect(region.classList.contains("dark")).toBe(true);
+    expect(region.classList.contains("bg-terminal")).toBe(true);
+  });
+
+  it.each([
+    ["closes the panel on a phone so the opened page is visible", false, 1],
+    ["keeps the panel open on desktop", true, 0],
+  ])("source link click: %s", async (_name, desktop, closes) => {
+    stubMotion(true, desktop);
+    const { onClose } = await renderTerminal();
+    await ask("FastAPI?");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "[1] ACM@AU platform" }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(closes);
+  });
+
+  it("clear while a question is pending drops the stale answer", async () => {
+    let resolveAnswer: (r: Response) => void = () => {};
+    fetchMock.mockImplementation((url: string) =>
+      url.endsWith("/v1/chat/sessions")
+        ? json(201, SESSION)
+        : new Promise<Response>((resolve) => {
+            resolveAnswer = resolve;
+          }),
+    );
+    await renderTerminal();
+    await ask("FastAPI?");
+    expect(screen.getByText(CHAT_MESSAGES.thinking)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear and start a new session" }));
+    });
+    expect(screen.queryByText(CHAT_MESSAGES.thinking)).toBeNull();
+    await act(async () => {
+      resolveAnswer(Response.json(ANSWER));
+    });
+    expect(screen.queryByText(ANSWER.answer)).toBeNull();
+    expect(screen.queryByRole("link", { name: "[1] ACM@AU platform" })).toBeNull();
+  });
+
+  it("clear while the session is opening ignores the stale session", async () => {
+    let resolveFirst: (r: Response) => void = () => {};
+    let sessionCalls = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (!url.endsWith("/v1/chat/sessions")) return json(200, ANSWER);
+      sessionCalls += 1;
+      return sessionCalls === 1
+        ? new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          })
+        : json(201, { session_id: "s-2", questions_left: 10 });
+    });
+    await renderTerminal();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear and start a new session" }));
+    });
+    await act(async () => {
+      resolveFirst(Response.json({ session_id: "s-1", questions_left: 10 }, { status: 201 }));
+    });
+    await ask("FastAPI?");
+    const [url] = fetchMock.mock.calls.at(-1) as [string];
+    expect(url).toBe(`${API}/v1/chat/sessions/s-2/messages`);
   });
 });

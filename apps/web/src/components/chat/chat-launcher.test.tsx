@@ -102,4 +102,28 @@ describe("ChatLauncher", () => {
     });
     expect(document.activeElement).toBe(pill());
   });
+
+  it("closes on Escape from anywhere while open", async () => {
+    await renderLauncher();
+    await act(async () => {
+      fireEvent.click(pill()!);
+    });
+    await screen.findByRole("region", { name: "Ask about Chris" });
+    await act(async () => {
+      fireEvent.keyDown(document.body, { key: "Escape" });
+    });
+    expect(screen.getByRole("region", { hidden: true }).hidden).toBe(true);
+  });
+
+  it("focuses the pill when the recorded focus target is the body", async () => {
+    await renderLauncher();
+    (document.activeElement as HTMLElement | null)?.blur();
+    await act(async () => {
+      fireEvent.click(pill()!); // Safari: the click does not focus the button
+    });
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Close terminal" }));
+    });
+    expect(document.activeElement).toBe(pill());
+  });
 });

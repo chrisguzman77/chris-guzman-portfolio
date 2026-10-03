@@ -2,7 +2,6 @@
 
 import { Eraser, Maximize2, Minimize2, X } from "lucide-react";
 import Link from "next/link";
-import { useTheme } from "next-themes";
 import {
   useEffect,
   useRef,
@@ -81,7 +80,6 @@ export function ChatTerminal({
   siteKey: string;
   suggestions: string[];
 }) {
-  const { resolvedTheme } = useTheme();
   const [lines, setLines] = useState<Line[]>([]);
   const [session, setSession] = useState<Session>({ status: "connecting" });
   const [thinking, setThinking] = useState(false);
@@ -92,6 +90,7 @@ export function ChatTerminal({
   const [announcement, setAnnouncement] = useState("");
   const nextId = useRef(0);
   const opening = useRef(false);
+  const generation = useRef(0); // bumped by clear(); results from older generations are dropped
   const dragging = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -116,7 +115,9 @@ export function ChatTerminal({
   async function onToken(token: string | null) {
     if (!token || opening.current) return;
     opening.current = true;
+    const mine = generation.current;
     const result = await createSession(apiUrl, token);
+    if (mine !== generation.current) return;
     if (result.kind === "ok") {
       setSession({ status: "ready", id: result.sessionId });
     } else {
@@ -142,7 +143,9 @@ export function ChatTerminal({
     }
     push({ kind: "question", text: question });
     setThinking(true);
+    const mine = generation.current;
     const result = await askQuestion(apiUrl, session.id, question);
+    if (mine !== generation.current) return;
     setThinking(false);
     if (result.kind === "answer") {
       push({
@@ -161,6 +164,8 @@ export function ChatTerminal({
   }
 
   function clear() {
+    generation.current += 1;
+    setThinking(false);
     setLines([]);
     setAnnouncement("");
     setSession({ status: "connecting" });
@@ -205,6 +210,11 @@ export function ChatTerminal({
     saveHeight(height);
   }
 
+  function closeOnPhone() {
+    // Below md the panel covers the screen; close it so the page the link opens is visible.
+    if (!window.matchMedia("(min-width: 768px)").matches) onClose();
+  }
+
   function onRegionKey(event: KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
       event.stopPropagation();
@@ -227,7 +237,7 @@ export function ChatTerminal({
       hidden={hidden}
       onKeyDown={onRegionKey}
       style={{ "--panel-h": `${current}vh` } as CSSProperties}
-      className="fixed inset-x-0 bottom-0 z-50 flex h-dvh flex-col border-t border-border bg-background shadow-2xl md:h-(--panel-h)"
+      className="dark fixed inset-x-0 bottom-0 z-50 flex h-dvh flex-col border-t border-input bg-terminal text-foreground shadow-2xl md:h-(--panel-h)"
     >
       <div
         role="separator"
@@ -305,7 +315,7 @@ export function ChatTerminal({
         ) : null}
         <Turnstile
           siteKey={siteKey}
-          theme={resolvedTheme === "light" ? "light" : "dark"}
+          theme="dark"
           resetSignal={resetSignal}
           onToken={(token) => void onToken(token)}
           onError={onTurnstileError}
@@ -325,6 +335,7 @@ export function ChatTerminal({
                   <Link
                     key={source.n}
                     href={source.url}
+                    onClick={closeOnPhone}
                     className="mr-3 underline underline-offset-4 hover:text-foreground"
                   >
                     {`[${source.n}] ${source.title}`}

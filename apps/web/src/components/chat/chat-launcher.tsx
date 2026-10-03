@@ -54,7 +54,9 @@ export function ChatLauncher({
     restoreFocus.current = false;
     const target = returnFocus.current;
     // The pill unmounts while the panel is open; fall back to the re-rendered one.
-    (target && target.isConnected ? target : pillRef.current)?.focus();
+    // Safari does not focus clicked buttons, so the target can be <body>.
+    const usable = target && target !== document.body && target.isConnected;
+    (usable ? target : pillRef.current)?.focus();
   }, [open]);
 
   useEffect(() => {
@@ -68,6 +70,15 @@ export function ChatLauncher({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, show, hide]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") hide();
+    }
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [open, hide]);
 
   return (
     <>
