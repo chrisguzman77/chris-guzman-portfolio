@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from portfolio_api.rag.retrieval import PER_DOCUMENT, RRF_K, TOP_K, Retriever, fuse
+from portfolio_api.rag.retrieval import PER_DOCUMENT, TOP_K, Retriever, fuse
 from portfolio_api.repositories.rag import ChunkHit
 from portfolio_api.services.indexer import IndexService
 from tests.fakes import FakeEmbedder
@@ -20,7 +20,6 @@ def test_fuse_rewards_chunks_found_by_both_searches() -> None:
     assert [h.chunk_id for h in fused] == [2, 1, 3]
     # The vector copy (with its similarity) wins over the keyword copy.
     assert fused[0].similarity == 0.8
-    assert 1 / (RRF_K + 2) + 1 / (RRF_K + 1) > 1 / (RRF_K + 1)
 
 
 def test_fuse_caps_chunks_per_document_and_total() -> None:
