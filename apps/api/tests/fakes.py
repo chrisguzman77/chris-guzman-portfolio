@@ -1,4 +1,14 @@
+import hashlib
+import math
+import re
+from collections.abc import Sequence
+
+from portfolio_api.clients.directus import ChatSettings
 from portfolio_api.clients.email import EmailSendError, OutgoingEmail
+from portfolio_api.clients.groq import ChatTurn, ModelReply
+from portfolio_api.rag.embedder import EMBEDDING_DIM
+from portfolio_api.rag.retrieval import Retrieved
+from portfolio_api.repositories.rag import ChunkHit
 
 
 class FakeTurnstile:
@@ -25,3 +35,72 @@ class FakeSender:
             self.fail_times -= 1
             raise EmailSendError("resend 500: boom")
         self.sent.append(email)
+
+
+class FakeEmbedder:
+    """Deterministic bag-of-words vectors: texts sharing words point the same way."""
+
+    model_name = "fake-embedder"
+
+    def __init__(self) -> None:
+        self.embedded: list[str] = []
+
+    @staticmethod
+    def vector(text: str) -> list[float]:
+        v = [0.0] * EMBEDDING_DIM
+        for word in re.findall(r"[a-z0-9]+", text.lower()):
+            v[int(hashlib.sha256(word.encode()).hexdigest(), 16) % EMBEDDING_DIM] += 1.0
+        if not any(v):
+            v[0] = 1.0  # a zero vector has no cosine distance
+        norm = math.sqrt(sum(x * x for x in v))
+        return [x / norm for x in v]
+
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        self.embedded.extend(texts)
+        return [self.vector(t) for t in texts]
+
+    async def embed_query(self, text: str) -> list[float]:
+        return self.vector(text)
+
+
+HIT = ChunkHit(1, 1, "ACM@AU platform", "/projects/acm", "Built with FastAPI.", 0.9)
+
+
+class FakeChatModel:
+    """Returns replies in order (the last one repeats); an Exception entry is raised."""
+
+    def __init__(self, *replies: ModelReply | Exception) -> None:
+        self.replies: list[ModelReply | Exception] = list(replies) or [
+            ModelReply("He built it with FastAPI [1].", 1000, 50)
+        ]
+        self.calls: list[list[ChatTurn]] = []
+
+    async def complete(self, messages: Sequence[ChatTurn]) -> ModelReply:
+        self.calls.append(list(messages))
+        reply = self.replies[min(len(self.calls), len(self.replies)) - 1]
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+class FakeRetriever:
+    def __init__(self, hits: list[ChunkHit] | None = None, best: float = 0.9) -> None:
+        self.hits = [HIT] if hits is None else hits
+        self.best = best
+        self.questions: list[str] = []
+
+    async def search(self, question: str) -> Retrieved:
+        self.questions.append(question)
+        return Retrieved(self.hits, self.best)
+
+
+class FakeChatSettingsSource:
+    def __init__(self, result: ChatSettings | Exception | None = None) -> None:
+        self.result = result or ChatSettings(enabled=True, suggested_questions=[])
+        self.calls = 0
+
+    async def fetch_chat_settings(self) -> ChatSettings:
+        self.calls += 1
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result

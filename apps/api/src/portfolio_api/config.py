@@ -22,8 +22,29 @@ class Settings(BaseSettings):
     github_token: str | None = None
     github_login: str = "chrisguzman77"
 
+    # Phase 5 chat. Chat stays off until the Groq key, Directus token, Turnstile secret and
+    # hash salt are all set.
+    groq_api_key: str | None = None
+    groq_model: str = "openai/gpt-oss-120b"
+    directus_url: str = "http://directus:8055"
+    directus_token: str | None = None
+    internal_secret: str | None = None
+    chat_hash_salt: str | None = None
+    chat_daily_token_budget: int = 180_000
+    chat_min_similarity: float = 0.5
+    embedding_cache_dir: str | None = None
+
     @field_validator(
-        "turnstile_secret", "resend_api_key", "contact_to", "github_token", mode="before"
+        "turnstile_secret",
+        "resend_api_key",
+        "contact_to",
+        "github_token",
+        "groq_api_key",
+        "directus_token",
+        "internal_secret",
+        "chat_hash_salt",
+        "embedding_cache_dir",
+        mode="before",
     )
     @classmethod
     def _blank_is_unset(cls, value: object) -> object:

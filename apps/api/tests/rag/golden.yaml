@@ -1,0 +1,33 @@
+# Retrieval quality gate: each question must find one of its expected documents (by title
+# substring) in the top 5 results. Built from infra/directus/seed/*.json, so it never needs
+# Directus. Passing threshold: 14 of 15.
+- question: What is Chris studying?
+  expect: ["B.S. in Computer Science"]
+- question: When does he graduate?
+  expect: ["B.S. in Computer Science", "About Christopher Guzman"]
+- question: Has he done any cybersecurity compliance or risk work?
+  expect: ["SIEGE CyberOps"]
+- question: What machine learning experience does he have?
+  expect: ["SteelGate", "Cyber Threat Lakehouse"]
+- question: Has he built anything with Three.js?
+  expect: ["College of Allied Health Professions"]
+- question: What did he do at Jubilee Farms?
+  expect: ["Jubilee Farms"]
+- question: Tell me about the offline payment project.
+  expect: ["OFFRes"]
+- question: Did he win any hackathons?
+  expect: ["OFFRes"]
+- question: Has he worked with Apache Spark?
+  expect: ["Cyber Threat Lakehouse"]
+- question: How did he implement authentication for the ACM site?
+  expect: ["ACM@AU"]
+- question: How is this portfolio deployed?
+  expect: ["This portfolio"]
+- question: Where is Chris located?
+  expect: ["About Christopher Guzman"]
+- question: Is he in a fraternity?
+  expect: ["Delta Chi"]
+- question: Has he worked with Kubernetes?
+  expect: ["SteelGate"]
+- question: Does he know FastAPI?
+  expect: ["ACM@AU", "OFFRes", "This portfolio", "College of Allied Health Professions"]

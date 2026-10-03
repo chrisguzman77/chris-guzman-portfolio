@@ -7,6 +7,7 @@ export const CONTENT_COLLECTIONS = [
   "projects",
   "posts",
   "resume",
+  "chat_settings",
 ] as const;
 
 export type ContentCollection = (typeof CONTENT_COLLECTIONS)[number];

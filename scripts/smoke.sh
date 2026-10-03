@@ -10,6 +10,7 @@
 # Phase 3, which has no CMS content.
 #
 # The api also gets a route check for /v1/github/activity: 200 or 503 both pass.
+# The api also gets a route check for POST /v1/chat/sessions: 400 (validation) or 503 (chat off) both pass.
 set -euo pipefail
 
 PROJECT="${COMPOSE_PROJECT_NAME:-portfolio}"
@@ -57,6 +58,18 @@ try:
 except urllib.error.HTTPError as err:
     status = err.code
 sys.exit(status not in (200, 503))" || status=1
+# 400 (empty body fails validation) and 503 (chat not configured or switched off) both prove
+# the chat route is wired and guarded.
+check "api /v1/chat/sessions is routed" in_service api python -c "
+import sys, urllib.error, urllib.request
+req = urllib.request.Request(
+    'http://127.0.0.1:8000/v1/chat/sessions', data=b'{}', headers={'Content-Type': 'application/json'}
+)
+try:
+    status = urllib.request.urlopen(req, timeout=3).status
+except urllib.error.HTTPError as err:
+    status = err.code
+sys.exit(status not in (400, 503))" || status=1
 check "directus /server/ping" in_service directus wget -qO- http://127.0.0.1:8055/server/ping || status=1
 if [[ "${SKIP_CONTENT_SMOKE:-0}" == 1 ]]; then
   echo "skip  CMS content checks (SKIP_CONTENT_SMOKE=1)"

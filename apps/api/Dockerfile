@@ -10,13 +10,17 @@ COPY alembic ./alembic
 COPY alembic.ini ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
+# The chat's embedding model (~130 MB) ships in the image, so production never downloads it.
+RUN /app/.venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/app/models')"
 
 FROM python:3.12-slim-bookworm AS runner
 RUN groupadd --gid 1000 app && useradd --uid 1000 --gid app --home-dir /app --no-create-home --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
 ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    API_EMBEDDING_CACHE_DIR=/app/models \
+    HF_HUB_OFFLINE=1
 USER 1000:1000
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \

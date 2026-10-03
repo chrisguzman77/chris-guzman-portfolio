@@ -49,6 +49,9 @@ services:
       TELEMETRY: "false"
       DIRECTUS_WEB_TOKEN: ${DIRECTUS_WEB_TOKEN:?}
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?}
+      # Phase 5, optional: api-reader token and the reindex Flow step's secret.
+      DIRECTUS_API_TOKEN: ${DIRECTUS_API_TOKEN:-}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-}
     volumes:
       - directus-uploads:/directus/uploads
       - ../directus:/directus/bootstrap:ro
@@ -74,7 +77,13 @@ services:
       API_RESEND_API_KEY: ${RESEND_API_KEY:-}
       API_CONTACT_TO: ${CONTACT_TO:-}
       API_GITHUB_TOKEN: ${GITHUB_ACTIVITY_TOKEN:-}
-    mem_limit: 384m
+      # Phase 5: chat stays off until the Groq key, Directus token and salt are set.
+      API_GROQ_API_KEY: ${GROQ_API_KEY:-}
+      API_DIRECTUS_URL: http://directus:8055
+      API_DIRECTUS_TOKEN: ${DIRECTUS_API_TOKEN:-}
+      API_INTERNAL_SECRET: ${INTERNAL_API_SECRET:-}
+      API_CHAT_HASH_SALT: ${CHAT_HASH_SALT:-}
+    mem_limit: 768m # embedding model (~300 MB resident) for the chat index
 
   web:
     <<: *service

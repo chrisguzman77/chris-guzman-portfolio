@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/compose/compose.dev.yaml
 
-.PHONY: help up down logs ps build migrate cms-bootstrap test lint dev-web dev-api prod-config secrets-edit secrets-check
+.PHONY: help up down logs ps build migrate cms-bootstrap test lint dev-web dev-api prod-config secrets-edit secrets-check reindex chats chat-eval
 
 help:          ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -50,3 +50,16 @@ secrets-edit:  ## Edit the encrypted production secrets (opens $$EDITOR)
 
 secrets-check: ## Check prod secrets decrypt, have every key, and no change-me values (never prints values)
 	@SOPS_AGE_KEY_FILE=$(SOPS_KEY) scripts/secrets-check.sh
+
+# Production helpers: run on the VM (use sudo if your user is not in the docker group).
+API_CONTAINER = $$(docker ps -q --filter label=com.docker.compose.project=portfolio --filter label=com.docker.compose.service=api | head -n 1)
+DAYS ?= 7
+
+reindex:       ## (VM) Sync the chat index with published content now
+	docker exec $(API_CONTAINER) portfolio-api reindex
+
+chats:         ## (VM) Print recent chats (DAYS=30 make chats for more)
+	docker exec $(API_CONTAINER) portfolio-api chats --days $(DAYS)
+
+chat-eval:     ## (VM) Run the chat answer-quality cases against Groq (~10 min, uses quota)
+	docker exec $(API_CONTAINER) portfolio-api chat-eval

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { DirectusUnavailableError, directusGet } from "./client";
 import {
   getCertifications,
+  getChatSettings,
   getEducation,
   getExperience,
   getInvolvement,
@@ -233,6 +234,24 @@ describe("singletons", () => {
     get.mockResolvedValue({ file: FILE_ID, version_label: "fall-2026", updated_at: "2026-10-01" });
     await expect(getResume()).resolves.toMatchObject({ file: FILE_ID });
     expect(get.mock.calls[0][1]).toEqual(["resume"]);
+  });
+
+  it("getChatSettings parses the singleton and fetches only its fields", async () => {
+    get.mockResolvedValueOnce({ enabled: false, suggested_questions: ["Q1", "Q2"] });
+    await expect(getChatSettings()).resolves.toEqual({
+      enabled: false,
+      suggested_questions: ["Q1", "Q2"],
+    });
+    expect(get).toHaveBeenCalledWith("chat_settings?fields=enabled,suggested_questions", [
+      "chat_settings",
+    ]);
+  });
+
+  it("getChatSettings treats null fields as off/empty and falls back to null when Directus is down", async () => {
+    get.mockResolvedValueOnce({ enabled: null, suggested_questions: null });
+    await expect(getChatSettings()).resolves.toEqual({ enabled: false, suggested_questions: [] });
+    get.mockRejectedValueOnce(new DirectusUnavailableError("down"));
+    await expect(getChatSettings()).resolves.toBeNull();
   });
 });
 

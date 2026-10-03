@@ -6,6 +6,7 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-terminal: var(--terminal);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-border: var(--border);
@@ -42,6 +43,7 @@
   color-scheme: light;
   --radius: 0.625rem;
   --background: #fbfbfa;
+  --terminal: #000000;
   --card: #ffffff;
   --border: #e6e8eb;
   --input: #d0d4da;
@@ -59,6 +61,7 @@
 .dark {
   color-scheme: dark;
   --background: #0d1117;
+  --terminal: #000000;
   --card: #161b22;
   --border: #21262d;
   --input: #30363d;
