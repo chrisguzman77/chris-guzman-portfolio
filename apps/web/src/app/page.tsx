@@ -3,10 +3,10 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { ExperienceEntry } from "@/components/content/experience-entry";
-import { LiveStatus, LiveStatusFallback } from "@/components/content/live-status";
 import { PostListItem } from "@/components/content/post-list-item";
 import { ProjectCard } from "@/components/content/project-card";
 import { SectionHeading } from "@/components/content/section-heading";
+import { StatusCard, StatusCardSkeleton } from "@/components/content/status-card";
 import { GitHubActivity } from "@/components/content/github-activity";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
@@ -72,12 +72,6 @@ export default async function HomePage() {
                 {profile.intro}
               </p>
             ) : null}
-            <div className="mb-5">
-              {/* Streams in: a slow or down API never delays the rest of the page. */}
-              <Suspense fallback={<LiveStatusFallback />}>
-                <LiveStatus />
-              </Suspense>
-            </div>
             <div className="flex flex-wrap items-center gap-2.5">
               <Link href="/resume" className={primaryButton}>
                 Download resume
@@ -95,6 +89,12 @@ export default async function HomePage() {
                 <LinkedInIcon className="size-4" aria-hidden="true" />
                 LinkedIn
               </a>
+            </div>
+            <div className="mt-5">
+              {/* Streams in: a slow or down API never delays the rest of the page. */}
+              <Suspense fallback={<StatusCardSkeleton />}>
+                <StatusCard />
+              </Suspense>
             </div>
           </div>
         </div>
