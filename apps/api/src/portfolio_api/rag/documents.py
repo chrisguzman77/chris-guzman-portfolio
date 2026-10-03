@@ -153,7 +153,12 @@ def _project(item: Item) -> SourceDocument:
 def _post(item: Item) -> SourceDocument:
     title = _text(item, "title")
     tags = ", ".join(str(t) for t in _list(item, "tags"))
-    meta = f"Published {_month(item.get('published_at'))}." + (f" Tags: {tags}." if tags else "")
+    published = _month(item.get("published_at"))
+    meta = " ".join(
+        p
+        for p in [f"Published {published}." if published else "", f"Tags: {tags}." if tags else ""]
+        if p
+    )
     return _doc(
         "posts",
         str(item["id"]),

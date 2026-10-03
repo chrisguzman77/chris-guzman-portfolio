@@ -88,7 +88,7 @@ class DirectusContent:
         enabled = data.get("enabled")
         questions = data.get("suggested_questions")
         return ChatSettings(
-            enabled=enabled if isinstance(enabled, bool) else True,
+            enabled=enabled is True,
             suggested_questions=[q for q in cast(list[Any], questions) if isinstance(q, str)]
             if isinstance(questions, list)
             else [],

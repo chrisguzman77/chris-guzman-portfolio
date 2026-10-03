@@ -52,6 +52,25 @@ def test_format_chats() -> None:
     assert format_chats([]) == "No chats in this period."
 
 
+def test_format_chats_strips_control_characters() -> None:
+    session = ChatSession(
+        id=uuid.UUID("1a2b3c4d-0000-4000-8000-000000000000"),
+        ip_hash="x",
+        question_count=0,
+        created_at=datetime(2026, 10, 2, 14, 3, tzinfo=UTC),
+    )
+    msg = ChatMessage(
+        question="\x1b[31mred\x07\nnext\x9b",
+        answer="a\x1b]0;pwn\x07b",
+        outcome=ChatOutcome.answered,
+        sources=[{"n": 1, "title": "T\x1b[2J", "url": "/x\x00"}],
+    )
+    out = format_chats([(session, [msg])])
+    assert not any((ord(c) < 32 and c != "\n") or 0x7F <= ord(c) <= 0x9F for c in out)
+    assert "red" in out and "next" in out
+    assert out.count("\n") == 3  # injected newline did not add a line
+
+
 def test_eval_cases_are_well_formed() -> None:
     cases = load_eval_cases()
     assert len(cases["answerable"]) >= 15 and len(cases["refuse"]) >= 10

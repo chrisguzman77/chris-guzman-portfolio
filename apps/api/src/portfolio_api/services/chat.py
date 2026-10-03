@@ -133,7 +133,10 @@ class ChatService:
 
     async def compose(self, question: str, history: Sequence[Exchange]) -> Composed:
         """Retrieve, ask the model, check citations. Raises the model's errors."""
-        retrieved = await self._retriever.search(question)
+        try:
+            retrieved = await self._retriever.search(question)
+        except Exception as exc:  # embedder or database failure: same outcome as a model outage
+            raise ModelUnavailableError(f"retrieval failed: {type(exc).__name__}") from exc
         if not retrieved.hits or retrieved.best_similarity < self._min_similarity:
             return Composed(CANNED_ANSWER, [CONTACT_SOURCE], ChatOutcome.no_match, None, 0, 0)
         reply = await self._model.complete(build_messages(question, retrieved.hits, history))

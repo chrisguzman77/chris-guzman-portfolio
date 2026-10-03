@@ -8,13 +8,15 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import ChatSettings, DirectusError
-from portfolio_api.clients.groq import ModelBusyError, ModelReply
+from portfolio_api.clients.groq import ModelBusyError, ModelReply, ModelUnavailableError
 from portfolio_api.models import ChatMessage, ChatOutcome, ChatSession, ChatUsageDaily
+from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.services.chat import (
     MAX_QUESTIONS,
     BudgetExhaustedError,
     ChatService,
     ChatSwitch,
+    SearchesIndex,
     SessionLimitError,
     SessionNotFoundError,
 )
@@ -28,7 +30,7 @@ IP = "203.0.113.7"
 def service(
     db: Sessions,
     model: FakeChatModel | None = None,
-    retriever: FakeRetriever | None = None,
+    retriever: SearchesIndex | None = None,
     clock: datetime | None = None,
 ) -> ChatService:
     return ChatService(
@@ -150,6 +152,21 @@ async def test_model_error_is_recorded_then_raised(db: Sessions) -> None:
     chat = service(db, FakeChatModel(ModelBusyError("groq 429")))
     session_id, _ = await chat.open_session(IP)
     with pytest.raises(ModelBusyError):
+        await chat.ask(session_id, IP, "q?")
+    [msg] = await messages(db)
+    assert msg.outcome == ChatOutcome.error and msg.answer is None
+    assert await usage(db) is None
+
+
+class BrokenRetriever:
+    async def search(self, question: str) -> Retrieved:
+        raise RuntimeError("embedding model failed to load")
+
+
+async def test_retriever_failure_is_recorded_and_becomes_model_unavailable(db: Sessions) -> None:
+    chat = service(db, retriever=BrokenRetriever())
+    session_id, _ = await chat.open_session(IP)
+    with pytest.raises(ModelUnavailableError):
         await chat.ask(session_id, IP, "q?")
     [msg] = await messages(db)
     assert msg.outcome == ChatOutcome.error and msg.answer is None

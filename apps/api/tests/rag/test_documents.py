@@ -157,6 +157,13 @@ def test_project_post_involvement_certification_and_resume_urls() -> None:
     assert docs[("resume", "resume")].url == "/resume"
 
 
+def test_post_without_a_publish_date_omits_the_published_sentence() -> None:
+    post = {"id": 5, "slug": "hi", "title": "Hi", "published_at": None, "tags": ["meta"]}
+    docs = build_documents(replace(EMPTY, posts=[post]))
+    assert "Published" not in docs[0].markdown
+    assert "Tags: meta." in docs[0].markdown
+
+
 def test_seed_content_builds_one_document_per_item() -> None:
     docs = build_documents(load_seed_content())
     assert len(by_type(docs, "profile")) == 1

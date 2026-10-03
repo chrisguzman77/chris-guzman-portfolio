@@ -116,8 +116,13 @@ async def test_chat_settings() -> None:
 async def test_chat_settings_defaults_when_empty() -> None:
     directus, _ = client({"/items/chat_settings": {"enabled": None, "suggested_questions": None}})
     assert await directus.fetch_chat_settings() == ChatSettings(
-        enabled=True, suggested_questions=[]
+        enabled=False, suggested_questions=[]
     )
+
+
+async def test_chat_settings_missing_enabled_is_off() -> None:
+    directus, _ = client({"/items/chat_settings": {"suggested_questions": []}})
+    assert (await directus.fetch_chat_settings()).enabled is False
 
 
 def test_pdf_text_joins_pages() -> None:

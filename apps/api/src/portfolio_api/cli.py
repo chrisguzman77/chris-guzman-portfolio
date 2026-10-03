@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import re
 import sys
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime, timedelta
@@ -26,6 +27,14 @@ from portfolio_api.services.indexer import IndexService
 BUSY_RETRIES = 3
 
 
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def _clean(text: str) -> str:
+    """Visitors write the questions: drop terminal control characters (ESC, C1, ...)."""
+    return _CONTROL.sub(lambda m: " " if m.group() in "\n\r\t" else "", text)
+
+
 def format_chats(rows: Sequence[tuple[ChatSession, Sequence[ChatMessage]]]) -> str:
     if not rows:
         return "No chats in this period."
@@ -37,11 +46,11 @@ def format_chats(rows: Sequence[tuple[ChatSession, Sequence[ChatMessage]]]) -> s
             f"{session.question_count} counted question(s)"
         )
         for m in messages:
-            lines.append(f"[{m.outcome.value}] Q: {m.question}")
+            lines.append(f"[{m.outcome.value}] Q: {_clean(m.question)}")
             if m.answer:
-                lines.append(f"    A: {m.answer}")
+                lines.append(f"    A: {_clean(m.answer)}")
             if m.sources:
-                cited = ", ".join(f"{s['title']} ({s['url']})" for s in m.sources)
+                cited = ", ".join(_clean(f"{s['title']} ({s['url']})") for s in m.sources)
                 lines.append(f"    sources: {cited}")
         lines.append("")
     return "\n".join(lines).rstrip()
