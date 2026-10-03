@@ -80,8 +80,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     indexer = IndexService(sessions, directus, embedder) if directus is not None else None
     app.state.indexer = indexer
     if indexer is not None:
-        # Runs at startup (a no-change sync embeds nothing), then nightly.
-        jobs.append(Job("rag-sync", 86_400, indexer.sync_job))
+        # Runs at startup and every 15 minutes; a no-change sync embeds nothing and
+        # self-heals a missed Flow call or an api started before the Directus bootstrap.
+        jobs.append(Job("rag-sync", 900, indexer.sync_job))
     app.state.chat_switch = ChatSwitch(directus) if directus is not None else None
     app.state.chat_session_limiter = SlidingWindowLimiter([(10, 3_600)])
     app.state.chat_message_limiter = SlidingWindowLimiter([(5, 60), (30, 86_400)])

@@ -107,7 +107,7 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 ## Ask about Chris (chat)
 
 - **Switch on/off:** Directus → Chat Settings → `enabled`. Off hides the launcher within seconds (Flow revalidation) and the API refuses new questions within a minute. Suggested questions are edited in the same place (the first four are shown).
-- **Re-index now:** `make reindex` on the VM. Publishing in Directus already triggers one (the Flow's `reindex` step, debounced 5 s), and one runs nightly and at API startup.
+- **Re-index now:** `make reindex` on the VM. Publishing in Directus already triggers one (the Flow's `reindex` step, debounced 5 s), and one runs every 15 minutes and at API startup.
 - **Read chats:** `make chats` (last 7 days) or `DAYS=30 make chats`. Outcomes: `answered`, `no_match` (nothing relevant, model not called), `uncited` (model answered without citing; the visitor saw the fixed reply, the raw answer is shown here), `error` (Groq failed). Chats are deleted after 30 days.
 - **Check answer quality:** `make chat-eval` (~10 minutes, uses about a third of the day's Groq quota). Every line should be PASS; a FAIL shows the answer and why.
 - **Budget:** 180,000 tokens per UTC day (`API_CHAT_DAILY_TOKEN_BUDGET`); when spent, the terminal says chat is resting until tomorrow.

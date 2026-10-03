@@ -83,8 +83,8 @@ Embedding is CPU-bound and runs in a worker thread so the event loop stays respo
 ### Triggers
 
 - **On publish:** the existing revalidation Flow gets a second operation, chained after `revalidate`, that sends `POST http://api:8000/internal/reindex` with `X-Internal-Secret`. The endpoint returns 202 right away; a background task waits 5 seconds (several Flow calls within that window collapse into one sync), then syncs.
-- **Nightly:** a lifespan job runs a sync once every 24 hours.
-- **Startup:** the nightly job also runs once when the API starts (a sync with no changes embeds nothing).
+- **Periodic:** a lifespan job runs a sync every 15 minutes (a no-change sync embeds nothing; it self-heals a missed Flow call or an api started before the Directus bootstrap).
+- **Startup:** the periodic job also runs once when the API starts (a sync with no changes embeds nothing).
 - **By hand:** `portfolio-api reindex` (`make reindex` on the VM).
 
 `/internal/*` returns 404 unless the secret matches and the request has no `CF-Connecting-IP` header (anything through the Cloudflare Tunnel has one), so it is reachable only from containers on the VM.

@@ -37,7 +37,7 @@ Local development needs none of this: `compose.dev.yaml` uses Turnstile's publis
 1. Create a free account at console.groq.com (no card), create an API key, and turn on Zero Data Retention under data controls if the free plan offers it.
 2. Generate three random values on your Mac: `openssl rand -hex 32` (run it three times) for `DIRECTUS_API_TOKEN`, `INTERNAL_API_SECRET`, `CHAT_HASH_SALT`.
 3. `make secrets-edit`, add `GROQ_API_KEY` and the three values, save; `make secrets-check`; commit and push. Never paste these values anywhere else.
-4. After the deploy: `make chat-eval` on the VM, read the report, then switch chat on in Directus (Chat Settings → enabled).
+4. After the deploy: `make reindex` on the VM (fills the index now instead of at the next 15-minute sync), then `make chat-eval`, read the report, then switch chat on in Directus (Chat Settings → enabled).
 
 ## Cloudflare R2 (Phase 6)
 - Bucket for encrypted backups with a 30-day lifecycle rule; scoped API token.
