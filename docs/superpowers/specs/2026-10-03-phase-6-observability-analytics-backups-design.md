@@ -45,11 +45,11 @@ All new services join the existing compose network, use the shared `x-service` a
 | Service | Image | `mem_limit` | Notes |
 |---|---|---|---|
 | `prometheus` | `prom/prometheus` | 320m | `--storage.tsdb.retention.time=35d`, `--storage.tsdb.retention.size=2GB`, scrape interval 30 s, volume `prometheus-data` |
-| `grafana` | `grafana/grafana-oss` | 192m | provisioned datasource, dashboards, alert rules, contact point; volume `grafana-data`; anonymous access off; admin password from `GRAFANA_ADMIN_PASSWORD`; `GF_SERVER_ROOT_URL=https://grafana.christopherguzman.me` |
+| `grafana` | `grafana/grafana` (the OSS edition; `grafana-oss` stopped publishing in 2026) | 384m (measured: at 192m–256m it re-reads its 485 MB binary from page cache and takes minutes to become healthy; real anonymous memory is about 110 MiB) | provisioned datasource, dashboards, alert rules, contact point; volume `grafana-data`; anonymous access off; admin password from `GRAFANA_ADMIN_PASSWORD`; `GF_SERVER_ROOT_URL=https://grafana.christopherguzman.me` |
 | `node-exporter` | `prom/node-exporter` | 64m | host `/proc`, `/sys`, `/` mounted read-only; textfile collector reads volume `node-textfile` |
-| `cadvisor` | `gcr.io/cadvisor/cadvisor` | 128m | `--docker_only=true`, `--housekeeping_interval=30s`, reduced metric set |
+| `cadvisor` | `ghcr.io/google/cadvisor` | 128m | `--docker_only=true`, `--housekeeping_interval=30s`, reduced metric set |
 | `blackbox-exporter` | `prom/blackbox-exporter` | 32m | one `http_2xx` module |
-| `umami` | `ghcr.io/umami-software/umami` (Postgres build) | 256m | `DATABASE_URL` to the `umami` DB with `UMAMI_DB_PASSWORD`; `APP_SECRET` from `UMAMI_APP_SECRET` |
+| `umami` | `ghcr.io/umami-software/umami` (v3 is Postgres-only) | 256m | `DATABASE_URL` to the `umami` DB with `UMAMI_DB_PASSWORD`; `APP_SECRET` from `UMAMI_APP_SECRET` |
 | `backup` | `ghcr.io/chrisguzman77/chris-guzman-portfolio/backup:${IMAGE_TAG}` | 256m | built in CI like web/api; Trivy-scanned |
 
 `scripts/deploy.sh` adds the new services to its default `SERVICES` list (its `--remove-orphans` would otherwise never start them). `release.yml` builds, scans, and pushes the `backup` image.
@@ -81,7 +81,6 @@ The API exposes `GET /metrics` (Prometheus text format, `prometheus-client`).
   - `chat_tokens_total{kind="input"|"output"}`
   - `chat_budget_used_ratio`: gauge, today's tokens divided by the daily budget, updated whenever usage is recorded and on startup.
   - `contact_submissions_total{result="sent"|"failed"}`
-  - `resume_downloads_total`
   - `rag_sync_runs_total{result="ok"|"error"}`
 - Counters reset when the API restarts; every query uses `increase()`/`rate()`, which handles resets.
 
@@ -157,7 +156,7 @@ Provisioned under `infra/observability/grafana/provisioning/`. One contact point
 | Memory tight | VM memory used > 90% | 10m |
 | Site down | `probe_success{job="site"} == 0` | 5m |
 | API errors | 5xx share of API requests > 5% (and at least 20 requests in the window) | 10m |
-| Container down | any scrape target has `up == 0`, or `time() - container_last_seen{name=~"portfolio-(postgres|directus|api|web|cloudflared|umami)-1"} > 60` | 5m |
+| Container down | any scrape target has `up == 0`, or `time() - max by (name) (max_over_time(container_last_seen{name=~"portfolio-(postgres|directus|api|web|cloudflared|umami)-1"}[24h])) > 60` (the 24 h lookback keeps a stopped container's series visible after cAdvisor drops it) | 5m |
 | Backup stale | `time() - backup_last_success_timestamp_seconds > 36h`, or the metric is absent | 15m |
 | Chat budget | `chat_budget_used_ratio > 0.8` | 0m |
 
@@ -167,7 +166,7 @@ Better Stack keeps watching `/api/healthz` independently, and its heartbeat catc
 
 Two provisioned dashboards stored as JSON in `infra/observability/grafana/dashboards/`:
 
-- **Portfolio overview**: site up/down and uptime, API request rate, error rate, p95/p99 latency by route, chat questions by outcome, tokens vs. budget, contact sends, resume downloads, last backup age.
+- **Portfolio overview**: site up/down and uptime, API request rate, error rate, p95/p99 latency by route, chat questions by outcome, tokens vs. budget, contact sends, chat index syncs, last backup age. Resume downloads are counted by Umami's `resume-download` event, since the web app (not the API) serves the PDF.
 - **Host & containers**: VM CPU, memory, swap, disk, network; per-container CPU and memory against limits.
 
 ## Backups
@@ -195,7 +194,7 @@ Two provisioned dashboards stored as JSON in `infra/observability/grafana/dashbo
 ### CI
 
 - `ci.yml` infra job: shellcheck `infra/backup/*.sh`, hadolint the backup Dockerfile, and a backup round-trip test. It runs `backup.sh` against a throwaway Postgres with a throwaway age key and a local rclone remote (`RCLONE_CONFIG_R2_TYPE=local`), then `restore.sh` and `verify.sql` against seeded fixture rows.
-- `promtool check config` and `promtool check rules` (the Prometheus image) on the Prometheus config. Grafana provisioning YAML is validated by a parse step.
+- `promtool check config` (the Prometheus image) on the Prometheus config. There are no Prometheus rule files; all alerting lives in Grafana. Grafana provisioning YAML is validated by a parse step.
 
 ## VM
 
@@ -226,7 +225,7 @@ GitHub `backup-verify` environment secrets: `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_RE
 - **API (pytest):**
   - `/metrics` returns 404 with `CF-Connecting-IP` and 200 without it.
   - Route-template labels; `/health` and `/metrics` excluded.
-  - Feature counters increment.
+  - Feature counters increment; the chat budget gauge is refreshed every 5 minutes so it resets after the UTC day rolls over.
   - `/v1/status` against a fake Prometheus client: operational, degraded on Prometheus error, missing-sample days counted as downtime, days before the first probe returned as `null`, p95 rounding, the America/New_York day boundary for `requests_today`, and the 60 s cache.
 - **Web (vitest):**
   - Status card: operational, degraded, all-`null`, skeleton, bar colours and labels.
