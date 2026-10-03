@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CONTENT_COLLECTIONS, collectionTag, isContentCollection, itemTag } from "./tags";
 
 describe("cache tags", () => {
-  it("lists the eight content collections", () => {
+  it("lists the nine content collections", () => {
     expect(CONTENT_COLLECTIONS).toEqual([
       "profile",
       "experience",
@@ -13,6 +13,7 @@ describe("cache tags", () => {
       "projects",
       "posts",
       "resume",
+      "chat_settings",
     ]);
   });
 

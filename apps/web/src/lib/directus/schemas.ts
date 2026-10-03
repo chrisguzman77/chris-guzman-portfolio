@@ -106,6 +106,14 @@ export const ResumeSchema = z.object({
   updated_at: z.string().nullable(),
 });
 
+export const ChatSettingsSchema = z.object({
+  enabled: z
+    .boolean()
+    .nullable()
+    .transform((v) => v ?? false),
+  suggested_questions: stringList,
+});
+
 export type Profile = z.infer<typeof ProfileSchema>;
 export type Experience = z.infer<typeof ExperienceSchema>;
 export type Degree = z.infer<typeof DegreeSchema>;
@@ -115,3 +123,4 @@ export type Certification = z.infer<typeof CertificationSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Post = z.infer<typeof PostSchema>;
 export type Resume = z.infer<typeof ResumeSchema>;
+export type ChatSettings = z.infer<typeof ChatSettingsSchema>;

@@ -5,6 +5,7 @@ import { sortExperience } from "@/lib/format";
 import { DirectusUnavailableError, directusGet } from "./client";
 import {
   CertificationSchema,
+  ChatSettingsSchema,
   EducationSchema,
   ExperienceSchema,
   InvolvementSchema,
@@ -13,6 +14,7 @@ import {
   ProjectSchema,
   ResumeSchema,
   type Certification,
+  type ChatSettings,
   type Education,
   type Experience,
   type Involvement,
@@ -92,7 +94,7 @@ function getBySlug<S extends z.ZodObject>(
 }
 
 function getSingleton<S extends z.ZodObject>(
-  collection: "profile" | "resume",
+  collection: "profile" | "resume" | "chat_settings",
   schema: S,
 ): Promise<z.output<S> | null> {
   return orFallback<z.output<S> | null>(null, async () => {
@@ -141,6 +143,10 @@ export function getPost(slug: string): Promise<Post | null> {
 
 export function getResume(): Promise<Resume | null> {
   return getSingleton("resume", ResumeSchema);
+}
+
+export function getChatSettings(): Promise<ChatSettings | null> {
+  return getSingleton("chat_settings", ChatSettingsSchema);
 }
 
 // Allow-list for /cms-assets: only files that published content points at. Reuses the cached
