@@ -220,3 +220,12 @@ async def test_switch_caches_and_survives_directus_errors() -> None:
 async def test_switch_defaults_to_enabled() -> None:
     switch = ChatSwitch(FakeChatSettingsSource(DirectusError("down")))
     assert await switch.enabled() is True
+
+
+async def test_full_width_citations_count_and_are_shown_as_brackets(db: Sessions) -> None:
+    chat = service(db, FakeChatModel(ModelReply("He studies Computer Science【1】.", 900, 20)))
+    session_id, _ = await chat.open_session(IP)
+    answer = await chat.ask(session_id, IP, "What does he study?")
+    assert answer.outcome == ChatOutcome.answered
+    assert answer.answer == "He studies Computer Science[1]."
+    assert answer.sources == [Source(1, HIT.title, HIT.url)]
