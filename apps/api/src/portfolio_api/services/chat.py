@@ -23,6 +23,7 @@ from portfolio_api.services.grounding import (
     Source,
     build_messages,
     cited_sources,
+    normalize_citations,
 )
 
 log = structlog.get_logger()
@@ -140,21 +141,22 @@ class ChatService:
         if not retrieved.hits or retrieved.best_similarity < self._min_similarity:
             return Composed(CANNED_ANSWER, [CONTACT_SOURCE], ChatOutcome.no_match, None, 0, 0)
         reply = await self._model.complete(build_messages(question, retrieved.hits, history))
-        sources = cited_sources(reply.text, retrieved.hits)
+        text = normalize_citations(reply.text)
+        sources = cited_sources(text, retrieved.hits)
         if sources is None:
             return Composed(
                 CANNED_ANSWER,
                 [CONTACT_SOURCE],
                 ChatOutcome.uncited,
-                reply.text,
+                text,
                 reply.input_tokens,
                 reply.output_tokens,
             )
         return Composed(
-            reply.text,
+            text,
             sources,
             ChatOutcome.answered,
-            reply.text,
+            text,
             reply.input_tokens,
             reply.output_tokens,
         )

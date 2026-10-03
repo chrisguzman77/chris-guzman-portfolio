@@ -7,6 +7,7 @@ from portfolio_api.services.grounding import (
     Source,
     build_messages,
     cited_sources,
+    normalize_citations,
     strip_citations,
 )
 
@@ -73,3 +74,11 @@ def test_cited_sources_rejects_bad_answers() -> None:
     assert cited_sources("He used FastAPI [3].", HITS) is None
     assert cited_sources("He used FastAPI [0].", HITS) is None
     assert cited_sources("Partly [1] and [7].", HITS) is None
+
+
+def test_normalize_citations_accepts_gpt_oss_markers() -> None:
+    assert normalize_citations("Graduates May 2027【1】【3】.") == "Graduates May 2027[1][3]."
+    assert (
+        normalize_citations("Uses FastAPI【2†L1-L3】 and [4†source].") == "Uses FastAPI[2] and [4]."
+    )
+    assert normalize_citations("Plain [1].") == "Plain [1]."

@@ -32,6 +32,8 @@ SYSTEM_PROMPT = "\n".join(
 )
 
 _CITATION = re.compile(r"\[(\d+)\]")
+# gpt-oss models often cite as 【1】 or 【2†L1-L3】 (and sometimes [3†source]); map them to [n].
+_ALT_CITATION = re.compile(r"【(\d+)(?:†[^】]*)?】|\[(\d+)†[^\]]*\]")
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,10 @@ CONTACT_SOURCE = Source(1, "Contact", "/contact")
 class Exchange:
     question: str
     answer: str
+
+
+def normalize_citations(text: str) -> str:
+    return _ALT_CITATION.sub(lambda m: f"[{m.group(1) or m.group(2)}]", text)
 
 
 def strip_citations(text: str) -> str:
