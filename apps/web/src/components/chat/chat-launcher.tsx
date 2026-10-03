@@ -22,6 +22,33 @@ const readLabel = () =>
   shortcutLabel(currentPlatform(), window.matchMedia("(pointer: coarse)").matches);
 const serverLabel = () => null; // no label in server HTML, so hydration never mismatches
 
+// How far the site footer reaches up into the viewport, so the pill can rest above it
+// instead of covering the footer's links. 0 while the footer is off screen.
+function useFooterOverlap(): number {
+  const [overlap, setOverlap] = useState(0);
+  useEffect(() => {
+    let frame = 0;
+    function measure() {
+      frame = 0;
+      const footer = document.querySelector("footer");
+      const top = footer ? footer.getBoundingClientRect().top : window.innerHeight;
+      setOverlap(Math.max(0, Math.round(window.innerHeight - top)));
+    }
+    function schedule() {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    }
+    measure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+  return overlap;
+}
+
 export function ChatLauncher({
   apiUrl,
   siteKey,
@@ -32,6 +59,7 @@ export function ChatLauncher({
   suggestions: string[];
 }) {
   const label = useSyncExternalStore(subscribe, readLabel, serverLabel);
+  const footerOverlap = useFooterOverlap();
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -88,14 +116,15 @@ export function ChatLauncher({
           type="button"
           onClick={show}
           aria-keyshortcuts={label === "⌘K" ? "Meta+K" : label ? "Control+K" : undefined}
-          className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 inline-flex items-center gap-2 rounded-full border border-border bg-card py-1.5 pr-3.5 pl-1.5 text-xs font-semibold text-foreground shadow-lg transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+          style={footerOverlap ? { transform: `translateY(-${footerOverlap}px)` } : undefined}
+          className="chat-pill-glow fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 inline-flex items-center gap-2.5 rounded-full border border-border bg-card py-2.5 pr-5 pl-2.5 text-sm font-semibold text-foreground shadow-lg transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
         >
           {label ? (
-            <kbd className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] font-normal text-accent-brand">
+            <kbd className="rounded-md border border-border bg-background px-2 py-1 font-mono text-xs font-normal text-accent-brand">
               {label}
             </kbd>
           ) : (
-            <span className="pl-2" />
+            <span className="pl-2.5" />
           )}
           Ask about Chris
         </button>

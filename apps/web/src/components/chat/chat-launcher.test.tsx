@@ -126,4 +126,28 @@ describe("ChatLauncher", () => {
     });
     expect(document.activeElement).toBe(pill());
   });
+
+  it("rests above the footer once the footer scrolls into view", async () => {
+    const footer = document.createElement("footer");
+    document.body.appendChild(footer);
+    let top = window.innerHeight + 100; // below the fold
+    footer.getBoundingClientRect = () => ({ top }) as DOMRect;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+    await renderLauncher();
+    expect(pill()?.style.transform).toBe("");
+    top = window.innerHeight - 70; // footer is 70px into the viewport
+    await act(async () => {
+      fireEvent.scroll(window);
+    });
+    expect(pill()?.style.transform).toBe("translateY(-70px)");
+    footer.remove();
+  });
+
+  it("carries the periodic glow effect", async () => {
+    await renderLauncher();
+    expect(pill()?.classList.contains("chat-pill-glow")).toBe(true);
+  });
 });
