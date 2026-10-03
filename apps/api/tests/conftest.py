@@ -29,14 +29,17 @@ async def client(settings: Settings) -> AsyncIterator[AsyncClient]:
 
 @pytest.fixture
 async def db() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    """Session factory on a migrated Postgres; the Phase 4 tables are emptied before and after."""
+    """Session factory on a migrated Postgres; every app table is emptied before and after."""
     url = os.environ.get("API_DATABASE_URL")
     if not url:
         pytest.fail(
             "DB tests need API_DATABASE_URL pointing at a migrated Postgres (apps/api/README.md)"
         )
     engine = make_engine(url)
-    truncate = text("TRUNCATE contact_submissions, github_activity_cache")
+    truncate = text(
+        "TRUNCATE contact_submissions, github_activity_cache, rag_documents, rag_chunks,"
+        " chat_sessions, chat_messages, chat_usage_daily"
+    )
     async with engine.begin() as conn:
         await conn.execute(truncate)
     yield make_sessionmaker(engine)
