@@ -8,19 +8,25 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from portfolio_api.body_limit import BodySizeLimit
+from portfolio_api.clients.directus import DirectusContent
 from portfolio_api.clients.email import ResendSender
 from portfolio_api.clients.github import GitHubGraphQL
+from portfolio_api.clients.groq import GroqChatModel
 from portfolio_api.clients.turnstile import CloudflareTurnstile
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker, ping
 from portfolio_api.errors import install_error_handlers
 from portfolio_api.jobs import Job, run_forever
 from portfolio_api.observability import configure_logging
+from portfolio_api.rag.embedder import FastEmbedEmbedder
+from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.request_id import install_request_id
-from portfolio_api.routers import contact, github, health
+from portfolio_api.routers import chat, contact, github, health, internal
+from portfolio_api.services.chat import ChatService, ChatSwitch
 from portfolio_api.services.contact import ContactService
 from portfolio_api.services.github import GitHubActivityService
+from portfolio_api.services.indexer import IndexService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -64,6 +70,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if github_source is not None:
         # Checked every 10 minutes; GitHub is called only when the copy is an hour old.
         jobs.append(Job("github-refresh", 600, github_activity.refresh_if_stale))
+    # Phase 5: the index needs only Directus; answering also needs Groq, Turnstile and a salt.
+    directus = (
+        DirectusContent(http, settings.directus_url, settings.directus_token)
+        if settings.directus_token
+        else None
+    )
+    embedder = FastEmbedEmbedder(settings.embedding_cache_dir)
+    indexer = IndexService(sessions, directus, embedder) if directus is not None else None
+    app.state.indexer = indexer
+    if indexer is not None:
+        # Runs at startup (a no-change sync embeds nothing), then nightly.
+        jobs.append(Job("rag-sync", 86_400, indexer.sync_job))
+    app.state.chat_switch = ChatSwitch(directus) if directus is not None else None
+    app.state.chat_session_limiter = SlidingWindowLimiter([(10, 3_600)])
+    app.state.chat_message_limiter = SlidingWindowLimiter([(5, 60), (30, 86_400)])
+    chat_service: ChatService | None = None
+    if (
+        directus is not None
+        and settings.groq_api_key
+        and settings.turnstile_secret
+        and settings.chat_hash_salt
+    ):
+        chat_service = ChatService(
+            sessions,
+            Retriever(sessions, embedder),
+            GroqChatModel(http, settings.groq_api_key, settings.groq_model),
+            hash_salt=settings.chat_hash_salt,
+            daily_budget=settings.chat_daily_token_budget,
+            min_similarity=settings.chat_min_similarity,
+        )
+        jobs.append(Job("chat-retention", 86_400, chat_service.purge_expired))
+    app.state.chat_service = chat_service
     install_error_handlers(app)
     # Inside the request-ID middleware (413s get an X-Request-ID); CORS stays outermost.
     app.add_middleware(BodySizeLimit)
@@ -77,4 +115,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(contact.router)
     app.include_router(github.router)
+    app.include_router(chat.router)
+    app.include_router(internal.router)
     return app
