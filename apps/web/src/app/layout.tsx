@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
+import { Suspense } from "react";
 
+import { ChatSlot } from "@/components/chat/chat-slot";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -35,6 +37,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SiteHeader />
           <main className="flex-1">{children}</main>
           <SiteFooter />
+          <Suspense fallback={null}>
+            <ChatSlot />
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>
