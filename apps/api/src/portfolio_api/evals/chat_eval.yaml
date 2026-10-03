@@ -26,7 +26,7 @@ answerable:
     sources: ["/experience"]
   - question: Which hackathon award did Chris win?
     must_include: ["Capital One"]
-    sources: ["/projects/offres-offpay"]
+    sources: ["/projects/offres-offpay", "/resume", "/experience", "/"]
   - question: How do OFFPay transactions stay secure without a network?
     must_include: ["HMAC"]
     sources: ["/projects/offres-offpay"]

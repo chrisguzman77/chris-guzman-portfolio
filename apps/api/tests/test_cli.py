@@ -152,3 +152,9 @@ def test_reindex_without_directus_token_fails(monkeypatch: pytest.MonkeyPatch) -
 def test_chat_eval_without_groq_key_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_GROQ_API_KEY", "")
     assert main(["chat-eval"]) == 1
+
+
+def test_judge_ignores_unicode_hyphens_and_spaces() -> None:
+    case = {"question": "q", "must_include": ["UNSW-NB15", "May 2027"], "sources": ["/p"]}
+    answer = composed("Uses UNSW\u2011NB15, ends May\u202f2027 [1].", ChatOutcome.answered, "/p")
+    assert judge_answerable(case, answer) is None

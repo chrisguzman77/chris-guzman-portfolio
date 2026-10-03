@@ -62,12 +62,20 @@ def load_eval_cases() -> dict[str, Any]:
     return cases
 
 
+# The model writes typographic hyphens and spaces (U+2011, U+202F, ...); compare plain text.
+_HYPHENS = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014"})
+
+
+def _plain(text: str) -> str:
+    return " ".join(text.translate(_HYPHENS).lower().split())
+
+
 def judge_answerable(case: dict[str, Any], composed: Composed) -> str | None:
     """None when the answer passes, otherwise the reason it failed."""
     if composed.outcome != ChatOutcome.answered:
         return f"outcome {composed.outcome.value}"
-    answer = composed.answer.lower()
-    missing = [f for f in case["must_include"] if f.lower() not in answer]
+    answer = _plain(composed.answer)
+    missing = [f for f in case["must_include"] if _plain(f) not in answer]
     if missing:
         return "missing " + ", ".join(missing)
     cited = {s.url for s in composed.sources}
