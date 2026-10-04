@@ -9,7 +9,7 @@ from portfolio_api.clients.directus import DirectusError
 from portfolio_api.models import RagChunk, RagDocument
 from portfolio_api.rag.documents import SiteContent
 from portfolio_api.services.indexer import IndexService, SyncResult
-from tests.fakes import FakeEmbedder
+from tests.fakes import FakeEmbedder, metric
 
 Sessions = async_sessionmaker[AsyncSession]
 
@@ -130,3 +130,16 @@ async def test_request_reindex_debounces_bursts(db: Sessions) -> None:
     await asyncio.sleep(0.3)
     assert source.calls == 1
     assert await counts(db) == (3, 3)
+
+
+async def test_sync_runs_are_measured(db: Sessions) -> None:
+    ok = metric("rag_sync_runs_total", result="ok")
+    error = metric("rag_sync_runs_total", result="error")
+    source = FakeSource(content_with_projects())
+    service = IndexService(db, source, FakeEmbedder())
+    await service.sync_job()
+    assert metric("rag_sync_runs_total", result="ok") == ok + 1
+    source.content = DirectusError("down")
+    await service.sync_job()
+    assert metric("rag_sync_runs_total", result="error") == error + 1
+    assert metric("rag_sync_runs_total", result="ok") == ok + 1

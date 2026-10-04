@@ -21,7 +21,7 @@ from portfolio_api.services.chat import (
     SessionNotFoundError,
 )
 from portfolio_api.services.grounding import CANNED_ANSWER, CONTACT_SOURCE, Source
-from tests.fakes import HIT, FakeChatModel, FakeChatSettingsSource, FakeRetriever
+from tests.fakes import HIT, FakeChatModel, FakeChatSettingsSource, FakeRetriever, metric
 
 Sessions = async_sessionmaker[AsyncSession]
 IP = "203.0.113.7"
@@ -229,3 +229,39 @@ async def test_full_width_citations_count_and_are_shown_as_brackets(db: Sessions
     assert answer.outcome == ChatOutcome.answered
     assert answer.answer == "He studies Computer Science[1]."
     assert answer.sources == [Source(1, HIT.title, HIT.url)]
+
+
+async def test_questions_tokens_and_budget_are_measured(db: Sessions) -> None:
+    answered = metric("chat_questions_total", outcome="answered")
+    no_match = metric("chat_questions_total", outcome="no_match")
+    tokens_in = metric("chat_tokens_total", kind="input")
+    tokens_out = metric("chat_tokens_total", kind="output")
+    chat = service(db)
+    session_id, _ = await chat.open_session(IP)
+    await chat.ask(session_id, IP, "Has he used FastAPI?")
+    assert metric("chat_questions_total", outcome="answered") == answered + 1
+    assert metric("chat_tokens_total", kind="input") == tokens_in + 1000
+    assert metric("chat_tokens_total", kind="output") == tokens_out + 50
+    assert metric("chat_budget_used_ratio") == pytest.approx(1050 / 180_000)
+
+    unmatched = service(db, retriever=FakeRetriever(best=0.1))
+    session_id, _ = await unmatched.open_session(IP)
+    await unmatched.ask(session_id, IP, "Unrelated?")
+    assert metric("chat_questions_total", outcome="no_match") == no_match + 1
+    assert metric("chat_tokens_total", kind="input") == tokens_in + 1000  # model not called
+
+
+async def test_model_errors_are_measured(db: Sessions) -> None:
+    errors = metric("chat_questions_total", outcome="error")
+    chat = service(db, FakeChatModel(ModelUnavailableError("groq 500")))
+    session_id, _ = await chat.open_session(IP)
+    with pytest.raises(ModelUnavailableError):
+        await chat.ask(session_id, IP, "q?")
+    assert metric("chat_questions_total", outcome="error") == errors + 1
+
+
+async def test_budget_gauge_reads_todays_stored_usage(db: Sessions) -> None:
+    async with db.begin() as session:
+        session.add(ChatUsageDaily(day=datetime.now(UTC).date(), tokens=90_000, requests=10))
+    await service(db).refresh_budget_gauge()
+    assert metric("chat_budget_used_ratio") == 0.5

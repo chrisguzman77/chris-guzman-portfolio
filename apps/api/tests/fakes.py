@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from portfolio_api.clients.directus import ChatSettings
 from portfolio_api.clients.email import EmailSendError, OutgoingEmail
 from portfolio_api.clients.groq import ChatTurn, ModelReply
+from portfolio_api.metrics import REGISTRY
 from portfolio_api.rag.embedder import EMBEDDING_DIM
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories.rag import ChunkHit
@@ -104,3 +105,8 @@ class FakeChatSettingsSource:
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
+
+
+def metric(name: str, **labels: str) -> float:
+    """Current value of one sample in the API's metrics registry (0 if it has none yet)."""
+    return REGISTRY.get_sample_value(name, labels) or 0.0

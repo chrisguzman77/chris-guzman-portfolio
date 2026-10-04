@@ -12,21 +12,24 @@ from portfolio_api.clients.directus import DirectusContent
 from portfolio_api.clients.email import ResendSender
 from portfolio_api.clients.github import GitHubGraphQL
 from portfolio_api.clients.groq import GroqChatModel
+from portfolio_api.clients.prometheus import HttpPrometheus
 from portfolio_api.clients.turnstile import CloudflareTurnstile
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker, ping
 from portfolio_api.errors import install_error_handlers
 from portfolio_api.jobs import Job, run_forever
+from portfolio_api.metrics import RequestMetrics
 from portfolio_api.observability import configure_logging
 from portfolio_api.rag.embedder import FastEmbedEmbedder
 from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.request_id import install_request_id
-from portfolio_api.routers import chat, contact, github, health, internal
+from portfolio_api.routers import chat, contact, github, health, internal, metrics, status
 from portfolio_api.services.chat import ChatService, ChatSwitch
 from portfolio_api.services.contact import ContactService
 from portfolio_api.services.github import GitHubActivityService
 from portfolio_api.services.indexer import IndexService
+from portfolio_api.services.status import StatusService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -102,10 +105,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             min_similarity=settings.chat_min_similarity,
         )
         jobs.append(Job("chat-retention", 86_400, chat_service.purge_expired))
+        # Sets the budget gauge at startup and lets it fall back to 0 after UTC midnight.
+        jobs.append(Job("chat-budget-gauge", 300, chat_service.refresh_budget_gauge))
     app.state.chat_service = chat_service
+    app.state.status_service = StatusService(
+        HttpPrometheus(http, settings.prometheus_url), app.state.db_ping
+    )
+    app.state.status_limiter = SlidingWindowLimiter([(60, 60)])
     install_error_handlers(app)
     # Inside the request-ID middleware (413s get an X-Request-ID); CORS stays outermost.
     app.add_middleware(BodySizeLimit)
+    # Between the two: sees 413s, and unhandled errors before they become JSON 500s.
+    app.add_middleware(RequestMetrics)
     install_request_id(app)
     app.add_middleware(
         CORSMiddleware,
@@ -118,4 +129,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(github.router)
     app.include_router(chat.router)
     app.include_router(internal.router)
+    app.include_router(metrics.router)
+    app.include_router(status.router)
     return app
