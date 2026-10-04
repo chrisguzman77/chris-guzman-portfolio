@@ -4,10 +4,11 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+import httpx
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from portfolio_api.clients.prometheus import PrometheusError
+from portfolio_api.clients.prometheus import HttpPrometheus, PrometheusError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
 from portfolio_api.services.status import LAST_BACKUP, LATEST_PROBE, P95, StatusService
@@ -26,6 +27,8 @@ class FakePrometheus:
         now: datetime = NOW,
         first: float | None = FIRST,
         gaps: Sequence[tuple[datetime, datetime]] = (),
+        failed: Sequence[tuple[datetime, datetime]] = (),
+        extra: int = 0,
         p95: Sequence[float] = (0.08449,),
         requests: Sequence[float] = (1203.6,),
         backup: Sequence[float] = (BACKUP,),
@@ -34,7 +37,9 @@ class FakePrometheus:
     ) -> None:
         self.now = now.timestamp()
         self.first = first
-        self.gaps = [(a.timestamp(), b.timestamp()) for a, b in gaps]
+        # Gaps have no samples; failed ranges have probe_success=0 samples. Both add no successes.
+        self.gaps = [(a.timestamp(), b.timestamp()) for a, b in [*gaps, *failed]]
+        self.extra = extra  # duplicate successes returned for every window
         self.p95 = list(p95)
         self.requests = list(requests)
         self.backup = list(backup)
@@ -66,7 +71,7 @@ class FakePrometheus:
         if "sum_over_time" in promql:
             match = re.search(r"\[(\d+)s\]", promql)
             assert match is not None
-            ok = self.successes(at - int(match.group(1)), at)
+            ok = self.successes(at - int(match.group(1)), at) + self.extra
             return [float(ok)] if ok else []
         if "increase(" in promql:
             return self.requests
@@ -207,6 +212,91 @@ async def test_dst_days_use_their_real_length() -> None:
     assert 25 * 3600 in prometheus.ranges("sum_over_time")  # Nov 1, clocks fell back
     assert uptime(body, "2026-11-01") == 1.0
     assert body["daily"][-1]["date"] == "2026-11-02"
+
+
+MIDNIGHT = datetime(2026, 10, 3, 4, tzinfo=UTC)  # 00:00 EDT today; probes land on it exactly
+
+
+async def test_short_partial_today_is_not_penalized_for_the_unlanded_probe() -> None:
+    for extra in (timedelta(seconds=59), timedelta(seconds=45), timedelta(hours=1, seconds=15)):
+        now = MIDNIGHT + extra
+        body = (await service(FakePrometheus(now=now), now=now).get()).model_dump()
+        assert uptime(body, "2026-10-03") == 1.0, extra
+        assert body["uptime_30d"] == 1.0, extra
+
+
+async def test_partial_window_under_one_probe_is_null() -> None:
+    now = MIDNIGHT + timedelta(seconds=29)
+    body = (await service(FakePrometheus(now=now), now=now).get()).model_dump()
+    assert uptime(body, "2026-10-03") is None
+    assert uptime(body, "2026-10-02") == 1.0
+
+
+async def test_first_probe_day_partial_window_healthy_is_full() -> None:
+    first = (NOW - timedelta(seconds=59)).timestamp()
+    body = (await service(FakePrometheus(first=first)).get()).model_dump()
+    assert uptime(body, "2026-10-03") == 1.0
+    assert uptime(body, "2026-10-02") is None
+
+
+async def test_partial_today_with_one_missing_probe_reads_below_one() -> None:
+    now = MIDNIGHT + timedelta(hours=1, seconds=15)
+    gap = (MIDNIGHT + timedelta(seconds=31), MIDNIGHT + timedelta(seconds=61))  # the +60 probe
+    body = (await service(FakePrometheus(now=now, gaps=[gap]), now=now).get()).model_dump()
+    assert uptime(body, "2026-10-03") == round(119 / 120, 4)
+
+
+async def test_failed_probe_samples_lower_the_day_like_a_gap() -> None:
+    failed = (datetime(2026, 10, 1, 10, tzinfo=UTC), datetime(2026, 10, 1, 16, tzinfo=UTC))
+    body = (await service(FakePrometheus(failed=[failed])).get()).model_dump()
+    assert uptime(body, "2026-10-01") == 0.75
+    assert uptime(body, "2026-09-30") == 1.0
+
+
+async def test_duplicate_successes_cannot_offset_downtime_in_the_30d_figure() -> None:
+    gap = (datetime(2026, 10, 1, 10, tzinfo=UTC), datetime(2026, 10, 1, 16, tzinfo=UTC))
+    body = (await service(FakePrometheus(gaps=[gap], extra=5)).get()).model_dump()
+    assert uptime(body, "2026-09-30") == 1.0
+    # Capped per day: only the gap day absorbs its 5 extras ((38880 - 720 + 5) / 38880).
+    assert body["uptime_30d"] == 0.9816
+
+
+async def test_spring_forward_day_is_23_hours() -> None:
+    now = datetime(2026, 3, 9, 17, tzinfo=UTC)  # 13:00 EDT Mar 9
+    first = datetime(2026, 3, 1, 5, tzinfo=UTC).timestamp()  # midnight EST Mar 1
+    prometheus = FakePrometheus(now=now, first=first)
+    body = (await service(prometheus, now=now).get()).model_dump()
+    assert 23 * 3600 in prometheus.ranges("sum_over_time")  # Mar 8, clocks sprang forward
+    assert 24 * 3600 in prometheus.ranges("sum_over_time")
+    assert uptime(body, "2026-03-08") == 1.0
+    assert uptime(body, "2026-03-07") == 1.0
+
+
+async def test_nan_or_infinite_requests_today_is_null() -> None:
+    for requests in ((math.nan,), (math.inf,), (1.0, math.nan)):
+        result = await service(FakePrometheus(requests=requests)).get()
+        assert result.requests_today is None, requests
+        assert result.status == "operational" and result.p95_ms == 84
+
+
+async def test_unusable_backup_timestamps_are_null() -> None:
+    for backup in ((math.nan,), (math.inf,), (-math.inf,), (1e20,), (-1e20,)):
+        result = await service(FakePrometheus(backup=backup)).get()
+        assert result.last_backup_at is None, backup
+        assert result.requests_today == 1204
+
+
+async def test_malformed_prometheus_value_is_degraded_not_an_error() -> None:
+    body: dict[str, Any] = {
+        "status": "success",
+        "data": {"resultType": "vector", "result": [{"metric": {}, "value": [1.0, "oops"]}]},
+    }
+    client = HttpPrometheus(
+        httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))),
+        "http://prometheus:9090",
+    )
+    result = await StatusService(client, db_up, now=lambda: NOW, monotonic=Clock()).get()
+    assert result.status == "degraded" and result.uptime_30d is None
 
 
 async def test_p95_is_rounded_to_whole_ms_and_nan_is_null() -> None:

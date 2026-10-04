@@ -50,4 +50,7 @@ class HttpPrometheus:
             raise PrometheusError("prometheus returned an unexpected body") from exc
         if reply.status != "success" or reply.data is None or reply.data.result_type != "vector":
             raise PrometheusError("prometheus returned no instant vector")
-        return [float(series.value[1]) for series in reply.data.result]
+        try:
+            return [float(series.value[1]) for series in reply.data.result]
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise PrometheusError("prometheus returned a non-numeric value") from exc

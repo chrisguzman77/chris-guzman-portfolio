@@ -45,6 +45,12 @@ async def test_empty_result_and_nan_values() -> None:
     assert math.isnan(value)
 
 
+async def test_unparseable_value_string_raises_prometheus_error() -> None:
+    odd = httpx.MockTransport(lambda _: httpx.Response(200, json=vector("1", "oops")))
+    with pytest.raises(PrometheusError):
+        await prometheus(odd).query("up", 0.0)
+
+
 @pytest.mark.parametrize(
     "response",
     [

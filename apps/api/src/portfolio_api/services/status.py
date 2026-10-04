@@ -52,7 +52,7 @@ class _Stats:
     daily: list[float | None]
     uptime_30d: float | None
     p95_ms: int | None
-    requests_today: int
+    requests_today: int | None
     last_backup_at: str | None
     probe_ok: bool
 
@@ -79,14 +79,21 @@ def covered(day: _Day, first_probe: float | None, now: float) -> Window | None:
         return None
     start = max(day.start, first_probe)
     seconds = int(min(day.end, now) - start)
-    if seconds < PROBE_INTERVAL:
+    if expected_probes(seconds) < 1:
         return None
     return start + seconds, seconds
 
 
-def _ratio(successes: float, seconds: int) -> float:
-    # Successes over expected probes; a duplicate sample cannot push a day above 100%.
-    return round(min(1.0, successes / (seconds / PROBE_INTERVAL)), 4)
+def expected_probes(seconds: int) -> int:
+    """Whole probes a window of ``seconds`` is sure to hold (it holds this many or one more)."""
+    return seconds // PROBE_INTERVAL
+
+
+def _backup_time(value: float) -> str | None:
+    try:
+        return datetime.fromtimestamp(value, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (ValueError, OverflowError, OSError):  # NaN, inf or a year outside datetime's range
+        return None
 
 
 class StatusService:
@@ -158,25 +165,24 @@ class StatusService:
             return None
         daily: list[float | None] = []
         total_successes = 0.0
-        total_seconds = 0
+        total_expected = 0
         for window, ok in zip(windows, successes, strict=True):
-            if window is None or ok is None:
+            if window is None or ok is None or not math.isfinite(ok):
                 daily.append(None)
                 continue
-            daily.append(_ratio(ok, window[1]))
-            total_successes += ok
-            total_seconds += window[1]
+            expected = expected_probes(window[1])
+            capped = min(ok, expected)  # duplicate samples cannot push a day above 100%
+            daily.append(round(capped / expected, 4))
+            total_successes += capped
+            total_expected += expected
+        requests_total = sum(requests)
         p95_seconds = p95[0] if p95 else math.nan
         return _Stats(
             daily=daily,
-            uptime_30d=_ratio(total_successes, total_seconds) if total_seconds else None,
+            uptime_30d=round(total_successes / total_expected, 4) if total_expected else None,
             p95_ms=round(p95_seconds * 1000) if math.isfinite(p95_seconds) else None,
-            requests_today=round(sum(requests)),
-            last_backup_at=(
-                datetime.fromtimestamp(backup[0], UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-                if backup
-                else None
-            ),
+            requests_today=round(requests_total) if math.isfinite(requests_total) else None,
+            last_backup_at=_backup_time(backup[0]) if backup else None,
             probe_ok=bool(probe) and probe[0] == 1.0,
         )
 
