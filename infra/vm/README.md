@@ -16,7 +16,7 @@ sudo git clone https://github.com/chrisguzman77/chris-guzman-portfolio.git /opt/
 cd /opt/portfolio && sudo ./infra/vm/bootstrap.sh
 ```
 
-Re-running it is safe. It prints the VM's age public key, which must be added to `.sops.yaml` (then `sops updatekeys infra/compose/prod.enc.env`) before the VM can decrypt production secrets.
+Re-running it is safe (Phase 6 added a 2 GB swapfile; re-run it once to get it). It prints the VM's age public key, which must be added to `.sops.yaml` (then `sops updatekeys infra/compose/prod.enc.env`) before the VM can decrypt production secrets.
 
 ## Rebuild from scratch
 

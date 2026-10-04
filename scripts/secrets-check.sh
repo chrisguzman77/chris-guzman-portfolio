@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks the encrypted production secrets without printing any value:
 # every key listed under "Stored in prod.enc.env" in prod.env.example must be
-# present, and none may still be the change-me placeholder.
+# present, and none may still be the change-me placeholder. Keys under
+# "Optional in prod.enc.env" are not checked.
 #   SECRETS_FILE (default infra/compose/prod.enc.env) is overridable for tests.
 set -euo pipefail
 
@@ -12,7 +13,7 @@ EXAMPLE="${ROOT}/infra/compose/prod.env.example"
 count() { awk 'NF{n++} END{print n+0}'; }
 
 decrypted="$(sops decrypt --input-type dotenv --output-type dotenv "${SECRETS_FILE}")"
-required="$(awk '/^# Stored in prod.enc.env/{f=1; next} /^#/{next} f && /^[A-Z_]+=/{sub(/=.*/, ""); print}' "${EXAMPLE}" | sort -u)"
+required="$(awk '/^# Stored in prod.enc.env/{f=1; next} /^# Optional in prod.enc.env/{f=0; next} /^#/{next} f && /^[A-Z_]+=/{sub(/=.*/, ""); print}' "${EXAMPLE}" | sort -u)"
 present="$(printf '%s\n' "${decrypted}" | awk -F= '/^[A-Z_]+=/{print $1}' | sort -u)"
 placeholders="$(printf '%s\n' "${decrypted}" | awk -F= '/^[A-Z_]+=/ && $2 == "change-me"{print $1}' | sort -u)"
 missing="$(comm -23 <(printf '%s\n' "${required}") <(printf '%s\n' "${present}"))"

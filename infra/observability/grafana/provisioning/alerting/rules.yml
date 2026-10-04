@@ -1,0 +1,211 @@
+# The seven Phase 6 alerts. Each rule is an instant PromQL query (A) and a
+# threshold (C) on it. Grafana expands environment variables in provisioning
+# files, so no expression or template here may contain a dollar sign (CI checks).
+#
+# noDataState: Alerting for Site down and Backup stale (silence there is itself
+# a problem; Backup stale already maps an absent metric to a huge age), OK for
+# the rest (an empty result means no traffic yet or the condition is not met,
+# and a missing exporter is caught by Container down). execErrState: Error, so a dead
+# Prometheus raises one grouped DatasourceError email.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: portfolio
+    folder: Portfolio
+    interval: 1m
+    rules:
+      - uid: disk-filling
+        title: Disk filling
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/", fstype!="rootfs"} / node_filesystem_size_bytes{mountpoint="/", fstype!="rootfs"})
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: Root filesystem on the VM is more than 80% full.
+        labels:
+          severity: warning
+
+      - uid: memory-tight
+        title: Memory tight
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [90] }
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: VM memory use is above 90%. Check per-container memory on the Host and containers dashboard.
+        labels:
+          severity: warning
+
+      - uid: site-down
+        title: Site down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: probe_success{job="site"}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                # probe_success is 0 or 1, so "< 1" is "== 0".
+                - evaluator: { type: lt, params: [1] }
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: The public probe of https://christopherguzman.me/api/healthz is failing.
+        labels:
+          severity: critical
+
+      - uid: api-errors
+        title: API errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # 5xx share over 5 minutes, only when there were at least 20 requests.
+              expr: (sum(increase(http_requests_total{status=~"5.."}[5m])) or vector(0)) / sum(increase(http_requests_total[5m])) and on() sum(increase(http_requests_total[5m])) >= 20
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: More than 5% of API requests are returning 5xx.
+        labels:
+          severity: critical
+
+      - uid: container-down
+        title: Container down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # 1 per broken target or container, 0 per healthy one. max_over_time
+              # keeps a container's last-seen time after cAdvisor stops reporting it.
+              expr: (up == bool 0) or (time() - max by (name) (max_over_time(container_last_seen{name=~"portfolio-(postgres|directus|api|web|cloudflared|umami)-1"}[24h])) > bool 60)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: 'Down: {{ index .Labels "job" }}{{ index .Labels "name" }}'
+        labels:
+          severity: critical
+
+      - uid: backup-stale
+        title: Backup stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Seconds since the last successful backup; absent metric counts as never.
+              expr: (time() - max(backup_last_success_timestamp_seconds)) or vector(1e12)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                # 36 hours
+                - evaluator: { type: gt, params: [129600] }
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: No successful backup in the last 36 hours (or the backup metric is missing).
+        labels:
+          severity: critical
+
+      - uid: chat-budget
+        title: Chat budget
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: max(chat_budget_used_ratio)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.8] }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: The chat has used more than 80% of today's Groq token budget.
+        labels:
+          severity: warning

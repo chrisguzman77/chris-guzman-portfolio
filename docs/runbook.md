@@ -4,7 +4,7 @@ Production is VM 400 (`192.168.1.50`) on the Proxmox host, reached from the inte
 
 ## First deploy (once, after bootstrap)
 
-1. The release workflow has run on main at least once (so web, api and runner images exist), and all three GHCR packages — web, api, runner — are public (GitHub → Packages → each → Package settings → Change visibility).
+1. The release workflow has run on main at least once (so web, api, runner and backup images exist), and all four GHCR packages — web, api, runner, backup — are public (GitHub → Packages → each → Package settings → Change visibility).
 2. `.sops.yaml` lists the VM's age public key and `prod.enc.env` has a real value for every key under "Stored in prod.enc.env" in `infra/compose/prod.env.example`, including `CLOUDFLARE_TUNNEL_TOKEN` and `GITHUB_RUNNER_TOKEN`. `make secrets-check` on the laptop reports `secrets look ready`.
 3. `sudo /opt/portfolio/scripts/sync-repo.sh` (checks out `main` and keeps the checkout owned by the runner uid 1001)
 4. `sudo IMAGE_TAG=latest INCLUDE_RUNNER=1 SMOKE_PUBLIC_URL=https://christopherguzman.me /opt/portfolio/scripts/deploy.sh`
@@ -34,6 +34,14 @@ sudo IMAGE_TAG=<pre-Phase-3 sha> SKIP_CONTENT_SMOKE=1 /opt/portfolio/scripts/dep
 ```
 
 The content checks also fail on purpose if the site has no CMS content to show: the profile intro is empty, or every experience role is a draft. If that is intentional, re-run the failed deploy on the VM with `SKIP_CONTENT_SMOKE=1` (same command as above with the current sha), and publish content again before the next merge.
+
+Rolling back to an image from before Phase 6 needs `SKIP_STATUS_SMOKE=1` (older APIs have no `/v1/status`) and a service list without `backup`, whose image did not exist yet. The backup container keeps running its current image:
+
+```bash
+sudo IMAGE_TAG=<pre-Phase-6 sha> SKIP_STATUS_SMOKE=1 \
+  SERVICES="postgres directus api web cloudflared prometheus grafana node-exporter cadvisor blackbox-exporter umami" \
+  /opt/portfolio/scripts/deploy.sh
+```
 
 Image tags are full commit SHAs (Actions → release → a green run). The database schema stays at the newer revision either way; a rollback across a destructive migration needs a down-migration.
 
@@ -113,6 +121,73 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 - **Budget:** 180,000 tokens per UTC day (`API_CHAT_DAILY_TOKEN_BUDGET`); when spent, the terminal says chat is resting until tomorrow.
 - **Switch provider:** add a class implementing `ChatModel` (`apps/api/src/portfolio_api/clients/groq.py` shows the shape), select it in `main.py`, add its key to secrets.
 
+## Monitoring and analytics
+
+- **Dashboards:** https://grafana.christopherguzman.me (Cloudflare Access, then the Grafana login `admin` / `GRAFANA_ADMIN_PASSWORD`). Dashboards → "Portfolio overview" (site, API, chat, contact, last backup; resume downloads are in Umami) and "Host & containers" (VM CPU, memory, swap, disk; each container against its limit). Prometheus has no hostname; query it from Grafana → Explore.
+- **Alerts** email `CONTACT_TO` from `alerts@christopherguzman.me`: Disk filling, Memory tight, Site down, API errors, Container down, Backup stale, Chat budget. Container down keeps firing for up to 24 h after a planned container removal (it looks back 24 h), so silence it first. They are provisioned from `infra/observability/grafana/provisioning/`; change them there, not in the UI.
+- **Silence an alert** (planned work or a known issue): Grafana → Alerting → Silences → New silence. Add the matcher `alertname` = the alert's name (for example `Site down`), pick a duration, write a comment, save. It ends on its own; to end it early, open Alerting → Silences and expire it. A silence only stops the emails; the rule keeps evaluating.
+- **Test alert email:** Grafana → Alerting → Contact points → the email contact point → Test.
+- **Analytics:** https://analytics.christopherguzman.me (Access, then the Umami login). Custom events: `resume-download`, `chat-open`, `chat-question`, `contact-sent`, `outbound-click`. Without `UMAMI_WEBSITE_ID` the site loads no tracker.
+- **Status card:** the homepage card reads `GET /v1/status` (`curl -s https://api.christopherguzman.me/v1/status`). If it shows `degraded` with every value `—`, Prometheus is usually down: `docker logs --tail 50 portfolio-prometheus-1`.
+
+## Backups
+
+- Every night at 03:30 (America/New_York) the `backup` container dumps the roles and the `directus`, `portfolio` and `umami` databases plus the Directus uploads, encrypts them with the backup age public key, and uploads one file to R2: `backups/YYYY/MM/DD/portfolio-<UTC time>.tar.age`. R2 locks each file for 30 days and deletes it after 31.
+- **Run a backup now:** `make backup-now` on the VM. It ends with `backup: ok, <size> bytes`. Better Stack's `portfolio backup` heartbeat turns green, and Grafana's last-backup panel updates within a minute.
+- **Nightly logs:** `docker logs --tail 50 portfolio-backup-1`.
+- **When a backup fails:** Better Stack emails (from the `/fail` ping, or when no ping arrives within a day plus 2 hours), and Grafana's Backup stale alert fires after 36 hours. Run `make backup-now` to see the error. Usual causes: an expired or revoked R2 token (rclone reports 403), Postgres down, a full disk.
+- **Weekly proof:** the `backup-verify` workflow (Sundays 09:00 UTC) restores the newest backup into a throwaway Postgres and runs `infra/backup/verify.sql`. Run it by hand after any backup change: Actions → backup-verify → Run workflow.
+- The decryption key is not on the VM. It is in the password manager (`portfolio backup age key`) and the GitHub secret `BACKUP_AGE_KEY`.
+
+## Restore after disaster
+
+Use this when the VM or its disk is lost, or the databases are damaged. It replaces the three databases and puts the backup's uploads back. Prometheus and Grafana history are not in backups and start empty.
+
+1. If the VM is gone, rebuild and bootstrap it ([`infra/vm/README.md`](../infra/vm/README.md)), add its new age public key to `.sops.yaml` and run `sops updatekeys infra/compose/prod.enc.env`, then follow "First deploy" above. The site comes up with seed content.
+2. Stop everything that writes to Postgres:
+
+   ```bash
+   docker stop portfolio-web-1 portfolio-api-1 portfolio-directus-1 portfolio-umami-1
+   ```
+
+3. Open a throwaway shell in the backup image. It gets the backup container's Postgres and R2 settings without printing them, and the uploads volume mounted writable as uid 1000 (Directus's user, which owns the uploads):
+
+   ```bash
+   docker run --rm -it --user 1000:1000 --network portfolio_default \
+     --env-file <(docker exec portfolio-backup-1 env | grep -E '^(PGHOST|PGUSER|POSTGRES_PASSWORD|R2_BUCKET|RCLONE_CONFIG_R2_[A-Z_]+)=') \
+     -v portfolio_directus-uploads:/uploads-restore \
+     --entrypoint bash "$(docker inspect -f '{{.Config.Image}}' portfolio-backup-1)"
+   ```
+
+4. In that shell, list the newest backups and download one (use a path from the list):
+
+   ```bash
+   rclone lsf --recursive --files-only "r2:${R2_BUCKET}/backups" | sort | tail -n 5
+   rclone copyto "r2:${R2_BUCKET}/backups/2026/10/03/portfolio-20261003T073012Z.tar.age" /tmp/backup.tar.age
+   ```
+
+5. Paste the private key from the password manager (the whole key file, or just its `AGE-SECRET-KEY-…` line), press Enter, then Ctrl-D:
+
+   ```bash
+   (umask 077; cat >/tmp/age.key)
+   ```
+
+6. Restore, then leave the shell:
+
+   ```bash
+   RESTORE_REPLACE=1 RESTORE_UPLOADS_DIR=/uploads-restore restore.sh /tmp/backup.tar.age /tmp/age.key
+   exit
+   ```
+
+   It checks the manifest checksums, restores the roles and the three databases, extracts the uploads, runs `verify.sql`, and ends with `restore: ok`. If it stops early, fix the cause and run the same command again; `RESTORE_REPLACE=1` makes re-runs safe. Leaving the shell deletes the container, the key and the download.
+7. Start the apps and check them:
+
+   ```bash
+   docker start portfolio-directus-1 portfolio-api-1 portfolio-web-1 portfolio-umami-1
+   scripts/smoke.sh
+   make backup-now
+   ```
+
 ## Rotate secrets
 
 - **A database password:** `make secrets-edit` on the laptop, commit, merge; the next deploy applies it. Postgres role passwords also need `ALTER ROLE … PASSWORD` inside the database.
@@ -123,6 +198,10 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 - **Runner PAT (expires yearly):** create a new portfolio-runner token, update GITHUB_RUNNER_TOKEN with make secrets-edit, merge, then run the "Update the runner" commands. Normal deploys never restart the runner, so they do not apply this value.
 - **Resend API key:** create a new key in Resend, `make secrets-edit` to set `RESEND_API_KEY`, merge, then delete the old key in Resend.
 - **Turnstile keys:** rotate the secret in the Turnstile widget settings, update `TURNSTILE_SECRET_KEY` (and `TURNSTILE_SITE_KEY` if it changed) with `make secrets-edit`, merge.
+- **Backup age key:** `age-keygen -o backup-age.key` on the laptop. Set the new public key as `BACKUP_AGE_RECIPIENT` (`make secrets-edit`, merge), and replace `BACKUP_AGE_KEY` in the GitHub `backup-verify` environment. Keep the old private key in the password manager for 31 days after the switch: backups made before it still need it.
+- **R2 tokens:** create a new token with the same scope. For the VM token, update `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` with `make secrets-edit`, merge, then `make backup-now`. For the read token, update `R2_READ_ACCESS_KEY_ID` and `R2_READ_SECRET_ACCESS_KEY` in the `backup-verify` environment and run the workflow. Then delete the old token.
+- **Grafana admin password:** Grafana reads `GRAFANA_ADMIN_PASSWORD` only when its database is first created. Change it in Grafana (avatar → Profile → Change password), then set the same value with `make secrets-edit` so the record matches.
+- **Better Stack heartbeat:** set the new URL as `BACKUP_HEARTBEAT_URL` with `make secrets-edit`, merge.
 - **GitHub activity token (expires yearly):** create a new fine-grained token (public repositories, read-only), set `GITHUB_ACTIVITY_TOKEN` with `make secrets-edit`, merge.
 - **Contact inbox:** change `CONTACT_TO` (e.g. after graduation) with `make secrets-edit`, merge.
 - **Age keys:** generate a new key, add it to `.sops.yaml`, `sops updatekeys infra/compose/prod.enc.env`, remove the old recipient, `updatekeys` again.

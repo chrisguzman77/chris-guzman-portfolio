@@ -1,0 +1,14 @@
+# Grafana fills CONTACT_TO from its environment (set in compose.yaml). No other
+# dollar sign may appear in this file.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: email-chris
+    receivers:
+      - uid: email-chris
+        type: email
+        settings:
+          addresses: ${CONTACT_TO}
+          singleEmail: true
+        disableResolveMessage: false

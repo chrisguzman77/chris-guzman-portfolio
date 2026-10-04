@@ -96,6 +96,8 @@ services:
       SITE_URL: https://christopherguzman.me
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       PUBLIC_API_URL: https://api.christopherguzman.me
+      # Phase 6: analytics stays off until the Umami website exists.
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     mem_limit: 384m
 
   cloudflared:
@@ -106,6 +108,155 @@ services:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?}
     depends_on: [web, api, directus]
     mem_limit: 128m
+
+  # --- Phase 6: monitoring and analytics. Private: Grafana and Umami are
+  # reached only through the tunnel behind Cloudflare Access; the rest are
+  # scraped by Prometheus over this network. Alert rules live in Grafana.
+  prometheus:
+    <<: *service
+    image: prom/prometheus:v3.15.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=35d
+      - --storage.tsdb.retention.size=2GB
+    volumes:
+      - prometheus-data:/prometheus
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/healthy"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    mem_limit: 320m
+
+  grafana:
+    <<: *service
+    image: grafana/grafana:13.2.3
+    depends_on: [prometheus]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      # Applied only when grafana-data is first created; later changes go
+      # through `grafana cli admin reset-admin-password` (see the runbook).
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?}
+      GF_SERVER_ROOT_URL: https://grafana.christopherguzman.me
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: smtp.resend.com:465
+      GF_SMTP_USER: resend
+      GF_SMTP_PASSWORD: ${RESEND_API_KEY:?}
+      GF_SMTP_FROM_ADDRESS: alerts@christopherguzman.me
+      GF_SMTP_FROM_NAME: Portfolio alerts
+      # Read by provisioning/alerting/contact-points.yml.
+      CONTACT_TO: ${CONTACT_TO:?}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/etc/grafana/dashboards:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    # Not 192m: Grafana 13 needs ~330 MiB (heap + its 485 MB binary in page
+    # cache) or startup stalls for minutes and deploy --wait times out.
+    mem_limit: 384m
+
+  node-exporter:
+    <<: *service
+    image: prom/node-exporter:v1.12.1
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.textfile.directory=/textfile
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+      - node-textfile:/textfile:ro
+    mem_limit: 64m
+
+  # Mounts follow cAdvisor's documented Docker setup. /var/run carries the
+  # Docker socket, so like the runner this is root-equivalent on the VM.
+  cadvisor:
+    <<: *service
+    image: ghcr.io/google/cadvisor:v0.60.6
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      # Only what the dashboards and alerts use; container_last_seen and the
+      # container_spec_* series are always exported.
+      - --enable_metrics=cpu,memory,network,diskIO
+      - --store_container_labels=false
+    privileged: true
+    devices: ["/dev/kmsg"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    mem_limit: 128m
+
+  blackbox-exporter:
+    <<: *service
+    image: prom/blackbox-exporter:v0.28.0
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ../observability/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    mem_limit: 32m
+
+  umami:
+    <<: *service
+    image: ghcr.io/umami-software/umami:3.4.0
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:?}@postgres:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:?}
+      DISABLE_TELEMETRY: "1"
+      DISABLE_UPDATES: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/heartbeat"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+    mem_limit: 256m
+
+  # Nightly encrypted backup to R2 (infra/backup). Holds only the age public key.
+  backup:
+    <<: *service
+    image: ghcr.io/chrisguzman77/chris-guzman-portfolio/backup:${IMAGE_TAG:?}
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      IMAGE_TAG: ${IMAGE_TAG:?}
+      PGHOST: postgres
+      PGUSER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?}
+      BACKUP_HEARTBEAT_URL: ${BACKUP_HEARTBEAT_URL:?}
+      R2_BUCKET: ${R2_BUCKET:?}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${R2_ACCOUNT_ID:?}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+    volumes:
+      - directus-uploads:/uploads:ro
+      - node-textfile:/textfile
+    mem_limit: 256m
 
   # Ephemeral deploy runner. Never listed in scripts/deploy.sh's default
   # services, so a deploy cannot restart it mid-job. The Docker socket makes it
@@ -127,3 +278,6 @@ services:
 volumes:
   postgres-data:
   directus-uploads:
+  prometheus-data:
+  grafana-data:
+  node-textfile:
