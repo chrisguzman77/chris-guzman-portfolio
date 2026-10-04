@@ -11,6 +11,9 @@
 #
 # The api also gets a route check for /v1/github/activity: 200 or 503 both pass.
 # The api also gets a route check for POST /v1/chat/sessions: 400 (validation) or 503 (chat off) both pass.
+# GET /v1/status must return 200 JSON with a "status" key (SKIP_STATUS_SMOKE=1 skips it when rolling
+# back to an image older than Phase 6). With SMOKE_PUBLIC_URL set, the API's /metrics must be 404
+# through the public API hostname (SMOKE_PUBLIC_API_URL, default https://api.<SMOKE_PUBLIC_URL host>).
 set -euo pipefail
 
 PROJECT="${COMPOSE_PROJECT_NAME:-portfolio}"
@@ -46,6 +49,11 @@ in_service() {
   docker exec "${id}" "$@"
 }
 
+# shellcheck disable=SC2329 # invoked indirectly through check "$@"
+http_status_is() {
+  [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$2")" == "$1" ]]
+}
+
 status=0
 check "web /api/healthz" in_service web wget -qO- http://127.0.0.1:3000/api/healthz || status=1
 check "api /health reports db ok" in_service api python -c \
@@ -70,6 +78,14 @@ try:
 except urllib.error.HTTPError as err:
     status = err.code
 sys.exit(status not in (400, 503))" || status=1
+if [[ "${SKIP_STATUS_SMOKE:-0}" == 1 ]]; then
+  echo "skip  api /v1/status (SKIP_STATUS_SMOKE=1)"
+else
+  check "api /v1/status returns JSON with a status" in_service api python -c "
+import json, sys, urllib.request
+with urllib.request.urlopen('http://127.0.0.1:8000/v1/status', timeout=5) as resp:
+    sys.exit(resp.status != 200 or 'status' not in json.load(resp))" || status=1
+fi
 check "directus /server/ping" in_service directus wget -qO- http://127.0.0.1:8055/server/ping || status=1
 if [[ "${SKIP_CONTENT_SMOKE:-0}" == 1 ]]; then
   echo "skip  CMS content checks (SKIP_CONTENT_SMOKE=1)"
@@ -81,5 +97,7 @@ else
 fi
 if [[ -n "${SMOKE_PUBLIC_URL:-}" ]]; then
   check "public ${SMOKE_PUBLIC_URL}/api/healthz" curl -fsS --max-time 10 "${SMOKE_PUBLIC_URL}/api/healthz" || status=1
+  public_api="${SMOKE_PUBLIC_API_URL:-https://api.${SMOKE_PUBLIC_URL#https://}}"
+  check "public ${public_api}/metrics is hidden (404)" http_status_is 404 "${public_api}/metrics" || status=1
 fi
 exit "${status}"

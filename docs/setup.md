@@ -39,5 +39,27 @@ Local development needs none of this: `compose.dev.yaml` uses Turnstile's publis
 3. `make secrets-edit`, add `GROQ_API_KEY` and the three values, save; `make secrets-check`; commit and push. Never paste these values anywhere else.
 4. After the deploy: `make reindex` on the VM (fills the index now instead of at the next 15-minute sync), then `make chat-eval`, read the report, then switch chat on in Directus (Chat Settings → enabled).
 
-## Cloudflare R2 (Phase 6)
-- Bucket for encrypted backups with a 30-day lifecycle rule; scoped API token.
+## Backups, monitoring and analytics (Phase 6)
+
+Steps 1–6 happen before the Phase 6 code PR merges: the new compose services refuse to start without these secrets. Steps 7–9 come after it deploys.
+
+1. **R2 bucket.** Cloudflare dashboard → R2 → Create bucket `portfolio-backups` (location Automatic). In the bucket's Settings:
+   - Bucket lock rules → Add rule: prefix `backups/`, retain for 30 days.
+   - Object lifecycle rules → Add rule: prefix `backups/`, delete objects 31 days after upload; abort incomplete multipart uploads after 1 day.
+   Note the Account ID from the R2 overview page.
+2. **Two R2 tokens.** R2 → Manage API tokens → Create API token, twice, each applied to `portfolio-backups` only:
+   - `portfolio-backup-vm`, permission Object Read & Write: its Access Key ID and Secret Access Key become `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
+   - `portfolio-backup-verify`, permission Object Read only: for GitHub (step 5).
+3. **Backup key.** On the Mac: `age-keygen -o backup-age.key`. It prints `Public key: age1…`, which becomes `BACKUP_AGE_RECIPIENT`. Save the whole file in the password manager as `portfolio backup age key` and as the GitHub secret `BACKUP_AGE_KEY` (step 5), then `rm backup-age.key`. The private key never goes on the VM or into `prod.enc.env`; losing it makes every backup unreadable.
+4. **Better Stack heartbeat.** Better Stack → Heartbeats → Create: name `portfolio backup`, expected every 1 day, grace period 2 hours, email alerts. Its URL becomes `BACKUP_HEARTBEAT_URL` (the backup adds `/fail` itself when a run fails).
+5. **GitHub environment.** Settings → Environments → New environment `backup-verify`. Add secrets `R2_ACCOUNT_ID`, `R2_BUCKET` (`portfolio-backups`), `R2_READ_ACCESS_KEY_ID`, `R2_READ_SECRET_ACCESS_KEY` (the read-only token) and `BACKUP_AGE_KEY`.
+6. **Tunnel and Access.** Zero Trust → Networks → Tunnels → `portfolio` → Public hostnames: add `grafana.christopherguzman.me` → `http://grafana:3000` and `analytics.christopherguzman.me` → `http://umami:3000`. Access → Applications: add self-hosted apps `Grafana` and `Umami` for those hostnames with the `Chris only` policy (one-time PIN), as for `cms.`. The record is in [`infra/cloudflare/README.md`](../infra/cloudflare/README.md).
+7. **Secrets.** Generate `GRAFANA_ADMIN_PASSWORD` and `UMAMI_APP_SECRET` with `openssl rand -hex 32` (once each). `make secrets-edit`, add those two and `BACKUP_AGE_RECIPIENT`, `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BACKUP_HEARTBEAT_URL`; commit and push. This deploys unchanged code; the current compose file ignores the new keys. `UMAMI_DB_PASSWORD` is already in `prod.enc.env`; it goes into Umami's `DATABASE_URL`, so it must be URL-safe (letters and digits, no `@ : / ? #`).
+8. **After the code PR deploys.**
+   - The release creates a new GHCR package, `backup`, which starts private, so the first deploy stops at `compose pull` (nothing changes on the VM). GitHub → Packages → backup → Package settings → Change visibility → Public, then re-run the failed deploy job.
+   - `make secrets-check` on the laptop reports `secrets look ready`.
+   - On the VM: `make backup-now` ends with `backup: ok`. Better Stack shows the heartbeat.
+   - Actions → backup-verify → Run workflow: green.
+   - Grafana → Alerting → Contact points → email → Test: the email arrives.
+9. **Umami.** Open https://analytics.christopherguzman.me and log in as `admin` / `umami`, then change the password at once (Settings → Profile). Settings → Websites → Add website: name `portfolio`, domain `christopherguzman.me`. Copy its Website ID, add it as `UMAMI_WEBSITE_ID` with `make secrets-edit`, commit and push. The tracker appears after that deploy.
+10. **Swap.** On the VM: `cd /opt/portfolio && sudo ./infra/vm/bootstrap.sh`, then `swapon --show` lists `/swapfile` (2G).

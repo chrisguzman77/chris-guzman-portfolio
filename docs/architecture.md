@@ -26,7 +26,7 @@ flowchart LR
 Boundaries that matter:
 - Directus is never publicly reachable except its admin UI behind Cloudflare Access. Assets are proxied through `web`.
 - `web` never fetches the CMS at build time; CI has no route to it.
-- Only `api` and `directus` hold Postgres credentials, each for its own database.
+- Only `api`, `directus` and `umami` hold Postgres credentials, each for its own database. The `backup` container holds the superuser password so it can dump everything.
 - Production (`infra/compose/compose.yaml`) publishes no host ports; cloudflared reaches services by name. The VM firewall denies all inbound traffic except SSH from the LAN, on IPv4 and IPv6.
 - Deploys run on an ephemeral runner inside the stack and are pinned to commit SHAs ([ADR 0006](adr/0006-runner-in-compose.md)); operations are in the [runbook](runbook.md).
 
@@ -92,6 +92,34 @@ browser ⌘K ─> terminal ─Turnstile─> POST /v1/chat/sessions
 ```
 
 The API owns the index and chat tables in the `portfolio` database; it reads Directus with its own read-only token. `/internal/*` is reachable only from containers on the VM (secret header, and requests through the Cloudflare Tunnel are refused). See ADR 0008.
+
+## Monitoring, analytics and backups (Phase 6)
+
+```mermaid
+flowchart LR
+  subgraph VM [Proxmox VM · Docker Compose]
+    PR[prometheus] -->|scrape every 30 s| A[api /metrics]
+    PR --> NE[node-exporter]
+    PR --> CA[cadvisor]
+    PR --> BB[blackbox-exporter]
+    G[grafana] --> PR
+    A -->|/v1/status, fixed PromQL| PR
+    W[web] -->|/stats/* rewrite| UM[umami]
+    UM --> P[(postgres)]
+    BK[backup] -->|pg_dump| P
+    BK -->|backup.prom| NE
+  end
+  BB -->|probe| S[public site /api/healthz]
+  BK -->|age-encrypted tar| R2[(Cloudflare R2, 30-day lock)]
+  G -->|email via Resend| C[Chris]
+  GH[GitHub Actions, weekly] -->|download, restore, verify| R2
+```
+
+- **Prometheus** scrapes every 30 s and keeps 35 days (at most 2 GB). It has no hostname. **Grafana** (`grafana.`, behind Access) has the dashboards and sends alert emails.
+- **Status card:** web reads `/v1/status` from the API, which queries Prometheus with fixed queries and caches the result for 60 s. Prometheus is never public ([ADR 0009](adr/0009-monitoring-without-loki.md)).
+- **Umami** (`analytics.`, behind Access) stores cookieless analytics in its own `umami` database. Browsers reach it only through web's `/stats/*` rewrites.
+- **Backups** run nightly, encrypted to a key the VM does not hold, into R2 with a 30-day lock, and a weekly GitHub Actions run proves they restore ([ADR 0010](adr/0010-backup-encryption-and-bucket-lock.md)).
+- Every container has a memory limit, and the VM has 2 GB of swap as a safety net.
 
 ## Notes
 

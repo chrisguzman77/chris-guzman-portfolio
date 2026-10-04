@@ -10,6 +10,8 @@ Everything in Cloudflare is configured in the dashboard; this file is the record
 | `www.christopherguzman.me` | `http://web:3000` |
 | `api.christopherguzman.me` | `http://api:8000` |
 | `cms.christopherguzman.me` | `http://directus:8055` |
+| `grafana.christopherguzman.me` | `http://grafana:3000` |
+| `analytics.christopherguzman.me` | `http://umami:3000` |
 | anything else | `http_status:404` |
 
 Service names resolve on the Compose network because `cloudflared` runs in the same stack. The tunnel token lives only in `infra/compose/prod.enc.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
@@ -17,6 +19,8 @@ Service names resolve on the Compose network because `cloudflared` runs in the s
 ## Access
 
 Application `Directus admin` protects `cms.christopherguzman.me`. Policy `Chris only`: Allow, include Emails = owner's address. Login method: One-time PIN only, instant authentication on.
+
+Applications `Grafana` (`grafana.christopherguzman.me`) and `Umami` (`analytics.christopherguzman.me`) use the same `Chris only` policy and one-time-PIN login. Both apps also have their own login behind Access.
 
 ## Deploy the fallback Worker
 
@@ -34,6 +38,8 @@ No cache rule is needed. Cloudflare caches `.js`/`.css` by default, and Next.js 
 ## External uptime monitor
 
 Better Stack (free tier) checks `https://christopherguzman.me/api/healthz` every 3 minutes and emails the owner. It runs outside the home network, so it reports VM, home-internet, and tunnel outages; the fallback Worker returns 503, which the monitor counts as down.
+
+A second Better Stack check, a heartbeat named `portfolio backup` (expected daily, 2 h grace), is pinged by every successful nightly backup and by `<url>/fail` when one fails.
 
 ## Worker routes
 
