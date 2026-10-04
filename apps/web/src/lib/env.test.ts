@@ -13,6 +13,7 @@ describe("serverEnv", () => {
     vi.stubEnv("SITE_URL", "https://example.test/");
     vi.stubEnv("TURNSTILE_SITE_KEY", "site-key");
     vi.stubEnv("PUBLIC_API_URL", "http://localhost:8000/");
+    vi.stubEnv("UMAMI_WEBSITE_ID", "site-id");
     expect(serverEnv()).toEqual({
       directusUrl: "http://directus:8055",
       directusToken: "tok",
@@ -21,6 +22,7 @@ describe("serverEnv", () => {
       siteUrl: "https://example.test",
       turnstileSiteKey: "site-key",
       publicApiUrl: "http://localhost:8000",
+      umamiWebsiteId: "site-id",
     });
   });
 
@@ -33,6 +35,7 @@ describe("serverEnv", () => {
       "SITE_URL",
       "TURNSTILE_SITE_KEY",
       "PUBLIC_API_URL",
+      "UMAMI_WEBSITE_ID",
     ]) {
       vi.stubEnv(name, "");
     }
@@ -44,6 +47,7 @@ describe("serverEnv", () => {
       siteUrl: "https://christopherguzman.me",
       turnstileSiteKey: undefined,
       publicApiUrl: "https://api.christopherguzman.me",
+      umamiWebsiteId: undefined,
     });
   });
 

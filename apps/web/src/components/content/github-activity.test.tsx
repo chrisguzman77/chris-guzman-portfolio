@@ -88,4 +88,11 @@ describe("GitHubActivity", () => {
       }),
     ).toBeTruthy();
   });
+
+  it("tags the profile link as an outbound click to github", () => {
+    render(<GitHubActivity activity={makeActivity()} profileUrl="https://github.com/octo" />);
+    const link = screen.getByRole("link");
+    expect(link.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(link.getAttribute("data-umami-event-to")).toBe("github");
+  });
 });

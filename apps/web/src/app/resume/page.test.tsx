@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getResume } from "@/lib/directus/queries";
@@ -75,4 +75,30 @@ describe("/resume", () => {
       expect(container.querySelector("object")).toBeNull();
     },
   );
+
+  it("tracks both PDF links as resume downloads from /resume and keeps the download attribute", async () => {
+    vi.mocked(getResume).mockResolvedValue(full);
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    window.history.pushState({}, "", "/resume");
+    const { container } = render(await ResumePage());
+
+    const download = screen.getByRole("link", { name: /download pdf/i });
+    expect(download.getAttribute("download")).toBe("christopher-guzman-resume.pdf");
+    const fallback = container.querySelector("object a")!;
+    expect(fallback.getAttribute("href")).toBe("/cms-assets/abc-123");
+
+    const block = (event: Event) => event.preventDefault();
+    document.addEventListener("click", block);
+    fireEvent.click(download);
+    fireEvent.click(fallback);
+    document.removeEventListener("click", block);
+    expect(umamiTrack.mock.calls).toEqual([
+      ["resume-download", { from: "/resume" }],
+      ["resume-download", { from: "/resume" }],
+    ]);
+
+    delete window.umami;
+    window.history.pushState({}, "", "/");
+  });
 });

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { SectionHeading } from "@/components/content/section-heading";
+import { outboundProps } from "@/lib/analytics";
 import { getCertifications, getEducation, getInvolvement } from "@/lib/directus/queries";
 import type { Education } from "@/lib/directus/schemas";
 import { formatMonthYear, graduationLabel, sectionNumbers } from "@/lib/format";
@@ -122,6 +123,7 @@ export default async function EducationPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-3 inline-flex items-center gap-1.5 rounded font-mono text-xs text-accent-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+                    {...outboundProps("other")}
                   >
                     View credential
                     <ExternalLink className="size-3.5" aria-hidden="true" />

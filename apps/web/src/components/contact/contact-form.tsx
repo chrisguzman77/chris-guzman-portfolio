@@ -3,6 +3,7 @@
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
+import { track } from "@/lib/analytics";
 import {
   CONTACT_FIELDS,
   CONTACT_LIMITS,
@@ -116,6 +117,7 @@ export function ContactForm({
     const result = await submitContact(apiUrl, { ...values, turnstile_token: token, website });
     setSending(false);
     if (result.kind === "sent") {
+      track("contact-sent");
       setSent(true);
       return;
     }

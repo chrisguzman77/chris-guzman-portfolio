@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
@@ -18,9 +18,9 @@ vi.mock("@/lib/directus/queries", () => ({
 
 vi.mock("@/lib/github-activity", () => ({ getGithubActivity: vi.fn() }));
 
-vi.mock("@/components/content/live-status", () => ({
-  LiveStatus: () => <p>status line stub</p>,
-  LiveStatusFallback: () => <p>checking</p>,
+vi.mock("@/components/content/status-card", () => ({
+  StatusCard: () => <p>status card stub</p>,
+  StatusCardSkeleton: () => <p>checking</p>,
 }));
 
 const profile: Profile = {
@@ -126,7 +126,7 @@ afterEach(() => {
 });
 
 describe("HomePage hero", () => {
-  it("renders the prompt, name, intro, status line, and both action rows", async () => {
+  it("renders the prompt, name, intro, both action rows, and the status card", async () => {
     render(await HomePage());
 
     expect(screen.getByText("$ whoami")).toBeTruthy();
@@ -134,7 +134,7 @@ describe("HomePage hero", () => {
     expect(screen.getByText(profile.intro)).toBeTruthy();
     // scripts/smoke.sh greps for this marker to prove profile content came from the CMS.
     expect(screen.getByText(profile.intro).getAttribute("data-cms")).toBe("profile-intro");
-    expect(screen.getByText("status line stub")).toBeTruthy();
+    expect(screen.getByText("status card stub")).toBeTruthy();
 
     expect(screen.getByRole("link", { name: "Download resume" }).getAttribute("href")).toBe(
       "/resume",
@@ -189,6 +189,28 @@ describe("HomePage hero", () => {
     expect(classes(photo)).toEqual(expect.arrayContaining(["order-2", "w-full", "max-w-[300px]"]));
     expect(introBlock.parentElement).toBe(textColumn);
     expect(classes(introBlock)).toContain("order-3");
+  });
+
+  it("orders intro, resume and contact buttons, GitHub and LinkedIn, then the status card", async () => {
+    render(await HomePage());
+
+    const order = [
+      screen.getByText(profile.intro),
+      screen.getByRole("link", { name: "Download resume" }),
+      screen.getByRole("link", { name: "Get in touch" }),
+      screen.getByRole("link", { name: "GitHub" }),
+      screen.getByRole("link", { name: "LinkedIn" }),
+      screen.getByText("status card stub"),
+    ];
+    for (let i = 1; i < order.length; i++) {
+      expect(
+        order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+    // The card sits in the same text column as the intro.
+    expect(screen.getByText("status card stub").closest(".order-3")).toBe(
+      screen.getByText(profile.intro).parentElement,
+    );
   });
 });
 
@@ -289,5 +311,37 @@ describe("HomePage GitHub activity", () => {
     render(await HomePage());
 
     expect(numberedHeadings().at(-1)).toMatch(/^04Blog/);
+  });
+});
+
+describe("HomePage analytics", () => {
+  afterEach(() => {
+    delete window.umami;
+  });
+
+  it("tags the hero GitHub and LinkedIn links as outbound clicks", async () => {
+    render(await HomePage());
+
+    const github = screen.getByRole("link", { name: "GitHub" });
+    expect(github.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(github.getAttribute("data-umami-event-to")).toBe("github");
+    const linkedin = screen.getByRole("link", { name: "LinkedIn" });
+    expect(linkedin.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(linkedin.getAttribute("data-umami-event-to")).toBe("linkedin");
+  });
+
+  it("tracks Download resume as a resume download from /", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    render(await HomePage());
+
+    const resume = screen.getByRole("link", { name: "Download resume" });
+    expect(resume.getAttribute("href")).toBe("/resume");
+    expect(resume.hasAttribute("data-umami-event")).toBe(false);
+    const block = (event: Event) => event.preventDefault(); // jsdom cannot navigate
+    document.addEventListener("click", block);
+    fireEvent.click(resume);
+    document.removeEventListener("click", block);
+    expect(umamiTrack.mock.calls).toEqual([["resume-download", { from: "/" }]]);
   });
 });

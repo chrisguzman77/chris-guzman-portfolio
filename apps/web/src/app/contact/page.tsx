@@ -5,6 +5,7 @@ import { ContactForm } from "@/components/contact/contact-form";
 import { CopyEmail } from "@/components/content/copy-email";
 import { PageHeader } from "@/components/content/page-header";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
+import { outboundProps } from "@/lib/analytics";
 import { getProfile } from "@/lib/directus/queries";
 import { serverEnv } from "@/lib/env";
 import { lastPathSegment } from "@/lib/format";
@@ -84,6 +85,7 @@ export default async function ContactPage() {
                 rel="noopener noreferrer"
                 aria-label="Open LinkedIn profile"
                 className={openClass}
+                {...outboundProps("linkedin")}
               >
                 <ExternalLink className="size-3.5" aria-hidden />
                 Open
@@ -103,6 +105,7 @@ export default async function ContactPage() {
                 rel="noopener noreferrer"
                 aria-label="Open GitHub profile"
                 className={openClass}
+                {...outboundProps("github")}
               >
                 <ExternalLink className="size-3.5" aria-hidden />
                 Open

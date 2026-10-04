@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { Turnstile } from "@/components/contact/turnstile";
+import { track } from "@/lib/analytics";
 import {
   CHAT_LIMITS,
   CHAT_MESSAGES,
@@ -142,6 +143,7 @@ export function ChatTerminal({
       return;
     }
     push({ kind: "question", text: question });
+    track("chat-question"); // never the text: questions can contain personal details
     setThinking(true);
     const mine = generation.current;
     const result = await askQuestion(apiUrl, session.id, question);
