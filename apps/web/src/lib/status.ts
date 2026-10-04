@@ -4,7 +4,7 @@ import { z } from "zod";
 import { serverEnv } from "@/lib/env";
 
 const MEMO_MS = 60_000;
-const TIMEOUT_MS = 2_000;
+const TIMEOUT_MS = 3_500; // above the API's own 2.5 s Prometheus budget
 
 /** A day's bar is green at or above this uptime ratio, amber below. */
 export const GREEN_AT = 0.995;

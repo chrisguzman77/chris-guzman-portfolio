@@ -1,16 +1,20 @@
+import asyncio
 import math
 import re
+import time
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from portfolio_api.clients.prometheus import HttpPrometheus, PrometheusError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
+from portfolio_api.services import status
 from portfolio_api.services.status import LAST_BACKUP, LATEST_PROBE, P95, StatusService
 
 NOW = datetime(2026, 10, 3, 16, 0, tzinfo=UTC)  # noon in New York (EDT)
@@ -390,3 +394,34 @@ def test_status_is_wired_to_prometheus_url(settings: Settings) -> None:
     assert Settings.model_fields["prometheus_url"].default == "http://prometheus:9090"
     app = create_app(settings)
     assert isinstance(app.state.status_service, StatusService)
+
+
+class SlowPrometheus(FakePrometheus):
+    async def query(self, promql: str, at: float) -> list[float]:
+        await asyncio.sleep(5)
+        return await super().query(promql, at)
+
+
+async def test_slow_prometheus_degrades_within_the_overall_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(status, "PROMETHEUS_BUDGET", 0.05)
+    started = time.monotonic()
+    body = await service(SlowPrometheus()).get()
+    assert time.monotonic() - started < 1
+    assert body.status == "degraded"
+    assert body.uptime_30d is None
+
+
+async def test_slow_db_check_means_database_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def db_hangs() -> bool:
+        await asyncio.sleep(5)
+        return True
+
+    monkeypatch.setattr(status, "DB_BUDGET", 0.05)
+    svc = StatusService(FakePrometheus(), db_hangs, now=lambda: NOW, monotonic=Clock())
+    started = time.monotonic()
+    body = await svc.get()
+    assert time.monotonic() - started < 1
+    assert body.status == "degraded"
+    assert body.uptime_30d == 1.0  # Prometheus numbers are still reported

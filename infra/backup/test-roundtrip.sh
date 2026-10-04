@@ -128,8 +128,9 @@ grep -Eq '^backup_last_size_bytes [1-9][0-9]*$' <<<"${metric}" || fail "size met
 grep -q 'backup.prom.tmp' <<<"${metric}" && fail "temp metric file left behind"
 ok "textfile metric written"
 
-docker logs "${hb}" 2>&1 | grep -q 'GET /ping$' || fail "success heartbeat not pinged"
-docker logs "${hb}" 2>&1 | grep -q 'GET /ping/fail' && fail "failure heartbeat pinged on success"
+hb_logs="$(docker logs "${hb}" 2>&1)"
+grep -q 'GET /ping$' <<<"${hb_logs}" || fail "success heartbeat not pinged"
+if grep -q 'GET /ping/fail' <<<"${hb_logs}"; then fail "failure heartbeat pinged on success"; fi
 ok "success heartbeat pinged"
 
 echo "==> restore.sh into an empty server"
@@ -149,7 +150,8 @@ ok "replaced, verified, uploads extracted"
 echo "==> backup.sh failure path (read-only remote)"
 before="$(as_root -v "${id}-textfile:/textfile:ro" "${IMAGE}" -c 'cat /textfile/backup.prom')"
 if run_backup -v "${id}-out:/out:ro" 2>/dev/null; then fail "backup.sh succeeded with a read-only remote"; fi
-docker logs "${hb}" 2>&1 | grep -q 'GET /ping/fail' || fail "failure heartbeat not pinged"
+hb_logs="$(docker logs "${hb}" 2>&1)"
+grep -q 'GET /ping/fail' <<<"${hb_logs}" || fail "failure heartbeat not pinged"
 after="$(as_root -v "${id}-textfile:/textfile:ro" "${IMAGE}" -c 'cat /textfile/backup.prom')"
 [[ "${before}" == "${after}" ]] || fail "metric changed after a failed backup"
 ok "failure exits non-zero, pings /fail, keeps the last metric"

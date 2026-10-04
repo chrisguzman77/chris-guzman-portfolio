@@ -17,6 +17,10 @@ NY = ZoneInfo("America/New_York")
 DAYS = 30
 PROBE_INTERVAL = 30  # seconds between site probes (the Prometheus scrape interval)
 MEMO_SECONDS = 60.0
+# Upper bounds, kept under the web card's 3.5 s fetch timeout. They also bound how long the
+# memo lock can be held.
+PROMETHEUS_BUDGET = 2.5  # all Prometheus work together
+DB_BUDGET = 1.5
 
 # The PromQL is fixed here. Only numbers this module computes are formatted in; nothing from
 # a request ever reaches Prometheus.
@@ -125,7 +129,7 @@ class StatusService:
     async def _compute(self) -> StatusResponse:
         now = self._now()
         days = new_york_days(now)
-        db_ok, stats = await asyncio.gather(self._db_ping(), self._stats(now.timestamp(), days))
+        db_ok, stats = await asyncio.gather(self._db_ok(), self._stats(now.timestamp(), days))
         if stats is None:
             return StatusResponse(
                 status="degraded",
@@ -147,22 +151,36 @@ class StatusService:
             last_backup_at=stats.last_backup_at,
         )
 
+    async def _db_ok(self) -> bool:
+        try:
+            async with asyncio.timeout(DB_BUDGET):
+                return await self._db_ping()
+        except TimeoutError:
+            log.warning("database check timed out; status degraded")
+            return False
+
     async def _stats(self, now: float, days: list[_Day]) -> _Stats | None:
         query = self._prometheus.query
         try:
-            first, p95, requests, backup, probe = await asyncio.gather(
-                query(FIRST_PROBE.format(seconds=math.ceil(now - days[0].start) + 60), now),
-                query(P95, now),
-                query(REQUESTS_SINCE.format(seconds=max(1, int(now - days[-1].start))), now),
-                query(LAST_BACKUP, now),
-                query(LATEST_PROBE, now),
-            )
-            first_probe = first[0] if first else None
-            windows = [covered(day, first_probe, now) for day in days]
-            successes = await asyncio.gather(*(self._successes(w) for w in windows))
-        except PrometheusError as exc:
-            log.warning("prometheus unavailable; status degraded", error=str(exc))
+            async with asyncio.timeout(PROMETHEUS_BUDGET):
+                return await self._prometheus_stats(query, now, days)
+        except (PrometheusError, TimeoutError) as exc:
+            log.warning("prometheus unavailable; status degraded", error=repr(exc))
             return None
+
+    async def _prometheus_stats(
+        self, query: Callable[[str, float], Awaitable[list[float]]], now: float, days: list[_Day]
+    ) -> _Stats:
+        first, p95, requests, backup, probe = await asyncio.gather(
+            query(FIRST_PROBE.format(seconds=math.ceil(now - days[0].start) + 60), now),
+            query(P95, now),
+            query(REQUESTS_SINCE.format(seconds=max(1, int(now - days[-1].start))), now),
+            query(LAST_BACKUP, now),
+            query(LATEST_PROBE, now),
+        )
+        first_probe = first[0] if first else None
+        windows = [covered(day, first_probe, now) for day in days]
+        successes = await asyncio.gather(*(self._successes(w) for w in windows))
         daily: list[float | None] = []
         total_successes = 0.0
         total_expected = 0

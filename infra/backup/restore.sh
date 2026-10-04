@@ -49,6 +49,13 @@ for f in globals.sql "${DATABASES[@]/%/.dump}" uploads.tar; do
 done
 (cd "${work}" && jq -r '.files[] | "\(.sha256)  \(.name)"' manifest.json | sha256sum -c -)
 
+count="$(tar -tf "${work}/uploads.tar" | grep -cv '/$' || true)"
+if [[ "${count}" -lt 1 ]]; then
+  echo "restore: uploads archive has no files" >&2
+  exit 1
+fi
+echo "restore: uploads archive has ${count} files"
+
 echo "restore: roles"
 # Leave the connecting superuser alone: restoring its production password hash
 # would lock this session out of the target server.
@@ -70,12 +77,6 @@ for db in "${DATABASES[@]}"; do
 done
 
 echo "restore: uploads"
-count="$(tar -tf "${work}/uploads.tar" | grep -cv '/$' || true)"
-if [[ "${count}" -lt 1 ]]; then
-  echo "restore: uploads archive has no files" >&2
-  exit 1
-fi
-echo "restore: uploads archive has ${count} files"
 if [[ -n "${RESTORE_UPLOADS_DIR:-}" ]]; then
   tar -xf "${work}/uploads.tar" -C "${RESTORE_UPLOADS_DIR}"
   echo "restore: uploads extracted to ${RESTORE_UPLOADS_DIR}"

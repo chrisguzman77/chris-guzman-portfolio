@@ -43,6 +43,8 @@ sudo IMAGE_TAG=<pre-Phase-6 sha> SKIP_STATUS_SMOKE=1 \
   /opt/portfolio/scripts/deploy.sh
 ```
 
+Silence the `Container down` alert in Grafana before rolling back to a pre-Phase-6 image: the old API has no `/metrics`, so `up{job="api"}` drops to 0 and the alert emails after 5 minutes.
+
 Image tags are full commit SHAs (Actions → release → a green run). The database schema stays at the newer revision either way; a rollback across a destructive migration needs a down-migration.
 
 ## Update the runner
@@ -136,7 +138,7 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 - **Run a backup now:** `make backup-now` on the VM. It ends with `backup: ok, <size> bytes`. Better Stack's `portfolio backup` heartbeat turns green, and Grafana's last-backup panel updates within a minute.
 - **Nightly logs:** `docker logs --tail 50 portfolio-backup-1`.
 - **When a backup fails:** Better Stack emails (from the `/fail` ping, or when no ping arrives within a day plus 2 hours), and Grafana's Backup stale alert fires after 36 hours. Run `make backup-now` to see the error. Usual causes: an expired or revoked R2 token (rclone reports 403), Postgres down, a full disk.
-- **Weekly proof:** the `backup-verify` workflow (Sundays 09:00 UTC) restores the newest backup into a throwaway Postgres and runs `infra/backup/verify.sql`. Run it by hand after any backup change: Actions → backup-verify → Run workflow.
+- **Weekly proof:** the `backup-verify` workflow (Sundays 09:00 UTC) restores the newest backup into a throwaway Postgres and runs `infra/backup/verify.sql`. Run it by hand after any backup change: Actions → backup-verify → Run workflow. GitHub disables scheduled workflows after 60 days without repository activity; re-enable `backup-verify` in the Actions tab if the weekly run stops appearing. The first deploy of Phase 6 trips `Backup stale` until `make backup-now` has run once.
 - The decryption key is not on the VM. It is in the password manager (`portfolio backup age key`) and the GitHub secret `BACKUP_AGE_KEY`.
 
 ## Restore after disaster

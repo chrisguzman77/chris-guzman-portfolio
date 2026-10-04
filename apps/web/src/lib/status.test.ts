@@ -92,7 +92,7 @@ describe("getStatus", () => {
     await expect(mod.getStatus()).resolves.toBeNull();
   });
 
-  it("returns null when the API exceeds the 2 second timeout", async () => {
+  it("returns null when the API exceeds the 3.5 second timeout", async () => {
     fetchMock.mockImplementation(
       (_url: string, init: RequestInit) =>
         new Promise((_resolve, reject) => {
@@ -101,7 +101,7 @@ describe("getStatus", () => {
     );
     const started = Date.now();
     await expect(mod.getStatus()).resolves.toBeNull();
-    expect(Date.now() - started).toBeGreaterThanOrEqual(1900);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(3400);
   });
 
   it("reuses the last result for 60 seconds, then fetches again", async () => {
