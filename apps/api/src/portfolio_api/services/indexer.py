@@ -5,6 +5,7 @@ from typing import Protocol
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from portfolio_api.metrics import RAG_SYNC_RUNS
 from portfolio_api.rag.chunking import chunk_markdown, content_hash
 from portfolio_api.rag.documents import SiteContent, build_documents
 from portfolio_api.rag.embedder import Embedder
@@ -89,7 +90,10 @@ class IndexService:
         try:
             await self.sync()
         except Exception:
+            RAG_SYNC_RUNS.labels(result="error").inc()
             log.exception("rag sync failed; index left as it was")
+        else:
+            RAG_SYNC_RUNS.labels(result="ok").inc()
 
     def request_reindex(self) -> None:
         """Schedule a sync after the debounce window; a burst of requests becomes one sync."""

@@ -7,6 +7,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.email import EmailSender, EmailSendError, OutgoingEmail
+from portfolio_api.metrics import CONTACT_SUBMISSIONS
 from portfolio_api.models import ContactSubmission, EmailStatus
 from portfolio_api.repositories import contact as repo
 
@@ -78,6 +79,7 @@ class ContactService:
         except EmailSendError as exc:
             async with self._sessions.begin() as session:
                 attempts = await repo.record_failure(session, submission_id, str(exc))
+            CONTACT_SUBMISSIONS.labels(result="failed").inc()
             if attempts >= repo.MAX_ATTEMPTS:
                 log.error(
                     "contact email gave up", submission_id=str(submission_id), attempts=attempts
@@ -87,6 +89,7 @@ class ContactService:
             return
         async with self._sessions.begin() as session:
             await repo.record_sent(session, submission_id)
+        CONTACT_SUBMISSIONS.labels(result="sent").inc()
         log.info("contact email sent", submission_id=str(submission_id))
 
     async def retry_due(self) -> None:

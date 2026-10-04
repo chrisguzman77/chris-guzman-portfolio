@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import ChatSettings, DirectusError
 from portfolio_api.clients.groq import ChatModel, ModelBusyError, ModelUnavailableError
+from portfolio_api.metrics import CHAT_BUDGET_USED_RATIO, CHAT_QUESTIONS, CHAT_TOKENS
 from portfolio_api.models import ChatOutcome
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as repo
@@ -197,8 +198,10 @@ class ChatService:
                     output_tokens=0,
                     counts=False,
                 )
+            CHAT_QUESTIONS.labels(outcome=ChatOutcome.error.value).inc()
             raise
         counts = composed.outcome == ChatOutcome.answered
+        used_today: int | None = None
         async with self._sessions.begin() as session:
             await repo.record_message(
                 session,
@@ -215,8 +218,20 @@ class ChatService:
                 await repo.add_usage(
                     session, now.date(), composed.input_tokens + composed.output_tokens
                 )
+                used_today = await repo.tokens_used(session, now.date())
+        CHAT_QUESTIONS.labels(outcome=composed.outcome.value).inc()
+        if used_today is not None:
+            CHAT_TOKENS.labels(kind="input").inc(composed.input_tokens)
+            CHAT_TOKENS.labels(kind="output").inc(composed.output_tokens)
+            CHAT_BUDGET_USED_RATIO.set(used_today / self._daily_budget)
         left = MAX_QUESTIONS - row.question_count - (1 if counts else 0)
         return ChatAnswer(composed.answer, composed.sources, composed.outcome, left)
+
+    async def refresh_budget_gauge(self) -> None:
+        """Set chat_budget_used_ratio from today's stored usage (startup and every 5 minutes)."""
+        async with self._sessions() as session:
+            used = await repo.tokens_used(session, self._clock().date())
+        CHAT_BUDGET_USED_RATIO.set(used / self._daily_budget)
 
     async def purge_expired(self) -> None:
         now = self._clock()
