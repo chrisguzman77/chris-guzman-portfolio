@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     chat_min_similarity: float = 0.5
     embedding_cache_dir: str | None = None
 
+    # Phase 6: GET /v1/status reads fixed queries from the compose-network Prometheus.
+    prometheus_url: str = "http://prometheus:9090"
+
     @field_validator(
         "turnstile_secret",
         "resend_api_key",

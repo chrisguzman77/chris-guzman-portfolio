@@ -12,6 +12,7 @@ from portfolio_api.clients.directus import DirectusContent
 from portfolio_api.clients.email import ResendSender
 from portfolio_api.clients.github import GitHubGraphQL
 from portfolio_api.clients.groq import GroqChatModel
+from portfolio_api.clients.prometheus import HttpPrometheus
 from portfolio_api.clients.turnstile import CloudflareTurnstile
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker, ping
@@ -23,11 +24,12 @@ from portfolio_api.rag.embedder import FastEmbedEmbedder
 from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.request_id import install_request_id
-from portfolio_api.routers import chat, contact, github, health, internal, metrics
+from portfolio_api.routers import chat, contact, github, health, internal, metrics, status
 from portfolio_api.services.chat import ChatService, ChatSwitch
 from portfolio_api.services.contact import ContactService
 from portfolio_api.services.github import GitHubActivityService
 from portfolio_api.services.indexer import IndexService
+from portfolio_api.services.status import StatusService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -106,6 +108,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Sets the budget gauge at startup and lets it fall back to 0 after UTC midnight.
         jobs.append(Job("chat-budget-gauge", 300, chat_service.refresh_budget_gauge))
     app.state.chat_service = chat_service
+    app.state.status_service = StatusService(
+        HttpPrometheus(http, settings.prometheus_url), app.state.db_ping
+    )
+    app.state.status_limiter = SlidingWindowLimiter([(60, 60)])
     install_error_handlers(app)
     # Inside the request-ID middleware (413s get an X-Request-ID); CORS stays outermost.
     app.add_middleware(BodySizeLimit)
@@ -124,4 +130,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(chat.router)
     app.include_router(internal.router)
     app.include_router(metrics.router)
+    app.include_router(status.router)
     return app
