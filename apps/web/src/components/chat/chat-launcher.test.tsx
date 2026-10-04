@@ -151,3 +151,36 @@ describe("ChatLauncher", () => {
     expect(pill()?.classList.contains("chat-pill-glow")).toBe(true);
   });
 });
+
+describe("ChatLauncher analytics", () => {
+  const umamiTrack = vi.fn();
+
+  beforeEach(() => {
+    window.umami = { track: umamiTrack };
+  });
+
+  afterEach(() => {
+    delete window.umami;
+    umamiTrack.mockReset();
+  });
+
+  it("tracks chat-open when the pill opens the terminal", async () => {
+    await renderLauncher();
+    await act(async () => {
+      fireEvent.click(pill()!);
+    });
+    expect(umamiTrack.mock.calls).toEqual([["chat-open"]]);
+  });
+
+  it("tracks chat-open when ⌘K opens the terminal, but not when ⌘K closes it", async () => {
+    await renderLauncher();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "k", metaKey: true });
+    });
+    expect(await screen.findByRole("region", { name: "Ask about Chris" })).toBeTruthy();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "k", metaKey: true });
+    });
+    expect(umamiTrack.mock.calls).toEqual([["chat-open"]]);
+  });
+});

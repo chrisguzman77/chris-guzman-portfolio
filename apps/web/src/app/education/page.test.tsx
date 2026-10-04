@@ -142,4 +142,12 @@ describe("/education", () => {
     render(await EducationPage());
     expect(screen.getByText("No education published yet.")).toBeTruthy();
   });
+
+  it("tags the credential link as an outbound click to other", async () => {
+    vi.mocked(getCertifications).mockResolvedValue([certification]);
+    render(await EducationPage());
+    const link = screen.getByRole("link", { name: /View credential/ });
+    expect(link.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(link.getAttribute("data-umami-event-to")).toBe("other");
+  });
 });

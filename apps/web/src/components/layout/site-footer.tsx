@@ -1,6 +1,7 @@
 import { Rss } from "lucide-react";
 
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
+import { outboundProps } from "@/lib/analytics";
 import { siteConfig } from "@/lib/site";
 
 const iconLink = "text-muted-foreground transition-colors hover:text-foreground";
@@ -17,6 +18,7 @@ export function SiteFooter() {
             rel="noopener noreferrer"
             aria-label="GitHub"
             className={iconLink}
+            {...outboundProps("github")}
           >
             <GitHubIcon className="size-4" />
           </a>
@@ -26,6 +28,7 @@ export function SiteFooter() {
             rel="noopener noreferrer"
             aria-label="LinkedIn"
             className={iconLink}
+            {...outboundProps("linkedin")}
           >
             <LinkedInIcon className="size-4" />
           </a>

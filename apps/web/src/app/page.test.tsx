@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
@@ -311,5 +311,37 @@ describe("HomePage GitHub activity", () => {
     render(await HomePage());
 
     expect(numberedHeadings().at(-1)).toMatch(/^04Blog/);
+  });
+});
+
+describe("HomePage analytics", () => {
+  afterEach(() => {
+    delete window.umami;
+  });
+
+  it("tags the hero GitHub and LinkedIn links as outbound clicks", async () => {
+    render(await HomePage());
+
+    const github = screen.getByRole("link", { name: "GitHub" });
+    expect(github.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(github.getAttribute("data-umami-event-to")).toBe("github");
+    const linkedin = screen.getByRole("link", { name: "LinkedIn" });
+    expect(linkedin.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(linkedin.getAttribute("data-umami-event-to")).toBe("linkedin");
+  });
+
+  it("tracks Download resume as a resume download from /", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    render(await HomePage());
+
+    const resume = screen.getByRole("link", { name: "Download resume" });
+    expect(resume.getAttribute("href")).toBe("/resume");
+    expect(resume.hasAttribute("data-umami-event")).toBe(false);
+    const block = (event: Event) => event.preventDefault(); // jsdom cannot navigate
+    document.addEventListener("click", block);
+    fireEvent.click(resume);
+    document.removeEventListener("click", block);
+    expect(umamiTrack.mock.calls).toEqual([["resume-download", { from: "/" }]]);
   });
 });

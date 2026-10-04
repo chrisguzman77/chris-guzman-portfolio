@@ -53,6 +53,7 @@ afterEach(() => {
   turnstile.render.mockReset();
   turnstile.reset.mockReset();
   delete window.turnstile;
+  delete window.umami;
 });
 
 describe("ContactForm", () => {
@@ -225,5 +226,43 @@ describe("ContactForm", () => {
     fill(valid);
     await submit();
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ website: "spam.example" });
+  });
+});
+
+describe("ContactForm analytics", () => {
+  it("tracks contact-sent once the API accepts the message", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+    await act(async () => {
+      renderForm();
+    });
+    fill(valid);
+    await submit();
+    expect(umamiTrack.mock.calls).toEqual([["contact-sent"]]);
+  });
+
+  it("does not track contact-sent when the API rejects the message", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    fetchMock.mockResolvedValue(
+      Response.json({ error: { code: "rate_limited", message: "x" } }, { status: 429 }),
+    );
+    await act(async () => {
+      renderForm();
+    });
+    fill(valid);
+    await submit();
+    expect(umamiTrack).not.toHaveBeenCalled();
+  });
+
+  it("does not track contact-sent when validation stops the submit", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    await act(async () => {
+      renderForm();
+    });
+    await submit();
+    expect(umamiTrack).not.toHaveBeenCalled();
   });
 });

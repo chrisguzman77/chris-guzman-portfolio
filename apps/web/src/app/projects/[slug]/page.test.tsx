@@ -114,4 +114,17 @@ describe("/projects/[slug]", () => {
     vi.mocked(getProject).mockResolvedValue(null);
     await expect(generateMetadata(params("missing"))).resolves.toEqual({});
   });
+
+  it("tags the source and live links as repo and live outbound clicks", async () => {
+    vi.mocked(getProject).mockResolvedValue(full);
+    vi.mocked(renderMarkdown).mockResolvedValue({ html: "", headings: [] });
+    render(await ProjectPage(params("offres")));
+
+    const repo = screen.getByRole("link", { name: /Source code/ });
+    expect(repo.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(repo.getAttribute("data-umami-event-to")).toBe("repo");
+    const live = screen.getByRole("link", { name: /Live site/ });
+    expect(live.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(live.getAttribute("data-umami-event-to")).toBe("live");
+  });
 });

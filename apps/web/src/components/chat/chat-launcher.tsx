@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { track } from "@/lib/analytics";
 import { currentPlatform, isApplePlatform, isChatShortcut, shortcutLabel } from "@/lib/platform";
 
 // The terminal's code downloads only when a visitor first opens it.
@@ -70,6 +71,7 @@ export function ChatLauncher({
     returnFocus.current = document.activeElement as HTMLElement | null;
     setLoaded(true);
     setOpen(true);
+    track("chat-open"); // pill and shortcut both open through here
   }, []);
 
   const hide = useCallback(() => {

@@ -150,4 +150,15 @@ describe("/contact", () => {
       "mailto:chris@example.com",
     );
   });
+
+  it("tags the LinkedIn and GitHub open buttons as outbound clicks", async () => {
+    vi.mocked(getProfile).mockResolvedValue(profile);
+    render(await ContactPage());
+    const linkedin = screen.getByRole("link", { name: "Open LinkedIn profile" });
+    const github = screen.getByRole("link", { name: "Open GitHub profile" });
+    expect(linkedin.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(linkedin.getAttribute("data-umami-event-to")).toBe("linkedin");
+    expect(github.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(github.getAttribute("data-umami-event-to")).toBe("github");
+  });
 });

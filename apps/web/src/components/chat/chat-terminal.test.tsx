@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CHAT_MESSAGES } from "@/lib/chat";
+import { CHAT_LIMITS, CHAT_MESSAGES } from "@/lib/chat";
 
 import { ChatTerminal } from "./chat-terminal";
 
@@ -94,6 +94,7 @@ afterEach(() => {
   tokenCallback = null;
   delete window.turnstile;
   window.localStorage.clear();
+  delete window.umami;
 });
 
 describe("ChatTerminal", () => {
@@ -302,5 +303,33 @@ describe("ChatTerminal", () => {
     await ask("FastAPI?");
     const [url] = fetchMock.mock.calls.at(-1) as [string];
     expect(url).toBe(`${API}/v1/chat/sessions/s-2/messages`);
+  });
+});
+
+describe("ChatTerminal analytics", () => {
+  it("tracks chat-question with no data, never the question text", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    await renderTerminal();
+    await ask("Has he used FastAPI? My email is ada@example.com");
+    expect(umamiTrack.mock.calls).toEqual([["chat-question"]]);
+  });
+
+  it("tracks a clicked suggestion as a question", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    await renderTerminal();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "[1] What projects has Chris built?" }));
+    });
+    expect(umamiTrack.mock.calls).toEqual([["chat-question"]]);
+  });
+
+  it("does not track a question that is too long to send", async () => {
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    await renderTerminal();
+    await ask("x".repeat(CHAT_LIMITS.question + 1));
+    expect(umamiTrack).not.toHaveBeenCalled();
   });
 });
