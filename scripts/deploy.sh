@@ -12,7 +12,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT}/infra/compose/compose.yaml"
 : "${IMAGE_TAG:?set IMAGE_TAG to a git SHA or latest}"
-SERVICES="${SERVICES:-postgres directus api web cloudflared prometheus grafana node-exporter cadvisor blackbox-exporter umami}"
+SERVICES="${SERVICES:-postgres directus api web cloudflared prometheus grafana node-exporter cadvisor blackbox-exporter umami backup}"
 if [[ "${INCLUDE_RUNNER:-0}" == 1 ]]; then
   SERVICES="${SERVICES} runner"
 fi

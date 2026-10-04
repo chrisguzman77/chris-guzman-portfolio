@@ -1,0 +1,2 @@
+# Times are America/New_York (TZ is set in the image). Run by supercronic.
+30 3 * * * /opt/backup/backup.sh
