@@ -1,3 +1,4 @@
+# Third-party images are pinned as tag@sha256 (Dependabot bumps both).
 # Production stack on the Proxmox VM (4 GiB RAM). No service publishes a host
 # port: the only way in is the Cloudflare Tunnel, which reaches services by name
 # on this network. Deployed by scripts/deploy.sh.
@@ -12,7 +13,7 @@ x-service: &service
 services:
   postgres:
     <<: *service
-    image: pgvector/pgvector:0.8.7-pg17
+    image: pgvector/pgvector:0.8.7-pg17@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
@@ -31,7 +32,7 @@ services:
 
   directus:
     <<: *service
-    image: directus/directus:12.4.1
+    image: directus/directus:12.4.1@sha256:9cc8ab88e6f1fc98d860416d89d53dd15838860c315a66c6d8ee68cb72f6b3a6
     depends_on:
       postgres: { condition: service_healthy }
     environment:
@@ -102,7 +103,7 @@ services:
 
   cloudflared:
     <<: *service
-    image: cloudflare/cloudflared:2026.9.3
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?}
@@ -114,7 +115,7 @@ services:
   # scraped by Prometheus over this network. Alert rules live in Grafana.
   prometheus:
     <<: *service
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -133,7 +134,7 @@ services:
 
   grafana:
     <<: *service
-    image: grafana/grafana:13.2.3
+    image: grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
     depends_on: [prometheus]
     environment:
       GF_SECURITY_ADMIN_USER: admin
@@ -172,7 +173,7 @@ services:
 
   node-exporter:
     <<: *service
-    image: prom/node-exporter:v1.12.1
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
     command:
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
@@ -189,7 +190,7 @@ services:
   # Docker socket, so like the runner this is root-equivalent on the VM.
   cadvisor:
     <<: *service
-    image: ghcr.io/google/cadvisor:v0.60.6
+    image: ghcr.io/google/cadvisor:v0.60.6@sha256:b8e7d1093144fd088f425ff003d75a4aa405de075db78dae3bc563730b1bd07a
     command:
       - --docker_only=true
       - --housekeeping_interval=30s
@@ -209,7 +210,7 @@ services:
 
   blackbox-exporter:
     <<: *service
-    image: prom/blackbox-exporter:v0.28.0
+    image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
     command: ["--config.file=/etc/blackbox/blackbox.yml"]
     volumes:
       - ../observability/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
@@ -217,7 +218,7 @@ services:
 
   umami:
     <<: *service
-    image: ghcr.io/umami-software/umami:3.4.0
+    image: ghcr.io/umami-software/umami:3.4.0@sha256:85909afc45bdcda1917394594a087421fdbb05610fded0fa9f6fb861abb2f367
     depends_on:
       postgres: { condition: service_healthy }
     environment:
