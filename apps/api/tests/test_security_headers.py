@@ -1,4 +1,5 @@
 import pytest
+from httpx import AsyncClient
 
 from portfolio_api.config import Settings
 
@@ -12,13 +13,15 @@ EXPECTED = {
 
 
 @pytest.mark.parametrize("path", ["/health", "/does-not-exist"])
-async def test_every_response_carries_security_headers(client, path):
+async def test_every_response_carries_security_headers(client: AsyncClient, path: str):
     res = await client.get(path)
     for name, value in EXPECTED.items():
         assert res.headers[name] == value
 
 
-async def test_cors_preflight_allows_and_exposes_request_id(client, settings: Settings):
+async def test_cors_preflight_allows_and_exposes_request_id(
+    client: AsyncClient, settings: Settings
+):
     origin = settings.cors_origins[0]
     res = await client.options(
         "/v1/contact",
