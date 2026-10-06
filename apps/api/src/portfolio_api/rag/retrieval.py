@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from portfolio_api.rag.embedder import Embedder
+from portfolio_api.rag.embedder import Embedder, check_dimensions
 from portfolio_api.repositories import rag as repo
 from portfolio_api.repositories.rag import ChunkHit
 
@@ -48,6 +48,7 @@ class Retriever:
 
     async def search(self, question: str) -> Retrieved:
         embedding = await self._embedder.embed_query(question)
+        check_dimensions([embedding])
         async with self._sessions() as session:
             vector_hits = await repo.vector_search(session, embedding, CANDIDATES)
             keyword_hits = await repo.keyword_search(session, question, CANDIDATES)

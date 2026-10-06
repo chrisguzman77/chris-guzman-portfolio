@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 import pytest
 from pypdf import PdfWriter
+from structlog.testing import capture_logs
 
 from portfolio_api.clients.directus import ChatSettings, DirectusContent, DirectusError, pdf_text
 
@@ -129,3 +130,12 @@ def test_pdf_text_joins_pages() -> None:
     assert pdf_text(blank_pdf()) == ""
     with pytest.raises(DirectusError):
         pdf_text(json.dumps({"no": "pdf"}).encode())
+
+
+async def test_oversized_resume_pdf_is_skipped() -> None:
+    big = b"%PDF-" + b"0" * (11 * 1024 * 1024)
+    directus, _ = client({**SITE, "/items/resume": {"file": "abc"}, "/assets/abc": big})
+    with capture_logs() as logs:
+        content = await directus.fetch_site_content()
+    assert content.resume_text is None
+    assert any(e["event"] == "resume PDF too large; skipped" for e in logs)

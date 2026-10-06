@@ -50,6 +50,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        if indexer is not None:
+            await indexer.aclose()
         await http.aclose()
         await engine.dispose()
 
