@@ -57,8 +57,11 @@ test("chat: ask a question, get a cited answer", async ({ page, isMobile }) => {
   await expect(input).toHaveAttribute("placeholder", "type a question…");
   await input.fill("what stack is this site?");
   await input.press("Enter");
+  // The typed paragraph, not the sr-only live region that announces the same text.
   await expect(
-    terminal.getByText("Chris built this site with Next.js and FastAPI [1]."),
+    terminal
+      .getByRole("paragraph")
+      .filter({ hasText: "Chris built this site with Next.js and FastAPI [1]." }),
   ).toBeVisible();
   await expect(terminal.getByRole("link", { name: "[1] This portfolio" })).toHaveAttribute(
     "href",
@@ -73,17 +76,22 @@ test("chat: ask a question, get a cited answer", async ({ page, isMobile }) => {
   await expect(terminal).toBeHidden();
 });
 
-test("404: not found page", async ({ page }) => {
-  const response = await page.goto("/nope");
-  expect(response?.status()).toBe(404);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Page not found");
-  await expectNoAxeViolations(page);
+test.describe("404", () => {
+  test.use({ allowedDocumentStatus: [404] });
+
+  test("404: not found page", async ({ page }) => {
+    const response = await page.goto("/nope");
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Page not found");
+    await expectNoAxeViolations(page);
+  });
 });
 
 test("light theme: pages stay accessible", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem("theme", "light"));
   for (const path of ["/", "/projects", "/contact"]) {
-    await page.goto(path);
+    const response = await page.goto(path);
+    expect(response?.ok()).toBe(true);
     await expect(page.locator("html")).toHaveClass(/\blight\b/);
     await expectNoAxeViolations(page);
   }
