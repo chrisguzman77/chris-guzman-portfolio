@@ -7,8 +7,11 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from starlette.types import Message, Receive, Scope, Send
 
+from portfolio_api.body_limit import BodySizeLimit
 from portfolio_api.config import Settings
+from portfolio_api.db import make_engine
 from portfolio_api.errors import ApiError
 from portfolio_api.jobs import Job, run_forever
 from portfolio_api.main import create_app
@@ -188,3 +191,34 @@ async def test_tables_exist_with_defaults(db: async_sessionmaker[AsyncSession]) 
     assert saved.attempts == 0
     assert saved.created_at.tzinfo is not None
     assert cache.payload == {"total": 1, "weeks": []}
+
+
+@pytest.mark.parametrize("length", ["١٢".encode(), "²".encode("latin-1"), b"12x", b""])
+async def test_non_ascii_digit_content_length_is_400(length: bytes) -> None:
+    reached: list[bool] = []
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        reached.append(True)
+
+    sent: list[Message] = []
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    scope: Scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/v1/contact",
+        "headers": [(b"content-length", length)],
+    }
+    await BodySizeLimit(app)(scope, receive, send)
+    assert reached == []
+    assert sent[0]["status"] == 400
+
+
+def test_engine_hides_parameters_in_errors() -> None:
+    engine = make_engine("postgresql+asyncpg://nobody:nobody@127.0.0.1:1/portfolio")
+    assert engine.sync_engine.hide_parameters is True

@@ -24,7 +24,11 @@ class BodySizeLimit:
             return
         length = Headers(scope=scope).get("content-length")
         if length is not None:
-            if length.isdigit() and int(length) > self.max_bytes:
+            # isdigit() alone accepts non-ASCII digits ("²", "١٢") that int() rejects or misreads.
+            if not (length.isascii() and length.isdigit()):
+                await self._reject(scope, receive, send, 400)
+                return
+            if int(length) > self.max_bytes:
                 await self._reject(scope, receive, send)
                 return
             await self.app(scope, receive, send)
@@ -56,8 +60,10 @@ class BodySizeLimit:
         await self.app(scope, replay, send)
 
     @staticmethod
-    async def _reject(scope: Scope, receive: Receive, send: Send) -> None:
-        response = JSONResponse(
-            error_body("payload_too_large", "The request body is too large."), status_code=413
-        )
+    async def _reject(scope: Scope, receive: Receive, send: Send, status: int = 413) -> None:
+        if status == 400:
+            body = error_body("invalid_request", "The Content-Length header is invalid.")
+        else:
+            body = error_body("payload_too_large", "The request body is too large.")
+        response = JSONResponse(body, status_code=status)
         await response(scope, receive, send)

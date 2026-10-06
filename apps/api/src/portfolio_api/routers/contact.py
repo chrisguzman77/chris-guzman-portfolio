@@ -2,6 +2,8 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 from portfolio_api.clients.turnstile import TurnstileUnavailableError, TurnstileVerifier
 from portfolio_api.errors import ApiError
@@ -46,19 +48,36 @@ async def require_turnstile(
     return turnstile
 
 
-# Dependencies resolve in order before the body is validated: rate limit, then configuration.
+async def contact_body(request: Request) -> ContactRequest:
+    """Parse the body ourselves: FastAPI decodes a body parameter's JSON before any dependency,
+    so malformed JSON would skip the rate limit and the configuration check."""
+    try:
+        return ContactRequest.model_validate_json(await request.body())
+    except ValidationError as exc:
+        raise RequestValidationError(
+            [{**err, "loc": ("body", *err["loc"])} for err in exc.errors(include_url=False)]
+        ) from exc
+
+
+# Dependencies resolve in order: rate limit, then configuration, then the body.
 @router.post(
     "/contact",
     status_code=202,
     response_model=ContactAccepted,
     dependencies=[Depends(enforce_rate_limit)],
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": ContactRequest.model_json_schema()}},
+        }
+    },
 )
 async def submit_contact(
     request: Request,
     background: BackgroundTasks,
     turnstile: Annotated[TurnstileVerifier, Depends(require_turnstile)],
     service: Annotated[ContactService, Depends(get_contact_service)],
-    body: ContactRequest,
+    body: Annotated[ContactRequest, Depends(contact_body)],
 ) -> ContactAccepted:
     if body.website:
         log.info("contact honeypot tripped")

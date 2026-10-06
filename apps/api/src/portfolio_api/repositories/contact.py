@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,16 +51,17 @@ async def record_failure(session: AsyncSession, submission_id: uuid.UUID, error:
     return result.scalar_one()
 
 
-async def due_for_retry(
-    session: AsyncSession, *, now: datetime, limit: int = 20
-) -> list[uuid.UUID]:
-    """Unsent rows untouched for RETRY_AFTER (failed, or pending from a send that died)."""
+async def due_for_retry(session: AsyncSession, *, limit: int = 20) -> list[uuid.UUID]:
+    """Unsent rows untouched for RETRY_AFTER (failed, or pending from a send that died).
+
+    Compared against the database clock, the same clock that wrote updated_at.
+    """
     stmt = (
         select(ContactSubmission.id)
         .where(
             ContactSubmission.email_status.in_([EmailStatus.pending, EmailStatus.failed]),
             ContactSubmission.attempts < MAX_ATTEMPTS,
-            ContactSubmission.updated_at <= now - RETRY_AFTER,
+            ContactSubmission.updated_at <= func.now() - RETRY_AFTER,
         )
         .order_by(ContactSubmission.created_at)
         .limit(limit)
