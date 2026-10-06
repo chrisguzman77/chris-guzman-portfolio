@@ -102,6 +102,12 @@ export function adminLoginFailure(status, body) {
   ].join(" ");
 }
 
+/** The message for a rejected DIRECTUS_BOOTSTRAP_TOKEN (401/403), or null. Never includes the token. */
+export function bootstrapTokenFailure(status) {
+  if (status !== 401 && status !== 403) return null;
+  return `DIRECTUS_BOOTSTRAP_TOKEN was rejected (HTTP ${status}); regenerate it for an admin user (docs/setup.md, "Directus bootstrap token")`;
+}
+
 export class DirectusClient {
   constructor(baseUrl, fetchImpl = globalThis.fetch) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
@@ -119,6 +125,18 @@ export class DirectusClient {
       throw err;
     }
     this.token = data.access_token;
+  }
+
+  /** Uses a static token, checked with one GET /users/me before any other call. */
+  async useStaticToken(token) {
+    this.token = token;
+    try {
+      await this.get("/users/me");
+    } catch (err) {
+      const message = bootstrapTokenFailure(err.status);
+      if (message) throw new Error(message, { cause: err });
+      throw err;
+    }
   }
 
   get(path) {

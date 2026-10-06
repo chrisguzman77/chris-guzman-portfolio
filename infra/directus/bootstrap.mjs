@@ -301,7 +301,7 @@ async function main() {
   const api = new DirectusClient(BASE_URL);
   const bootstrapToken = process.env.DIRECTUS_BOOTSTRAP_TOKEN;
   if (bootstrapToken) {
-    api.token = bootstrapToken;
+    await api.useStaticToken(bootstrapToken);
     console.log("auth: static token");
   } else {
     await api.login(env("ADMIN_EMAIL"), env("ADMIN_PASSWORD"));

@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   DirectusClient,
   adminLoginFailure,
+  bootstrapTokenFailure,
   planSchema,
   planSeedOnce,
   sameJson,
@@ -245,4 +246,41 @@ test("DirectusClient.login keeps the raw error for other failures", async () => 
   const { impl } = fakeFetch([{ status: 503, body: { errors: [{ message: "Unavailable" }] } }]);
   const api = new DirectusClient("http://directus:8055", impl);
   await assert.rejects(api.login("me@example.com", "pw"), /POST \/auth\/login -> 503/);
+});
+
+test("bootstrapTokenFailure explains a rejected token on 401 and 403 only", () => {
+  const expected =
+    'DIRECTUS_BOOTSTRAP_TOKEN was rejected (HTTP 401); regenerate it for an admin user (docs/setup.md, "Directus bootstrap token")';
+  assert.equal(bootstrapTokenFailure(401), expected);
+  assert.equal(bootstrapTokenFailure(403), expected.replace("401", "403"));
+  assert.equal(bootstrapTokenFailure(500), null);
+  assert.equal(bootstrapTokenFailure(undefined), null);
+});
+
+test("DirectusClient.useStaticToken preflights GET /users/me with the token", async () => {
+  const { calls, impl } = fakeFetch([{ status: 200, body: { data: { id: "u1" } } }]);
+  const api = new DirectusClient("http://directus:8055", impl);
+  await api.useStaticToken("static-tok");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "GET");
+  assert.equal(calls[0].url, "http://directus:8055/users/me");
+  assert.equal(calls[0].headers.authorization, "Bearer static-tok");
+});
+
+test("DirectusClient.useStaticToken replaces a 401/403 with the regenerate message", async () => {
+  for (const status of [401, 403]) {
+    const { impl } = fakeFetch([{ status, body: { errors: [{ message: "Invalid token" }] } }]);
+    const api = new DirectusClient("http://directus:8055", impl);
+    await assert.rejects(api.useStaticToken("static-tok"), (err) => {
+      assert.match(err.message, new RegExp(`rejected \\(HTTP ${status}\\)`));
+      assert.doesNotMatch(err.message, /static-tok/);
+      return true;
+    });
+  }
+});
+
+test("DirectusClient.useStaticToken keeps the raw error for other failures", async () => {
+  const { impl } = fakeFetch([{ status: 503, body: { errors: [{ message: "Unavailable" }] } }]);
+  const api = new DirectusClient("http://directus:8055", impl);
+  await assert.rejects(api.useStaticToken("t"), /GET \/users\/me -> 503/);
 });
