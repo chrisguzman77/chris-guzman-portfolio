@@ -34,7 +34,13 @@ async def test_query_sends_promql_and_time_and_parses_values() -> None:
     assert request.url.path == "/api/v1/query"
     assert request.url.params["query"] == "up"
     assert request.url.params["time"] == "1791043200.500"
-    assert request.extensions["timeout"]["read"] == 2.0
+    timeout = request.extensions["timeout"]
+    assert (timeout["connect"], timeout["read"], timeout["write"], timeout["pool"]) == (
+        1.0,
+        2.0,
+        2.0,
+        2.0,
+    )
 
 
 async def test_empty_result_and_nan_values() -> None:
