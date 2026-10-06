@@ -6,6 +6,7 @@ import httpx
 import pytest
 import structlog
 from pypdf import PdfWriter
+from pypdf.errors import ParseError
 from structlog.testing import capture_logs
 
 from portfolio_api.clients import directus as directus_module
@@ -143,3 +144,12 @@ async def test_oversized_resume_pdf_is_skipped(monkeypatch: pytest.MonkeyPatch) 
         content = await directus.fetch_site_content()
     assert content.resume_text is None
     assert any(e["event"] == "resume PDF too large; skipped" for e in logs)
+
+
+def test_pdf_text_wraps_any_pypdf_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(_: object) -> None:
+        raise ParseError("bad xref")
+
+    monkeypatch.setattr(directus_module, "PdfReader", broken)
+    with pytest.raises(DirectusError, match="ParseError"):
+        pdf_text(b"%PDF-1.7")

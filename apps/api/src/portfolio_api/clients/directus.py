@@ -6,7 +6,7 @@ from typing import Any, cast
 import httpx
 import structlog
 from pypdf import PdfReader
-from pypdf.errors import PdfReadError
+from pypdf.errors import PyPdfError
 
 from portfolio_api.rag.documents import SiteContent
 
@@ -31,7 +31,7 @@ def pdf_text(data: bytes) -> str:
     try:
         reader = PdfReader(io.BytesIO(data))
         return "\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
-    except (PdfReadError, ValueError, OSError) as exc:
+    except (PyPdfError, ValueError) as exc:
         raise DirectusError(f"resume PDF unreadable: {type(exc).__name__}") from exc
 
 

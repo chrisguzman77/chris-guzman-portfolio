@@ -1,6 +1,11 @@
+import pytest
+import structlog
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
+from structlog.testing import capture_logs
 
+from portfolio_api import request_id as request_id_module
+from portfolio_api.clients.directus import DirectusError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
 
@@ -56,3 +61,22 @@ async def test_reindex_without_indexer_is_503(settings: Settings) -> None:
     app.state.indexer = None
     res = await post(app, {"X-Internal-Secret": "s3cret"})
     assert (res.status_code, res.json()["error"]["code"]) == (503, "chat_disabled")
+
+
+class ExplodingIndexer:
+    def request_reindex(self) -> None:
+        raise DirectusError("unexpected")
+
+
+async def test_unhandled_reindex_error_is_the_standard_500(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, _ = make_app(settings)
+    app.state.indexer = ExplodingIndexer()
+    with capture_logs() as logs:
+        # The module logger is cached on first use; a fresh one binds to capture_logs.
+        monkeypatch.setattr(request_id_module, "log", structlog.get_logger())
+        res = await post(app, {"X-Internal-Secret": "s3cret"})
+    assert res.status_code == 500
+    assert res.json() == {"error": {"code": "internal_error", "message": "Something went wrong."}}
+    assert any(e["event"] == "unhandled error" and e["path"] == "/internal/reindex" for e in logs)
