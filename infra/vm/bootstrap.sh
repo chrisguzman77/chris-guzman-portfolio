@@ -73,6 +73,13 @@ cat >/etc/apt/apt.conf.d/52portfolio-reboot <<'CONF'
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-Time "04:30";
 CONF
+# Docker's apt repo is not in the default Allowed-Origins, so docker-ce would
+# never get security updates. ${distro_codename} is expanded by apt, not bash.
+cat >/etc/apt/apt.conf.d/52unattended-docker <<'CONF'
+Unattended-Upgrade::Allowed-Origins {
+  "Docker:${distro_codename}";
+};
+CONF
 
 step "sops ${SOPS_VERSION} and age ${AGE_VERSION}"
 tmp="$(mktemp -d)"
