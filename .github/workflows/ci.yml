@@ -131,6 +131,8 @@ jobs:
         run: |
           docker compose -f infra/compose/compose.dev.yaml config -q
           docker compose -f infra/compose/compose.yaml --env-file infra/compose/prod.env.example config -q
+      - name: Shared image tags agree (prod compose, dev compose, CI)
+        run: scripts/check-image-drift.sh
       - name: Prometheus and blackbox configs
         run: |
           docker run --rm --entrypoint promtool \
