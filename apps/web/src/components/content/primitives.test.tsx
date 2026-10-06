@@ -82,6 +82,25 @@ describe("SectionHeading", () => {
     expect(screen.getByText("3 projects")).toBeTruthy();
     expect(screen.queryByRole("link")).toBeNull();
   });
+
+  it("tags external links as outbound clicks by hostname, and internal links not at all", () => {
+    render(
+      <>
+        <SectionHeading number="01" title="A" href="https://github.com/octo" linkLabel="@octo" />
+        <SectionHeading number="02" title="B" href="https://example.com/x" linkLabel="elsewhere" />
+        <SectionHeading number="03" title="C" href="/projects" linkLabel="all projects" />
+      </>,
+    );
+    const github = screen.getByRole("link", { name: /@octo/ });
+    expect(github.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(github.getAttribute("data-umami-event-to")).toBe("github");
+    expect(
+      screen.getByRole("link", { name: /elsewhere/ }).getAttribute("data-umami-event-to"),
+    ).toBe("other");
+    expect(
+      screen.getByRole("link", { name: /all projects/ }).hasAttribute("data-umami-event"),
+    ).toBe(false);
+  });
 });
 
 describe("AwardBadge", () => {

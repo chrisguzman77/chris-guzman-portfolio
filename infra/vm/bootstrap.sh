@@ -4,7 +4,8 @@
 #   cd /opt/portfolio && sudo ./infra/vm/bootstrap.sh
 #
 # Installs Docker, a deny-by-default firewall, automatic security updates, sops
-# and age; creates the VM's age key; hands /opt/portfolio to the runner's uid.
+# and age; creates the VM's age key; hands /opt/portfolio to the runner's uid;
+# adds a 2 GB swapfile.
 set -euo pipefail
 
 if [[ ${EUID} -ne 0 ]]; then
@@ -101,6 +102,22 @@ chown -R "${RUNNER_UID}:${RUNNER_UID}" "${REPO_DIR}"
 if ! git config --system --get-all safe.directory 2>/dev/null | grep -qx "${REPO_DIR}"; then
   git config --system --add safe.directory "${REPO_DIR}"
 fi
+
+step "Swap: 2 GB /swapfile, vm.swappiness=10"
+# Safety net for memory spikes; every container also has a mem_limit.
+if [[ ! -f /swapfile ]]; then
+  fallocate -l 2G /swapfile
+  chmod 0600 /swapfile
+  mkswap /swapfile >/dev/null
+fi
+if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
+  swapon /swapfile
+fi
+if ! grep -qE '^/swapfile[[:space:]]' /etc/fstab; then
+  echo '/swapfile none swap sw 0 0' >>/etc/fstab
+fi
+echo 'vm.swappiness=10' >/etc/sysctl.d/99-portfolio-swap.conf
+sysctl -q -p /etc/sysctl.d/99-portfolio-swap.conf
 
 step "Done"
 echo "VM age public key (add it to .sops.yaml, then run sops updatekeys; safe to share):"

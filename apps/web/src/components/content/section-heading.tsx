@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { outboundProps, outboundTargetFor } from "@/lib/analytics";
+
 const linkClass = "shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground";
 
 export function SectionHeading({
@@ -30,7 +32,13 @@ export function SectionHeading({
       </h2>
       {href && linkLabel ? (
         href.startsWith("http") ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className={linkClass}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClass}
+            {...outboundProps(outboundTargetFor(href))}
+          >
             {linkLabel}
             <span aria-hidden="true"> →</span>
           </a>

@@ -13,7 +13,7 @@ from portfolio_api.config import Settings
 from portfolio_api.main import create_app
 from portfolio_api.models import ContactSubmission, EmailStatus
 from portfolio_api.services.contact import ContactForm, ContactService, build_email
-from tests.fakes import FakeSender, FakeTurnstile
+from tests.fakes import FakeSender, FakeTurnstile, metric
 
 Sessions = async_sessionmaker[AsyncSession]
 
@@ -236,3 +236,16 @@ async def test_subject_strips_line_breaks(db: Sessions) -> None:
     email = build_email(row, sender="f", to="t@example.com")
     assert "\r" not in email.subject and "\n" not in email.subject
     assert email.subject == "Portfolio message from Ada Bcc: x@evil.test"
+
+
+async def test_deliveries_are_measured(db: Sessions) -> None:
+    sent = metric("contact_submissions_total", result="sent")
+    failed = metric("contact_submissions_total", result="failed")
+    service = ContactService(db, FakeSender(fail_times=1), mail_from="f", mail_to="t@example.com")
+    submission_id = await service.submit(ContactForm("Ada", "ada@example.com", "Hello there!"))
+    await service.deliver(submission_id)
+    assert metric("contact_submissions_total", result="failed") == failed + 1
+    assert metric("contact_submissions_total", result="sent") == sent
+    await service.deliver(submission_id)
+    assert metric("contact_submissions_total", result="sent") == sent + 1
+    assert metric("contact_submissions_total", result="failed") == failed + 1

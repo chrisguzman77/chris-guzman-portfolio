@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getExperience } from "@/lib/directus/queries";
@@ -62,5 +62,22 @@ describe("/experience", () => {
     expect(screen.getByText("No roles published yet.")).toBeTruthy();
     expect(container.querySelector("ol.divide-dashed")).toBeNull();
     expect(screen.getByRole("link", { name: /Download full resume/ })).toBeTruthy();
+  });
+
+  it("tracks Download full resume as a resume download from /experience", async () => {
+    vi.mocked(getExperience).mockResolvedValue([role({ id: 1, company: "Acme Labs" })]);
+    const umamiTrack = vi.fn();
+    window.umami = { track: umamiTrack };
+    window.history.pushState({}, "", "/experience");
+    render(await ExperiencePage());
+
+    const block = (event: Event) => event.preventDefault();
+    document.addEventListener("click", block);
+    fireEvent.click(screen.getByRole("link", { name: /Download full resume/ }));
+    document.removeEventListener("click", block);
+    expect(umamiTrack.mock.calls).toEqual([["resume-download", { from: "/experience" }]]);
+
+    delete window.umami;
+    window.history.pushState({}, "", "/");
   });
 });

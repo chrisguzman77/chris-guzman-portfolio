@@ -33,4 +33,17 @@ describe("SiteFooter", () => {
     expect(rss.getAttribute("href")).toBe("/blog/rss.xml");
     expect(rss.querySelector("svg")).toBeTruthy();
   });
+
+  it("tags GitHub and LinkedIn as outbound clicks but not the RSS feed", () => {
+    render(<SiteFooter />);
+    const github = screen.getByRole("link", { name: "GitHub" });
+    const linkedin = screen.getByRole("link", { name: "LinkedIn" });
+    expect(github.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(github.getAttribute("data-umami-event-to")).toBe("github");
+    expect(linkedin.getAttribute("data-umami-event")).toBe("outbound-click");
+    expect(linkedin.getAttribute("data-umami-event-to")).toBe("linkedin");
+    expect(screen.getByRole("link", { name: "RSS feed" }).hasAttribute("data-umami-event")).toBe(
+      false,
+    );
+  });
 });

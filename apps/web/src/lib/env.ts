@@ -6,6 +6,7 @@ export type ServerEnv = {
   siteUrl: string;
   turnstileSiteKey: string | undefined;
   publicApiUrl: string;
+  umamiWebsiteId: string | undefined;
 };
 
 function read(name: string): string | undefined {
@@ -27,5 +28,6 @@ export function serverEnv(): ServerEnv {
     siteUrl: readUrl("SITE_URL") ?? "https://christopherguzman.me",
     turnstileSiteKey: read("TURNSTILE_SITE_KEY"),
     publicApiUrl: readUrl("PUBLIC_API_URL") ?? "https://api.christopherguzman.me",
+    umamiWebsiteId: read("UMAMI_WEBSITE_ID"),
   };
 }

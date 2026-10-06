@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.config import Settings
@@ -144,6 +144,12 @@ def test_blank_secrets_mean_unset() -> None:
     assert (s.turnstile_secret, s.resend_api_key, s.contact_to, s.github_token) == (None,) * 4
     assert s.contact_from == "Portfolio <contact@christopherguzman.me>"
     assert s.github_login == "chrisguzman77"
+
+
+@pytest.mark.parametrize("budget", [0, -1])
+def test_chat_daily_token_budget_must_be_positive(budget: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(chat_daily_token_budget=budget)
 
 
 async def test_run_forever_survives_a_failing_run() -> None:

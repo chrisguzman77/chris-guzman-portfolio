@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
 
+import { UmamiScript } from "@/components/analytics/umami-script";
 import { ChatSlot } from "@/components/chat/chat-slot";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -39,6 +40,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SiteFooter />
           <Suspense fallback={null}>
             <ChatSlot />
+          </Suspense>
+          <Suspense fallback={null}>
+            <UmamiScript />
           </Suspense>
         </ThemeProvider>
       </body>

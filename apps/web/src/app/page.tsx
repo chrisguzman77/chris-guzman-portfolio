@@ -2,13 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { ResumeLink } from "@/components/analytics/resume-link";
 import { ExperienceEntry } from "@/components/content/experience-entry";
-import { LiveStatus, LiveStatusFallback } from "@/components/content/live-status";
 import { PostListItem } from "@/components/content/post-list-item";
 import { ProjectCard } from "@/components/content/project-card";
 import { SectionHeading } from "@/components/content/section-heading";
+import { StatusCard, StatusCardSkeleton } from "@/components/content/status-card";
 import { GitHubActivity } from "@/components/content/github-activity";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
+import { outboundProps } from "@/lib/analytics";
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
 import { lastPathSegment, sectionNumbers } from "@/lib/format";
 import { getGithubActivity } from "@/lib/github-activity";
@@ -72,29 +74,41 @@ export default async function HomePage() {
                 {profile.intro}
               </p>
             ) : null}
-            <div className="mb-5">
-              {/* Streams in: a slow or down API never delays the rest of the page. */}
-              <Suspense fallback={<LiveStatusFallback />}>
-                <LiveStatus />
-              </Suspense>
-            </div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <Link href="/resume" className={primaryButton}>
+              <ResumeLink kind="page" href="/resume" className={primaryButton}>
                 Download resume
-              </Link>
+              </ResumeLink>
               <Link href="/contact" className={outlineButton}>
                 Get in touch
               </Link>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2.5">
-              <a href={githubUrl} target="_blank" rel="noopener noreferrer" className={ghostLink}>
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={ghostLink}
+                {...outboundProps("github")}
+              >
                 <GitHubIcon className="size-4" aria-hidden="true" />
                 GitHub
               </a>
-              <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" className={ghostLink}>
+              <a
+                href={linkedinUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={ghostLink}
+                {...outboundProps("linkedin")}
+              >
                 <LinkedInIcon className="size-4" aria-hidden="true" />
                 LinkedIn
               </a>
+            </div>
+            <div className="mt-5">
+              {/* Streams in: a slow or down API never delays the rest of the page. */}
+              <Suspense fallback={<StatusCardSkeleton />}>
+                <StatusCard />
+              </Suspense>
             </div>
           </div>
         </div>

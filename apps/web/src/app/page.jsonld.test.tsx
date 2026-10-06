@@ -30,9 +30,9 @@ vi.mock("@/lib/directus/queries", () => ({
   isReferencedFile: vi.fn(async () => false),
 }));
 vi.mock("@/lib/github-activity", () => ({ getGithubActivity: vi.fn(async () => null) }));
-vi.mock("@/components/content/live-status", () => ({
-  LiveStatus: () => <p>status</p>,
-  LiveStatusFallback: () => <p>checking</p>,
+vi.mock("@/components/content/status-card", () => ({
+  StatusCard: () => <p>status</p>,
+  StatusCardSkeleton: () => <p>checking</p>,
 }));
 
 afterEach(cleanup);

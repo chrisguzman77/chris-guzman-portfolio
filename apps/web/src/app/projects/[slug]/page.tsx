@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/content/page-header";
 import { Prose } from "@/components/content/prose";
 import { TechTags } from "@/components/content/tech-tags";
 import { GitHubIcon } from "@/components/icons/brand";
+import { outboundProps } from "@/lib/analytics";
 import { getProject } from "@/lib/directus/queries";
 import type { Project } from "@/lib/directus/schemas";
 import { formatMonthYear } from "@/lib/format";
@@ -64,6 +65,7 @@ export default async function ProjectPage({ params }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               className={outlineButton}
+              {...outboundProps("repo")}
             >
               <GitHubIcon className="size-4" aria-hidden="true" />
               Source code
@@ -75,6 +77,7 @@ export default async function ProjectPage({ params }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               className={outlineButton}
+              {...outboundProps("live")}
             >
               <ExternalLink className="size-4" aria-hidden="true" />
               Live site

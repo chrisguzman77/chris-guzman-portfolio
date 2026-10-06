@@ -1,3 +1,4 @@
+import { outboundProps } from "@/lib/analytics";
 import { formatPostDate } from "@/lib/format";
 import type { Activity, ActivityDay } from "@/lib/github-activity";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,7 @@ export function GitHubActivity({
       rel="noopener noreferrer"
       aria-label={`GitHub profile: ${totalText} ${plural(total)} in the last year (opens in a new tab)`}
       className="block rounded-[10px] border border-border bg-card p-4 transition-colors hover:border-input focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+      {...outboundProps("github")}
     >
       <div
         aria-hidden="true"

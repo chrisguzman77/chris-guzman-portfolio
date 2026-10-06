@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/compose/compose.dev.yaml
 
-.PHONY: help up down logs ps build migrate cms-bootstrap test lint dev-web dev-api prod-config secrets-edit secrets-check reindex chats chat-eval
+.PHONY: help up down logs ps build migrate cms-bootstrap test lint dev-web dev-api prod-config secrets-edit secrets-check reindex chats chat-eval backup-now
 
 help:          ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -63,3 +63,8 @@ chats:         ## (VM) Print recent chats (DAYS=30 make chats for more)
 
 chat-eval:     ## (VM) Run the chat answer-quality cases against Groq (~10 min, uses quota)
 	docker exec $(API_CONTAINER) portfolio-api chat-eval
+
+BACKUP_CONTAINER = $$(docker ps -q --filter label=com.docker.compose.project=portfolio --filter label=com.docker.compose.service=backup | head -n 1)
+
+backup-now:    ## (VM) Back up to R2 now (the nightly job: dumps, encrypts, uploads, pings Better Stack)
+	docker exec $(BACKUP_CONTAINER) backup.sh

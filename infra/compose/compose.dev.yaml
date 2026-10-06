@@ -83,6 +83,26 @@ services:
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
 
+  # Opt-in: `docker compose -f infra/compose/compose.dev.yaml --profile monitoring up -d prometheus blackbox-exporter`.
+  # Reuses the production scrape config, so only the api and site jobs are up in dev.
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    profiles: [monitoring]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=2d
+    volumes:
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    profiles: [monitoring]
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ../observability/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+
 volumes:
   postgres-data:
   directus-uploads:

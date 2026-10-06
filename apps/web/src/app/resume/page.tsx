@@ -2,6 +2,7 @@ import { Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ResumeLink } from "@/components/analytics/resume-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { getResume } from "@/lib/directus/queries";
@@ -60,14 +61,15 @@ function ResumeViewer({
           <p className="text-[15px] font-semibold">Christopher Guzman, Resume</p>
           {meta ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{meta}</p> : null}
         </div>
-        <a
+        <ResumeLink
+          kind="file"
           href={src}
           download="christopher-guzman-resume.pdf"
           className="inline-flex items-center gap-2 rounded-md bg-accent-brand px-3.5 py-2 text-sm font-semibold text-accent-brand-foreground transition-opacity hover:opacity-90"
         >
           <Download className="size-4" aria-hidden />
           Download PDF
-        </a>
+        </ResumeLink>
       </div>
       <div className="hidden rounded-[10px] border border-border bg-card p-4 md:block">
         <object
@@ -78,9 +80,13 @@ function ResumeViewer({
         >
           <p className="p-6 text-sm text-muted-foreground">
             Your browser cannot show the PDF here.{" "}
-            <a href={src} className="text-accent-brand underline-offset-4 hover:underline">
+            <ResumeLink
+              kind="file"
+              href={src}
+              className="text-accent-brand underline-offset-4 hover:underline"
+            >
               Open the resume PDF
-            </a>
+            </ResumeLink>
             .
           </p>
         </object>
