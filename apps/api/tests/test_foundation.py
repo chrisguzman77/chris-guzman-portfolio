@@ -222,3 +222,48 @@ async def test_non_ascii_digit_content_length_is_400(length: bytes) -> None:
 def test_engine_hides_parameters_in_errors() -> None:
     engine = make_engine("postgresql+asyncpg://nobody:nobody@127.0.0.1:1/portfolio")
     assert engine.sync_engine.hide_parameters is True
+
+
+class Stop(Exception):
+    pass
+
+
+def recording_sleep(waits: list[float], limit: int):
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) >= limit:
+            raise Stop
+
+    return sleep
+
+
+async def test_run_forever_backs_off_after_failures_and_resets_on_success() -> None:
+    results = [False, False, False, True, False]
+    waits: list[float] = []
+
+    async def job() -> None:
+        if not results.pop(0):
+            raise RuntimeError("down")
+
+    with pytest.raises(Stop):
+        await run_forever(Job("flaky", 10, job), sleep=recording_sleep(waits, 5))
+    assert waits == [20, 40, 80, 10, 20]
+
+
+async def test_run_forever_backoff_is_capped_at_an_hour() -> None:
+    waits: list[float] = []
+
+    async def job() -> None:
+        raise RuntimeError("down")
+
+    with pytest.raises(Stop):
+        await run_forever(Job("down", 1000, job), sleep=recording_sleep(waits, 3))
+    assert waits == [2000, 3600, 3600]
+
+
+async def test_lifespan_cleans_up_when_the_app_fails(settings: Settings) -> None:
+    app = create_app(settings)
+    with pytest.raises(RuntimeError):
+        async with app.router.lifespan_context(app):
+            raise RuntimeError("startup failed after the jobs started")
+    assert app.state.http.is_closed

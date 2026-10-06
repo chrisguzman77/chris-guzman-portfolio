@@ -308,3 +308,19 @@ async def test_retry_query_uses_the_database_clock(db: Sessions) -> None:
     async with db() as session:
         due = await repo.due_for_retry(session)
     assert due == [due_id] and fresh_id not in due
+
+
+async def test_missing_fields_are_listed(contact_settings: Settings) -> None:
+    res = await post(make_app(contact_settings, None, FakeTurnstile(), None), {})
+    assert res.status_code == 400
+    error = res.json()["error"]
+    assert error["code"] == "invalid_request"
+    assert set(error["fields"]) == {"name", "email", "message", "turnstile_token"}
+
+
+async def test_get_contact_is_405(contact_settings: Settings) -> None:
+    app = make_app(contact_settings, None, FakeTurnstile(), None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        res = await c.get("/v1/contact")
+    assert res.status_code == 405
+    assert res.json()["error"]["code"] == "method_not_allowed"

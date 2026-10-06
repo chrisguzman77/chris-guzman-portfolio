@@ -45,15 +45,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-        tasks = [asyncio.create_task(run_forever(job), name=job.name) for job in jobs]
-        yield
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-        if indexer is not None:
-            await indexer.aclose()
-        await http.aclose()
-        await engine.dispose()
+        tasks: list[asyncio.Task[None]] = []
+        try:
+            tasks.extend(asyncio.create_task(run_forever(job), name=job.name) for job in jobs)
+            yield
+        finally:
+            # Runs on a normal shutdown and when startup or the app fails after the jobs start.
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            if indexer is not None:
+                await indexer.aclose()
+            await http.aclose()
+            await engine.dispose()
 
     app = FastAPI(title="Portfolio API", version=settings.app_version, lifespan=lifespan)
     app.state.settings = settings

@@ -130,7 +130,8 @@ async def test_request_reindex_debounces_bursts(db: Sessions) -> None:
     service = IndexService(db, source, FakeEmbedder(), debounce=0.05)
     for _ in range(5):
         service.request_reindex()
-    await asyncio.sleep(0.3)
+    [task] = [t for t in asyncio.all_tasks() if t.get_name() == "rag-reindex"]
+    await asyncio.wait_for(task, timeout=5)  # waits for the sync, not a fixed sleep
     assert source.calls == 1
     assert await counts(db) == (3, 3)
 
