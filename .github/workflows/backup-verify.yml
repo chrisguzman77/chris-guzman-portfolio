@@ -60,6 +60,7 @@ jobs:
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y -q postgresql-client-17
           echo /usr/lib/postgresql/17/bin >>"${GITHUB_PATH}"
+          /usr/lib/postgresql/17/bin/pg_restore --version
 
       - name: Find and download the newest backup
         env:
@@ -73,7 +74,6 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
           set -euo pipefail
-          pg_restore --version
           newest="$(rclone lsjson --recursive --files-only "r2:${R2_BUCKET}/backups" \
             | jq -r 'sort_by(.Path) | last | .Path // empty')"
           if [[ -z "${newest}" ]]; then

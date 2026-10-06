@@ -59,7 +59,10 @@ echo "restore: uploads archive has ${count} files"
 echo "restore: roles"
 # Leave the connecting superuser alone: restoring its production password hash
 # would lock this session out of the target server.
-grep -vE "^(CREATE|ALTER) ROLE \"?${PGUSER}\"?[ ;]" "${work}/globals.sql" >"${work}/globals.restore.sql"
+# PGUSER sits inside an ERE, so escape its regex metacharacters.
+# shellcheck disable=SC2016 # the sed expression is literal on purpose
+pguser_re="$(printf '%s' "${PGUSER}" | sed 's/[][\.*^$(){}?+|/]/\\&/g')"
+grep -vE "^(CREATE|ALTER) ROLE \"?${pguser_re}\"?[ ;]" "${work}/globals.sql" >"${work}/globals.restore.sql"
 psql -X -q -d postgres -f "${work}/globals.restore.sql" >/dev/null 2>"${work}/globals.err" || true
 if grep -i 'error' "${work}/globals.err" | grep -vq 'already exists'; then
   echo "restore: restoring roles failed:" >&2
