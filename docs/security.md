@@ -32,8 +32,8 @@ A short threat model for a single-owner portfolio on one VM. It says what is wor
 | Malicious or vulnerable dependency | Dependabot for npm, PyPI, Docker and Actions. Trivy scans images in CI. `pnpm audit` on production dependencies. |
 | Compromised CI or runner | Ephemeral self-hosted runner, deploys only from `main`, fork pull requests need approval, default token read-only ([ADR 0005](adr/0005-self-hosted-runner-deploys.md), [ADR 0006](adr/0006-runner-in-compose.md)). |
 | Data loss or ransomware | Nightly backups encrypted to a key the VM does not hold, uploaded to R2 with a 30-day object lock ([ADR 0010](adr/0010-backup-encryption-and-bucket-lock.md)). A weekly job restores and verifies the latest one. |
-| Silent failure | Prometheus alerts by email, Better Stack heartbeat for backups and uptime, per-container memory limits. |
-| Host access | Proxmox root SSH is key-only ([runbook](runbook.md#proxmox-ssh-keys-only)). |
+| Silent failure | Grafana alerts by email (on Prometheus metrics), Better Stack heartbeat for backups and uptime, per-container memory limits. |
+| Host access | Proxmox root SSH is key-only once the runbook step is applied ([runbook](runbook.md#proxmox-ssh-keys-only)). |
 
 ## Accepted trade-offs
 
