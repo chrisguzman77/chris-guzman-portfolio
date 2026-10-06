@@ -185,48 +185,58 @@ class ChatService:
             if await repo.tokens_used(session, now.date()) >= self._daily_budget:
                 raise BudgetExhaustedError  # rolls the reservation back
             pairs = await repo.recent_exchanges(session, session_id, HISTORY_PAIRS)
+        settled = False  # True once the question is either kept for an answer or given back
         try:
-            composed = await self.compose(question, [Exchange(q, a) for q, a in pairs])
-        except (ModelBusyError, ModelUnavailableError) as exc:
-            log.warning("chat model failed", error=str(exc))
             try:
-                async with self._sessions.begin() as session:
-                    await repo.record_message(
-                        session,
-                        session_id=session_id,
-                        question=question,
-                        answer=None,
-                        outcome=ChatOutcome.error,
-                        sources=[],
-                        input_tokens=0,
-                        output_tokens=0,
-                    )
-                    await repo.release_question(session, session_id)
-            except Exception:
-                # Report the model's failure to the visitor, not this one.
-                log.exception("could not record chat error", session_id=str(session_id))
-            CHAT_QUESTIONS.labels(outcome=ChatOutcome.error.value).inc()
-            raise
-        counts = composed.outcome == ChatOutcome.answered
-        used_today: int | None = None
-        async with self._sessions.begin() as session:
-            await repo.record_message(
-                session,
-                session_id=session_id,
-                question=question,
-                answer=composed.raw if composed.outcome == ChatOutcome.uncited else composed.answer,
-                outcome=composed.outcome,
-                sources=[asdict(s) for s in composed.sources],
-                input_tokens=composed.input_tokens,
-                output_tokens=composed.output_tokens,
-            )
-            if not counts:
-                await repo.release_question(session, session_id)
-            if composed.raw is not None:  # the model was called
-                await repo.add_usage(
-                    session, now.date(), composed.input_tokens + composed.output_tokens
+                composed = await self.compose(question, [Exchange(q, a) for q, a in pairs])
+            except (ModelBusyError, ModelUnavailableError) as exc:
+                log.warning("chat model failed", error=str(exc))
+                try:
+                    async with self._sessions.begin() as session:
+                        await repo.record_message(
+                            session,
+                            session_id=session_id,
+                            question=question,
+                            answer=None,
+                            outcome=ChatOutcome.error,
+                            sources=[],
+                            input_tokens=0,
+                            output_tokens=0,
+                        )
+                        await repo.release_question(session, session_id)
+                    settled = True
+                except Exception:
+                    # Report the model's failure to the visitor, not this one.
+                    log.exception("could not record chat error", session_id=str(session_id))
+                CHAT_QUESTIONS.labels(outcome=ChatOutcome.error.value).inc()
+                raise
+            counts = composed.outcome == ChatOutcome.answered
+            used_today: int | None = None
+            async with self._sessions.begin() as session:
+                await repo.record_message(
+                    session,
+                    session_id=session_id,
+                    question=question,
+                    answer=composed.raw
+                    if composed.outcome == ChatOutcome.uncited
+                    else composed.answer,
+                    outcome=composed.outcome,
+                    sources=[asdict(s) for s in composed.sources],
+                    input_tokens=composed.input_tokens,
+                    output_tokens=composed.output_tokens,
                 )
-                used_today = await repo.tokens_used(session, now.date())
+                if not counts:
+                    await repo.release_question(session, session_id)
+                if composed.raw is not None:  # the model was called
+                    await repo.add_usage(
+                        session, now.date(), composed.input_tokens + composed.output_tokens
+                    )
+                    used_today = await repo.tokens_used(session, now.date())
+            settled = True
+        finally:
+            # Any other exit (a bug, a cancelled request, a failed commit) gives the question back.
+            if not settled:
+                await self._release(session_id)
         CHAT_QUESTIONS.labels(outcome=composed.outcome.value).inc()
         if used_today is not None:
             CHAT_TOKENS.labels(kind="input").inc(composed.input_tokens)
@@ -234,6 +244,14 @@ class ChatService:
             CHAT_BUDGET_USED_RATIO.set(used_today / self._daily_budget)
         left = MAX_QUESTIONS - count + (0 if counts else 1)
         return ChatAnswer(composed.answer, composed.sources, composed.outcome, left)
+
+    async def _release(self, session_id: uuid.UUID) -> None:
+        """Best effort, in its own transaction; never masks the error that got us here."""
+        try:
+            async with self._sessions.begin() as session:
+                await repo.release_question(session, session_id)
+        except Exception:
+            log.exception("could not give back a chat question", session_id=str(session_id))
 
     async def refresh_budget_gauge(self) -> None:
         """Set chat_budget_used_ratio from today's stored usage (startup and every 5 minutes)."""

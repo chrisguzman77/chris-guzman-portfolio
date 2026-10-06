@@ -171,10 +171,12 @@ class GatedModel:
 
     def __init__(self) -> None:
         self.gate = asyncio.Event()
+        self.entered = asyncio.Event()
         self.calls = 0
 
     async def complete(self, messages: Sequence[ChatTurn]) -> ModelReply:
         self.calls += 1
+        self.entered.set()
         await self.gate.wait()
         return ModelReply("He built it with FastAPI [1].", 1000, 50)
 
@@ -194,7 +196,8 @@ async def test_concurrent_asks_cannot_overspend_the_last_question(db: Sessions) 
     first = asyncio.create_task(chat.ask(session_id, IP, "q1?"))
     second = asyncio.create_task(chat.ask(session_id, IP, "q2?"))
     # One ask holds the last question inside the model; the other must fail without waiting.
-    await asyncio.wait({first, second}, timeout=5, return_when=asyncio.FIRST_COMPLETED)
+    done, _ = await asyncio.wait({first, second}, timeout=5, return_when=asyncio.FIRST_COMPLETED)
+    assert done, "neither ask finished: the losing ask waited on the winner"
     model.gate.set()
     results = await asyncio.gather(first, second, return_exceptions=True)
     assert sorted(type(r).__name__ for r in results) == ["ChatAnswer", "SessionLimitError"]
@@ -253,9 +256,75 @@ async def test_model_error_is_not_masked_by_a_failing_error_record(db: Sessions)
     session_id, _ = await chat.open_session(IP)
     with capture_logs() as logs, pytest.raises(ModelBusyError):
         await chat.ask(session_id, IP, "q?")
-    [failure] = [e for e in logs if e["log_level"] == "error"]
-    assert failure["event"] == "could not record chat error" and failure["exc_info"]
+    [failure] = [e for e in logs if e["event"] == "could not record chat error"]
+    assert failure["log_level"] == "error" and failure["exc_info"]
     assert await messages(db) == []  # the error row was rolled back
+
+
+class Crashes:
+    async def complete(self, messages: Sequence[ChatTurn]) -> ModelReply:
+        raise RuntimeError("unexpected bug")
+
+
+async def test_unexpected_error_gives_the_question_back(db: Sessions) -> None:
+    chat = ChatService(
+        db, FakeRetriever(), Crashes(), hash_salt="salt", daily_budget=180_000, min_similarity=0.5
+    )
+    session_id, _ = await chat.open_session(IP)
+    with pytest.raises(RuntimeError):
+        await chat.ask(session_id, IP, "q?")
+    assert await question_count(db, session_id) == 0
+
+
+class CommitFailsOnce(CommitFails):
+    @asynccontextmanager
+    async def begin(self) -> AsyncGenerator[AsyncSession]:
+        async with self.real.begin() as session:
+            yield session
+            if self.broken:
+                self.broken = False
+                raise SQLAlchemyError("commit failed")
+
+
+class AnswersAndBreaksTheDatabase:
+    def __init__(self, sessions: CommitFails) -> None:
+        self.sessions = sessions
+
+    async def complete(self, messages: Sequence[ChatTurn]) -> ModelReply:
+        self.sessions.broken = True
+        return ModelReply("He built it with FastAPI [1].", 1000, 50)
+
+
+async def test_failed_answer_commit_gives_the_question_back(db: Sessions) -> None:
+    sessions = CommitFailsOnce(db)
+    chat = ChatService(
+        cast(Sessions, sessions),
+        FakeRetriever(),
+        AnswersAndBreaksTheDatabase(sessions),
+        hash_salt="salt",
+        daily_budget=180_000,
+        min_similarity=0.5,
+    )
+    session_id, _ = await chat.open_session(IP)
+    with pytest.raises(SQLAlchemyError):
+        await chat.ask(session_id, IP, "q?")
+    assert await messages(db) == []
+    assert await question_count(db, session_id) == 0
+
+
+async def test_cancelled_ask_gives_the_question_back(db: Sessions) -> None:
+    model = GatedModel()  # never opened: the ask waits in the model until cancelled
+    chat = ChatService(
+        db, FakeRetriever(), model, hash_salt="salt", daily_budget=180_000, min_similarity=0.5
+    )
+    session_id, _ = await chat.open_session(IP)
+    task = asyncio.create_task(chat.ask(session_id, IP, "q?"))
+    await asyncio.wait_for(model.entered.wait(), timeout=5)
+    assert await question_count(db, session_id) == 1
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert await question_count(db, session_id) == 0
 
 
 class BrokenRetriever:
