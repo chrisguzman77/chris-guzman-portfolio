@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { ResumeLink } from "@/components/analytics/resume-link";
 import { ExperienceEntry } from "@/components/content/experience-entry";
 import { PostListItem } from "@/components/content/post-list-item";
 import { ProjectCard } from "@/components/content/project-card";
@@ -75,9 +74,9 @@ export default async function HomePage() {
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2.5">
-              <ResumeLink kind="page" href="/resume" className={primaryButton}>
+              <Link href="/resume" className={primaryButton}>
                 Download resume
-              </ResumeLink>
+              </Link>
               <Link href="/contact" className={outlineButton}>
                 Get in touch
               </Link>

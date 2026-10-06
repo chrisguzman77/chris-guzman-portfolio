@@ -64,7 +64,7 @@ describe("/experience", () => {
     expect(screen.getByRole("link", { name: /Download full resume/ })).toBeTruthy();
   });
 
-  it("tracks Download full resume as a resume download from /experience", async () => {
+  it("links Download full resume to /resume without counting it as a download", async () => {
     vi.mocked(getExperience).mockResolvedValue([role({ id: 1, company: "Acme Labs" })]);
     const umamiTrack = vi.fn();
     window.umami = { track: umamiTrack };
@@ -75,7 +75,7 @@ describe("/experience", () => {
     document.addEventListener("click", block);
     fireEvent.click(screen.getByRole("link", { name: /Download full resume/ }));
     document.removeEventListener("click", block);
-    expect(umamiTrack.mock.calls).toEqual([["resume-download", { from: "/experience" }]]);
+    expect(umamiTrack).not.toHaveBeenCalled(); // only the PDF link on /resume counts
 
     delete window.umami;
     window.history.pushState({}, "", "/");

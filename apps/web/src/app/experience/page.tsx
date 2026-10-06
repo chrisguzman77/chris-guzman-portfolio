@@ -1,7 +1,7 @@
 import { Download } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { ResumeLink } from "@/components/analytics/resume-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { ExperienceEntry } from "@/components/content/experience-entry";
 import { PageHeader } from "@/components/content/page-header";
@@ -33,10 +33,10 @@ export default async function ExperiencePage() {
         )}
       </div>
       <div className="mt-6">
-        <ResumeLink kind="page" href="/resume" className={outlineButton}>
+        <Link href="/resume" className={outlineButton}>
           <Download className="size-4" aria-hidden="true" />
           Download full resume
-        </ResumeLink>
+        </Link>
       </div>
     </div>
   );

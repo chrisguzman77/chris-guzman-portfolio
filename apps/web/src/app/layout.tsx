@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 
 import { UmamiScript } from "@/components/analytics/umami-script";
@@ -30,19 +31,21 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Set by src/proxy.ts for every page request; Next stamps it on its own scripts.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
+      <head>
+        <UmamiScript nonce={nonce} />
+      </head>
       <body className="flex min-h-screen flex-col bg-background font-sans text-foreground antialiased">
-        <ThemeProvider>
+        <ThemeProvider nonce={nonce}>
           <SiteHeader />
           <main className="flex-1">{children}</main>
           <SiteFooter />
           <Suspense fallback={null}>
             <ChatSlot />
-          </Suspense>
-          <Suspense fallback={null}>
-            <UmamiScript />
           </Suspense>
         </ThemeProvider>
       </body>

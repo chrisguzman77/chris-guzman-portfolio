@@ -62,7 +62,6 @@ function ResumeViewer({
           {meta ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{meta}</p> : null}
         </div>
         <ResumeLink
-          kind="file"
           href={src}
           download="christopher-guzman-resume.pdf"
           className="inline-flex items-center gap-2 rounded-md bg-accent-brand px-3.5 py-2 text-sm font-semibold text-accent-brand-foreground transition-opacity hover:opacity-90"
@@ -80,11 +79,7 @@ function ResumeViewer({
         >
           <p className="p-6 text-sm text-muted-foreground">
             Your browser cannot show the PDF here.{" "}
-            <ResumeLink
-              kind="file"
-              href={src}
-              className="text-accent-brand underline-offset-4 hover:underline"
-            >
+            <ResumeLink href={src} className="text-accent-brand underline-offset-4 hover:underline">
               Open the resume PDF
             </ResumeLink>
             .
