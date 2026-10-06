@@ -22,9 +22,11 @@ test("projects: list to detail", async ({ page }) => {
   await expectNoAxeViolations(page);
 });
 
-test("resume: download link", async ({ page }) => {
+test("resume: download link, PDF embed on desktop only", async ({ page, isMobile }) => {
   await page.goto("/resume");
   await expect(page.getByRole("link", { name: /download/i })).toHaveAttribute("href", /.+/);
+  if (isMobile) await expect(page.locator("object")).toHaveCount(0);
+  else await expect(page.locator("object")).toHaveCount(1);
   await expectNoAxeViolations(page);
 });
 

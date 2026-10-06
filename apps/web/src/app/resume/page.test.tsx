@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getResume } from "@/lib/directus/queries";
 import type { Resume } from "@/lib/directus/schemas";
@@ -11,7 +11,20 @@ vi.mock("@/lib/directus/queries", () => ({ getResume: vi.fn() }));
 
 const full: Resume = { file: "abc-123", version_label: "fall-2026", updated_at: "2026-10-01" };
 
+// jsdom has no matchMedia. Pretend to be a wide screen so the PDF embed renders.
+beforeEach(() => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+});
+
 afterEach(() => {
+  vi.unstubAllGlobals();
   cleanup();
   vi.mocked(getResume).mockReset();
 });
@@ -25,7 +38,7 @@ describe("/resume", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Resume" })).toBeTruthy();
   });
 
-  it("renders the bar, the download button, and the inline PDF on wide screens", async () => {
+  it("renders the bar, the download button, and the desktop-only PDF frame", async () => {
     vi.mocked(getResume).mockResolvedValue(full);
     const { container } = render(await ResumePage());
 
@@ -36,13 +49,9 @@ describe("/resume", () => {
     expect(download.getAttribute("href")).toBe("/cms-assets/abc-123");
     expect(download.hasAttribute("download")).toBe(true);
 
-    const object = container.querySelector("object");
-    expect(object?.getAttribute("data")).toBe("/cms-assets/abc-123");
-    expect(object?.getAttribute("type")).toBe("application/pdf");
-    const frame = object?.parentElement;
+    // The embed itself is client-gated (see pdf-embed.test.tsx); the frame is desktop-only.
+    const frame = container.querySelector(".md\\:block");
     expect(frame?.className).toContain("hidden");
-    expect(frame?.className).toContain("md:block");
-    expect(object?.querySelector('a[href="/cms-assets/abc-123"]')).not.toBeNull();
   });
 
   it("omits missing parts of the version line", async () => {

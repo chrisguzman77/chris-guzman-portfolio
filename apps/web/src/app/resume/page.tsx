@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ResumeLink } from "@/components/analytics/resume-link";
+import { PdfEmbed } from "@/components/content/pdf-embed";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { getResume } from "@/lib/directus/queries";
@@ -71,20 +72,7 @@ function ResumeViewer({
         </ResumeLink>
       </div>
       <div className="hidden rounded-[10px] border border-border bg-card p-4 md:block">
-        <object
-          data={src}
-          type="application/pdf"
-          aria-label="Resume of Christopher Guzman (PDF)"
-          className="h-[80vh] w-full rounded"
-        >
-          <p className="p-6 text-sm text-muted-foreground">
-            Your browser cannot show the PDF here.{" "}
-            <ResumeLink href={src} className="text-accent-brand underline-offset-4 hover:underline">
-              Open the resume PDF
-            </ResumeLink>
-            .
-          </p>
-        </object>
+        <PdfEmbed src={src} />
       </div>
     </>
   );
