@@ -139,7 +139,7 @@ Effort S/M/L. UV = user-visible. Out of scope: W5, W6 (see Decisions), A12 (move
 
 
 
-### Web (21)
+### Web (19 in scope)
 | # | Item | Eff | UV |
 |---|---|---|---|
 | W1 | Add security headers (CSP, HSTS, nosniff, Referrer-Policy, Permissions-Policy, frame-ancestors), `poweredByHeader: false` (new, from audit; also resolves stale Phase 5 CSP spec note) | M | no |
@@ -162,7 +162,7 @@ Effort S/M/L. UV = user-visible. Out of scope: W5, W6 (see Decisions), A12 (move
 | W20 | jsdom "navigation not implemented" noise from source-link tests (Phase 5/6) | S | no |
 | W21 | Dependabot: TypeScript 6 (#6, on hold), `@types/node` 26 (#38), web-minor (#37); consider moving `shadcn` to devDependencies to clear 2 prod-audit highs | S | no |
 
-### API (14)
+### API (13 in scope)
 | # | Item | Eff | UV |
 |---|---|---|---|
 | A1 | Rate limiter keys full IPv6 address (rotate within /64) and key map unbounded; key on /64 and cap (Phase 4 M4, Phase 5) | M | no |
