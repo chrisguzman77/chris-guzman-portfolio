@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from portfolio_api.clients.turnstile import TurnstileUnavailableError, TurnstileVerifier
 from portfolio_api.errors import ApiError
-from portfolio_api.ratelimit import SlidingWindowLimiter, client_ip
+from portfolio_api.ratelimit import SlidingWindowLimiter, client_ip, client_key
 from portfolio_api.schemas.contact import ContactAccepted, ContactRequest
 from portfolio_api.services.contact import ContactForm, ContactService
 
@@ -28,7 +28,7 @@ def get_contact_service(request: Request) -> ContactService:
 async def enforce_rate_limit(
     request: Request, limiter: Annotated[SlidingWindowLimiter, Depends(get_limiter)]
 ) -> None:
-    wait = limiter.hit(client_ip(request) or "unknown")
+    wait = limiter.hit(client_key(client_ip(request) or "unknown"))
     if wait is not None:
         raise ApiError(
             429,

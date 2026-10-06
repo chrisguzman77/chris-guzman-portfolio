@@ -1,14 +1,20 @@
+import asyncio
 import hashlib
 import hmac
 import uuid
+from collections.abc import AsyncGenerator, Sequence
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 from sqlalchemy import select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from portfolio_api.clients.directus import ChatSettings, DirectusError
-from portfolio_api.clients.groq import ModelBusyError, ModelReply, ModelUnavailableError
+from portfolio_api.clients.groq import ChatTurn, ModelBusyError, ModelReply, ModelUnavailableError
 from portfolio_api.models import ChatMessage, ChatOutcome, ChatSession, ChatUsageDaily
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.services.chat import (
@@ -19,6 +25,7 @@ from portfolio_api.services.chat import (
     SearchesIndex,
     SessionLimitError,
     SessionNotFoundError,
+    purge_expired_chats,
 )
 from portfolio_api.services.grounding import CANNED_ANSWER, CONTACT_SOURCE, Source
 from tests.fakes import HIT, FakeChatModel, FakeChatSettingsSource, FakeRetriever, metric
@@ -50,8 +57,16 @@ async def messages(db: Sessions) -> list[ChatMessage]:
 
 
 async def usage(db: Sessions) -> ChatUsageDaily | None:
+    """The only usage row (keyed by the service's own date, so no midnight flake)."""
     async with db() as session:
-        return await session.get(ChatUsageDaily, datetime.now(UTC).date())
+        return (await session.scalars(select(ChatUsageDaily))).one_or_none()
+
+
+async def question_count(db: Sessions, session_id: uuid.UUID) -> int:
+    async with db() as session:
+        row = await session.get(ChatSession, session_id)
+    assert row is not None
+    return row.question_count
 
 
 async def test_open_session_stores_only_an_ip_hash(db: Sessions) -> None:
@@ -90,6 +105,7 @@ async def test_low_similarity_skips_the_model(db: Sessions) -> None:
     assert (answer.answer, answer.sources) == (CANNED_ANSWER, [CONTACT_SOURCE])
     assert answer.outcome == ChatOutcome.no_match
     assert answer.questions_left == MAX_QUESTIONS
+    assert await question_count(db, session_id) == 0
     assert model.calls == []
     assert await usage(db) is None
     assert [m.outcome for m in await messages(db)] == [ChatOutcome.no_match]
@@ -138,14 +154,52 @@ async def test_question_limit(db: Sessions) -> None:
 
 
 async def test_budget_gate_runs_before_the_model(db: Sessions) -> None:
+    now = datetime.now(UTC)
     model = FakeChatModel()
-    chat = service(db, model)
+    chat = service(db, model, clock=now)
     session_id, _ = await chat.open_session(IP)
     async with db.begin() as session:
-        session.add(ChatUsageDaily(day=datetime.now(UTC).date(), tokens=180_000, requests=60))
+        session.add(ChatUsageDaily(day=now.date(), tokens=180_000, requests=60))
     with pytest.raises(BudgetExhaustedError):
         await chat.ask(session_id, IP, "q?")
     assert model.calls == []
+    assert await question_count(db, session_id) == 0
+
+
+class GatedModel:
+    """Answers with a citation, but only once ``gate`` is set."""
+
+    def __init__(self) -> None:
+        self.gate = asyncio.Event()
+        self.calls = 0
+
+    async def complete(self, messages: Sequence[ChatTurn]) -> ModelReply:
+        self.calls += 1
+        await self.gate.wait()
+        return ModelReply("He built it with FastAPI [1].", 1000, 50)
+
+
+async def test_concurrent_asks_cannot_overspend_the_last_question(db: Sessions) -> None:
+    model = GatedModel()
+    chat = ChatService(
+        db, FakeRetriever(), model, hash_salt="salt", daily_budget=180_000, min_similarity=0.5
+    )
+    session_id, _ = await chat.open_session(IP)
+    async with db.begin() as session:
+        await session.execute(
+            update(ChatSession)
+            .where(ChatSession.id == session_id)
+            .values(question_count=MAX_QUESTIONS - 1)
+        )
+    first = asyncio.create_task(chat.ask(session_id, IP, "q1?"))
+    second = asyncio.create_task(chat.ask(session_id, IP, "q2?"))
+    # One ask holds the last question inside the model; the other must fail without waiting.
+    await asyncio.wait({first, second}, timeout=5, return_when=asyncio.FIRST_COMPLETED)
+    model.gate.set()
+    results = await asyncio.gather(first, second, return_exceptions=True)
+    assert sorted(type(r).__name__ for r in results) == ["ChatAnswer", "SessionLimitError"]
+    assert model.calls == 1
+    assert await question_count(db, session_id) == MAX_QUESTIONS
 
 
 async def test_model_error_is_recorded_then_raised(db: Sessions) -> None:
@@ -156,6 +210,52 @@ async def test_model_error_is_recorded_then_raised(db: Sessions) -> None:
     [msg] = await messages(db)
     assert msg.outcome == ChatOutcome.error and msg.answer is None
     assert await usage(db) is None
+    assert await question_count(db, session_id) == 0  # the reserved question is given back
+
+
+class CommitFails:
+    """A sessionmaker whose transactions fail once ``broken`` is set."""
+
+    def __init__(self, real: Sessions) -> None:
+        self.real = real
+        self.broken = False
+
+    def __call__(self) -> AsyncSession:
+        return self.real()
+
+    @asynccontextmanager
+    async def begin(self) -> AsyncGenerator[AsyncSession]:
+        async with self.real.begin() as session:
+            yield session
+            if self.broken:
+                raise SQLAlchemyError("commit failed")
+
+
+class BusyAndBreaksTheDatabase:
+    def __init__(self, sessions: CommitFails) -> None:
+        self.sessions = sessions
+
+    async def complete(self, messages: Sequence[ChatTurn]) -> ModelReply:
+        self.sessions.broken = True
+        raise ModelBusyError("groq 429")
+
+
+async def test_model_error_is_not_masked_by_a_failing_error_record(db: Sessions) -> None:
+    sessions = CommitFails(db)
+    chat = ChatService(
+        cast(Sessions, sessions),
+        FakeRetriever(),
+        BusyAndBreaksTheDatabase(sessions),
+        hash_salt="salt",
+        daily_budget=180_000,
+        min_similarity=0.5,
+    )
+    session_id, _ = await chat.open_session(IP)
+    with capture_logs() as logs, pytest.raises(ModelBusyError):
+        await chat.ask(session_id, IP, "q?")
+    [failure] = [e for e in logs if e["log_level"] == "error"]
+    assert failure["event"] == "could not record chat error" and failure["exc_info"]
+    assert await messages(db) == []  # the error row was rolled back
 
 
 class BrokenRetriever:
@@ -183,7 +283,7 @@ async def test_history_reaches_the_model(db: Sessions) -> None:
     assert [t.content for t in second[1:3]] == ["First?", "He built it with FastAPI."]
 
 
-async def test_purge_expired(db: Sessions) -> None:
+async def test_purge_expired_chats(db: Sessions) -> None:
     chat = service(db)
     old_id, _ = await chat.open_session(IP)
     new_id, _ = await chat.open_session(IP)
@@ -196,7 +296,7 @@ async def test_purge_expired(db: Sessions) -> None:
         )
         session.add(ChatUsageDaily(day=today - timedelta(days=91), tokens=1, requests=1))
         session.add(ChatUsageDaily(day=today, tokens=1, requests=1))
-    await chat.purge_expired()
+    await purge_expired_chats(db)
     async with db() as session:
         assert await session.get(ChatSession, old_id) is None
         assert await session.get(ChatSession, new_id) is not None
@@ -261,7 +361,8 @@ async def test_model_errors_are_measured(db: Sessions) -> None:
 
 
 async def test_budget_gauge_reads_todays_stored_usage(db: Sessions) -> None:
+    now = datetime.now(UTC)
     async with db.begin() as session:
-        session.add(ChatUsageDaily(day=datetime.now(UTC).date(), tokens=90_000, requests=10))
-    await service(db).refresh_budget_gauge()
+        session.add(ChatUsageDaily(day=now.date(), tokens=90_000, requests=10))
+    await service(db, clock=now).refresh_budget_gauge()
     assert metric("chat_budget_used_ratio") == 0.5

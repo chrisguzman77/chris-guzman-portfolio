@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -11,6 +12,7 @@ from portfolio_api.clients.turnstile import TurnstileUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
 from portfolio_api.models import ChatUsageDaily
+from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.services.chat import ChatService, ChatSwitch
 from tests.fakes import FakeChatModel, FakeChatSettingsSource, FakeRetriever, FakeTurnstile
 
@@ -25,6 +27,7 @@ def make_app(
     model: FakeChatModel | None = None,
     turnstile: FakeTurnstile | None = None,
     enabled: bool = True,
+    now: datetime | None = None,
 ) -> FastAPI:
     app = create_app(settings)
     app.state.turnstile = turnstile or FakeTurnstile()
@@ -39,6 +42,7 @@ def make_app(
             hash_salt="salt",
             daily_budget=180_000,
             min_similarity=0.5,
+            clock=(lambda: now) if now else (lambda: datetime.now(UTC)),
         )
         if db is not None
         else None
@@ -140,12 +144,11 @@ async def test_model_errors(
 
 
 async def test_budget_exhausted(settings: Settings, db: Sessions) -> None:
-    from datetime import UTC, datetime
-
-    app = make_app(settings, db)
+    now = datetime.now(UTC)
+    app = make_app(settings, db, now=now)
     sid = await open_session(app)
     async with db.begin() as session:
-        session.add(ChatUsageDaily(day=datetime.now(UTC).date(), tokens=999_999, requests=1))
+        session.add(ChatUsageDaily(day=now.date(), tokens=999_999, requests=1))
     res = await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": "q?"})
     assert (res.status_code, res.json()["error"]["code"]) == (503, "budget_exhausted")
 
@@ -164,13 +167,11 @@ async def test_unknown_session_and_other_ip(settings: Settings, db: Sessions) ->
 
 async def test_session_limit_is_409(settings: Settings, db: Sessions) -> None:
     app = make_app(settings, db)
+    app.state.chat_message_limiter = SlidingWindowLimiter([(100, 60)])  # isolate the session cap
     sid = await open_session(app)
-    limiter = app.state.chat_message_limiter
     for i in range(10):
-        limiter._hits.clear()  # pyright: ignore[reportPrivateUsage]  # isolate the session cap
         res = await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": f"q{i}?"})
         assert res.status_code == 200
-    limiter._hits.clear()  # pyright: ignore[reportPrivateUsage]
     res = await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": "one more?"})
     assert (res.status_code, res.json()["error"]["code"]) == (409, "session_limit")
 
@@ -182,6 +183,37 @@ async def test_message_rate_limit(settings: Settings, db: Sessions) -> None:
         await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": f"q{i}?"})
     res = await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": "sixth?"})
     assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
+
+
+async def test_ipv6_clients_share_their_64(settings: Settings, db: Sessions) -> None:
+    app = make_app(settings, db)
+    for i in range(10):
+        res = await call(app, "/v1/chat/sessions", {"turnstile_token": "tok"}, ip=f"2001:db8::{i}")
+        assert res.status_code == 201
+    res = await call(app, "/v1/chat/sessions", {"turnstile_token": "tok"}, ip="2001:db8::ff")
+    assert res.status_code == 429
+    res = await call(app, "/v1/chat/sessions", {"turnstile_token": "tok"}, ip="2001:db8:0:1::1")
+    assert res.status_code == 201
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/v1/chat/sessions", {"turnstile_token": "tok"}),
+        ("/v1/chat/sessions/00000000-0000-4000-8000-000000000000/messages", {"question": "q?"}),
+    ],
+)
+async def test_requests_without_a_client_ip_are_rejected(
+    settings: Settings, db: Sessions, path: str, body: Any
+) -> None:
+    app = make_app(settings, db)
+
+    async def no_client(scope: Any, receive: Any, send: Any) -> None:
+        await app({**scope, "client": None}, receive, send)
+
+    async with AsyncClient(transport=ASGITransport(app=no_client), base_url="http://test") as c:
+        res = await c.post(path, json=body)
+    assert (res.status_code, res.json()["error"]["code"]) == (400, "bad_request")
 
 
 def test_wiring_depends_on_settings(settings: Settings) -> None:
@@ -201,3 +233,12 @@ def test_wiring_depends_on_settings(settings: Settings) -> None:
     assert on.state.indexer is not None and on.state.chat_switch is not None
     partial = create_app(settings.model_copy(update={"directus_token": "tok"}))
     assert partial.state.indexer is not None and partial.state.chat_service is None
+
+    assert "chat-retention" in on.state.job_names
+
+
+def test_chat_retention_runs_without_groq(settings: Settings) -> None:
+    app = create_app(settings.model_copy(update={"chat_hash_salt": "salt"}))
+    assert app.state.chat_service is None
+    assert "chat-retention" in app.state.job_names
+    assert "chat-retention" not in create_app(settings).state.job_names

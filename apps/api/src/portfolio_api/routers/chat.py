@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from portfolio_api.clients.groq import ModelBusyError, ModelUnavailableError
 from portfolio_api.clients.turnstile import TurnstileUnavailableError, TurnstileVerifier
 from portfolio_api.errors import ApiError
-from portfolio_api.ratelimit import SlidingWindowLimiter, client_ip
+from portfolio_api.ratelimit import SlidingWindowLimiter, client_ip, client_key
 from portfolio_api.schemas.chat import (
     MessageRequest,
     MessageResponse,
@@ -25,8 +25,17 @@ from portfolio_api.services.chat import (
 router = APIRouter(prefix="/v1/chat", tags=["chat"])
 
 
+def require_ip(request: Request) -> str:
+    # Behind the tunnel every request has CF-Connecting-IP. One without an address must not
+    # share a single fallback rate-limit bucket (and session binding) with all the others.
+    ip = client_ip(request)
+    if ip is None:
+        raise ApiError(400, "bad_request", "Missing client address.")
+    return ip
+
+
 def _limit(limiter: SlidingWindowLimiter, request: Request, message: str) -> None:
-    wait = limiter.hit(client_ip(request) or "unknown")
+    wait = limiter.hit(client_key(require_ip(request)))
     if wait is not None:
         raise ApiError(429, "rate_limited", message, headers={"Retry-After": str(wait)})
 
@@ -63,14 +72,14 @@ async def open_session(
     if turnstile is None:
         raise ApiError(503, "chat_disabled", "Chat is not available.")
     try:
-        ok = await turnstile.verify(body.turnstile_token, client_ip(request))
+        ok = await turnstile.verify(body.turnstile_token, require_ip(request))
     except TurnstileUnavailableError as exc:
         raise ApiError(
             503, "turnstile_unavailable", "Spam check is unavailable. Try again later."
         ) from exc
     if not ok:
         raise ApiError(400, "turnstile_failed", "Spam check failed. Try again.")
-    session_id, left = await service.open_session(client_ip(request) or "unknown")
+    session_id, left = await service.open_session(require_ip(request))
     return SessionCreated(session_id=session_id, questions_left=left)
 
 
@@ -86,7 +95,7 @@ async def ask(
     body: MessageRequest,
 ) -> MessageResponse:
     try:
-        answer = await service.ask(session_id, client_ip(request) or "unknown", body.question)
+        answer = await service.ask(session_id, require_ip(request), body.question)
     except SessionNotFoundError as exc:
         raise ApiError(404, "session_not_found", "This chat session has ended.") from exc
     except SessionLimitError as exc:

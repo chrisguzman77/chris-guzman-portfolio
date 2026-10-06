@@ -26,7 +26,7 @@ from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.request_id import install_request_id
 from portfolio_api.routers import chat, contact, github, health, internal, metrics, status
 from portfolio_api.security_headers import SecurityHeaders
-from portfolio_api.services.chat import ChatService, ChatSwitch
+from portfolio_api.services.chat import ChatService, ChatSwitch, purge_expired_chats
 from portfolio_api.services.contact import ContactService
 from portfolio_api.services.github import GitHubActivityService
 from portfolio_api.services.indexer import IndexService
@@ -90,6 +90,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.chat_switch = ChatSwitch(directus) if directus is not None else None
     app.state.chat_session_limiter = SlidingWindowLimiter([(10, 3_600)])
     app.state.chat_message_limiter = SlidingWindowLimiter([(5, 60), (30, 86_400)])
+    if settings.chat_hash_salt:
+        # Purges stored chats even when Groq (and so answering) is off.
+        jobs.append(Job("chat-retention", 86_400, partial(purge_expired_chats, sessions)))
     chat_service: ChatService | None = None
     if (
         directus is not None
@@ -105,7 +108,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             daily_budget=settings.chat_daily_token_budget,
             min_similarity=settings.chat_min_similarity,
         )
-        jobs.append(Job("chat-retention", 86_400, chat_service.purge_expired))
         # Sets the budget gauge at startup and lets it fall back to 0 after UTC midnight.
         jobs.append(Job("chat-budget-gauge", 300, chat_service.refresh_budget_gauge))
     app.state.chat_service = chat_service
@@ -113,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         HttpPrometheus(http, settings.prometheus_url), app.state.db_ping
     )
     app.state.status_limiter = SlidingWindowLimiter([(60, 60)])
+    app.state.job_names = [job.name for job in jobs]
     install_error_handlers(app)
     # Inside the request-ID middleware (413s get an X-Request-ID); CORS stays outermost.
     app.add_middleware(BodySizeLimit)

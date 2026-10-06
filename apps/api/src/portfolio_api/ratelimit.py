@@ -1,3 +1,4 @@
+import ipaddress
 import math
 import time
 from collections import deque
@@ -10,7 +11,8 @@ class SlidingWindowLimiter:
     """In-process limiter: a key may make ``limit`` hits per ``window`` seconds, for every pair.
 
     One API instance (no Redis), so memory is the source of truth. Rejected calls are not
-    recorded. Keys idle for the longest window are pruned every ``prune_every`` calls.
+    recorded. Keys idle for the longest window are pruned every ``prune_every`` calls, and at
+    most ``max_keys`` keys are tracked: past that, the least recently used key is forgotten.
     """
 
     def __init__(
@@ -18,12 +20,15 @@ class SlidingWindowLimiter:
         limits: list[tuple[int, float]],
         clock: Callable[[], float] = time.monotonic,
         prune_every: int = 1000,
+        max_keys: int = 10_000,
     ) -> None:
         self._limits = limits
         self._horizon = max(window for _, window in limits)
         self._clock = clock
         self._prune_every = prune_every
         self._calls = 0
+        self._max_keys = max_keys
+        # Insertion-ordered: every access moves its key to the end, so the first key is the LRU.
         self._hits: dict[str, deque[float]] = {}
 
     def hit(self, key: str) -> int | None:
@@ -32,7 +37,10 @@ class SlidingWindowLimiter:
         self._calls += 1
         if self._calls % self._prune_every == 0:
             self._prune(now)
-        hits = self._hits.setdefault(key, deque())
+        hits: deque[float] = self._hits.pop(key, None) or deque()
+        self._hits[key] = hits
+        while len(self._hits) > self._max_keys:
+            del self._hits[next(iter(self._hits))]
         while hits and hits[0] <= now - self._horizon:
             hits.popleft()
         wait = 0.0
@@ -61,3 +69,16 @@ def client_ip(request: Request) -> str | None:
     if forwarded:
         return forwarded
     return request.client.host if request.client else None
+
+
+def client_key(ip: str) -> str:
+    """The limiter key for an IP: IPv4 as is, IPv6 as its /64 (one subscriber's block)."""
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped is not None:  # ::ffff:a.b.c.d is an IPv4 client
+            return str(address.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+    return ip
