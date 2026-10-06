@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM ghcr.io/actions/actions-runner:2.337.0
+FROM ghcr.io/actions/actions-runner:2.338.0
 
 ARG COMPOSE_VERSION=v5.5.1
 ARG COMPOSE_SHA256=db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576
