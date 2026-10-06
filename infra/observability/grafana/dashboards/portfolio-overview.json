@@ -29,7 +29,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Uptime (30d)",
+      "title": "Uptime (30d, probe average)",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [{ "refId": "A", "expr": "avg_over_time(probe_success{job=\"site\"}[30d])", "instant": true }],
@@ -46,6 +46,8 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
+          "noValue": "never",
+          "mappings": [{ "type": "special", "options": { "match": "null+nan", "result": { "text": "never" } } }],
           "color": { "mode": "thresholds" },
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 129600 }] }
         },

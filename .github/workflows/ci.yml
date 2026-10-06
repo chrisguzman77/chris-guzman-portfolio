@@ -146,8 +146,9 @@ jobs:
           done
           rules="$(yq '[.groups[].rules[]] | length' infra/observability/grafana/provisioning/alerting/rules.yml)"
           [[ "${rules}" == 8 ]] || { echo "expected 8 alert rules, found ${rules}"; exit 1; }
-          if grep -n '\$' infra/observability/grafana/provisioning/alerting/rules.yml; then
-            echo "rules.yml must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
+          # Grafana expands $VAR in every provisioning file; the only intended use is ${CONTACT_TO}.
+          if grep -n '\$' infra/observability/grafana/provisioning/*/*.yml | grep -v '\${CONTACT_TO}'; then
+            echo "provisioning files must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
           fi
           for f in infra/observability/grafana/dashboards/*.json; do
             jq -e '(.uid | type == "string") and (.panels | length > 0)' "$f" >/dev/null || { echo "bad dashboard: $f"; exit 1; }

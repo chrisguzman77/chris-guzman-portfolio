@@ -137,6 +137,9 @@ groups:
               instant: true
               # 1 per broken target or container, 0 per healthy one. max_over_time
               # keeps a container's last-seen time after cAdvisor stops reporting it.
+              # The 24 h lookback is deliberate: a removed container's series goes
+              # stale in minutes, and the lookback is what keeps "Down" firing for
+              # a day so a crashed-and-removed container cannot silently resolve.
               expr: (up == bool 0) or (time() - max by (name) (max_over_time(container_last_seen{name=~"portfolio-(postgres|directus|api|web|cloudflared|umami)-1"}[24h])) > bool 60)
           - refId: C
             datasourceUid: __expr__
