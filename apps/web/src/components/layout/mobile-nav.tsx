@@ -40,7 +40,7 @@ export function MobileNav() {
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
         aria-controls="mobile-menu"
-        className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+        className="focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
         onClick={() => setOpen(!open)}
       >
         {open ? <X className="size-5" /> : <Menu className="size-5" />}
