@@ -1,8 +1,11 @@
 import type { MetadataRoute } from "next";
+import { connection } from "next/server";
 
 import { absoluteUrl } from "@/lib/seo";
 
-export default function robots(): MetadataRoute.Robots {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  // Opt out of build-time prerendering so the sitemap URL follows the runtime SITE_URL.
+  await connection();
   return {
     rules: { userAgent: "*", allow: "/", disallow: "/api/" },
     sitemap: absoluteUrl("/sitemap.xml"),

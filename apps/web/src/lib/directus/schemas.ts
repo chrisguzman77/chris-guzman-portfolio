@@ -100,6 +100,12 @@ export const PostSchema = z.object({
   cover: z.string().nullable(),
 });
 
+// List views never need the (long) markdown body.
+export const PostSummarySchema = PostSchema.omit({ body: true });
+
+// What the /cms-assets allow-list needs from each post.
+export const PostAssetRefSchema = PostSchema.pick({ cover: true, body: true });
+
 export const ResumeSchema = z.object({
   file: z.string().nullable(),
   version_label: z.string().nullable(),
@@ -122,5 +128,7 @@ export type Involvement = z.infer<typeof InvolvementSchema>;
 export type Certification = z.infer<typeof CertificationSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Post = z.infer<typeof PostSchema>;
+export type PostSummary = z.infer<typeof PostSummarySchema>;
+export type PostAssetRef = z.infer<typeof PostAssetRefSchema>;
 export type Resume = z.infer<typeof ResumeSchema>;
 export type ChatSettings = z.infer<typeof ChatSettingsSchema>;

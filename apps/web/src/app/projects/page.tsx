@@ -7,7 +7,10 @@ import { SectionHeading } from "@/components/content/section-heading";
 import { getProjects } from "@/lib/directus/queries";
 import { sectionNumbers } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Projects" };
+export const metadata: Metadata = {
+  title: "Projects",
+  description: "Personal projects and competition entries by Christopher Guzman.",
+};
 
 const SECTIONS = [
   { type: "personal", title: "Personal projects" },

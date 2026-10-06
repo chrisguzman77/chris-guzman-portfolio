@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CONTENT_COLLECTIONS } from "@/lib/directus/tags";
+
 import { POST } from "./route";
 
 const { revalidateTag, env } = vi.hoisted(() => ({
@@ -92,6 +94,12 @@ describe("POST /api/revalidate", () => {
     const res = await POST(request(json({ collection: "directus_users" }), SECRET));
     expect(res.status).toBe(400);
     expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it.each(CONTENT_COLLECTIONS)("allows the %s collection", async (collection) => {
+    const res = await POST(request(json({ collection }), SECRET));
+    expect(res.status).toBe(200);
+    expect(revalidateTag).toHaveBeenCalledWith(collection, { expire: 0 });
   });
 
   it("revalidates the collection tag with expire: 0 and ignores other fields", async () => {

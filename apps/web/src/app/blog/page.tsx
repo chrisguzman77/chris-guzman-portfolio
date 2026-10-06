@@ -7,6 +7,7 @@ import { getPosts } from "@/lib/directus/queries";
 
 export const metadata: Metadata = {
   title: "Blog",
+  description: "Writing by Christopher Guzman on software, security, and machine learning.",
   alternates: { types: { "application/rss+xml": "/blog/rss.xml" } },
 };
 

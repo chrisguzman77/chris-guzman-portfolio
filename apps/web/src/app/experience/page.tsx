@@ -8,7 +8,10 @@ import { PageHeader } from "@/components/content/page-header";
 import { getExperience } from "@/lib/directus/queries";
 import { outlineButton } from "@/lib/styles";
 
-export const metadata: Metadata = { title: "Experience" };
+export const metadata: Metadata = {
+  title: "Experience",
+  description: "Roles, internships, and leadership experience of Christopher Guzman.",
+};
 
 export default async function ExperiencePage() {
   const entries = await getExperience();

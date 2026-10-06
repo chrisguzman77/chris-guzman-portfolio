@@ -13,13 +13,13 @@ afterEach(cleanup);
 describe("SiteHeader", () => {
   it("links the ~/chris-guzman logo home with an accessible name", () => {
     render(<SiteHeader />);
-    const home = screen.getByRole("link", { name: /chris-guzman/ });
+    const home = screen.getByRole("link", { name: /^~\/chris-guzman/ });
     expect(home.getAttribute("href")).toBe("/");
   });
 
   it("gives the logo and nav links a visible focus ring", () => {
     render(<SiteHeader />);
-    expect(screen.getByRole("link", { name: /chris-guzman/ }).className).toContain(
+    expect(screen.getByRole("link", { name: /^~\/chris-guzman/ }).className).toContain(
       "focus-visible:outline",
     );
     const nav = screen.getByRole("navigation", { name: "Main" });

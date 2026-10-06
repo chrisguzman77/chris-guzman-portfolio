@@ -36,8 +36,12 @@ describe("/contact", () => {
     const { container } = render(await ContactPage());
 
     expect(screen.getByText("$ ping chris")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1, name: "Get in touch" })).toBeTruthy();
+    const title = screen.getByRole("heading", { level: 1, name: "Get in touch" });
+    // The header block is exactly the prompt line and the h1: no caption paragraph beneath it.
+    expect(title.parentElement?.children).toHaveLength(2);
+    expect(title.nextElementSibling).toBeNull();
     expect(container.querySelector('a[href^="tel:"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/\+?\d[\d\s().-]{8,}\d/);
   });
 
   it("renders the form with the site key, public API URL and profile email", async () => {
