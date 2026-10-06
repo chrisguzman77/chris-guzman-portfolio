@@ -119,10 +119,14 @@ async def test_empty_index_is_no_match(db: Sessions) -> None:
 
 
 async def test_uncited_reply_becomes_canned_but_keeps_raw_and_usage(db: Sessions) -> None:
+    uncited = metric("chat_questions_total", outcome="uncited")
+    tokens_in = metric("chat_tokens_total", kind="input")
     chat = service(db, FakeChatModel(ModelReply("He is great.", 900, 20)))
     session_id, _ = await chat.open_session(IP)
     answer = await chat.ask(session_id, IP, "Is he great?")
     assert answer.outcome == ChatOutcome.uncited
+    assert metric("chat_questions_total", outcome="uncited") == uncited + 1
+    assert metric("chat_tokens_total", kind="input") == tokens_in + 900  # the model was called
     assert (answer.answer, answer.sources) == (CANNED_ANSWER, [CONTACT_SOURCE])
     assert answer.questions_left == MAX_QUESTIONS
     [msg] = await messages(db)
@@ -150,8 +154,10 @@ async def test_question_limit(db: Sessions) -> None:
         await session.execute(
             update(ChatSession).where(ChatSession.id == session_id).values(question_count=10)
         )
+    rejected = metric("chat_questions_total", outcome="rejected")
     with pytest.raises(SessionLimitError):
         await chat.ask(session_id, IP, "q?")
+    assert metric("chat_questions_total", outcome="rejected") == rejected + 1
 
 
 async def test_budget_gate_runs_before_the_model(db: Sessions) -> None:
@@ -161,8 +167,10 @@ async def test_budget_gate_runs_before_the_model(db: Sessions) -> None:
     session_id, _ = await chat.open_session(IP)
     async with db.begin() as session:
         session.add(ChatUsageDaily(day=now.date(), tokens=180_000, requests=60))
+    rejected = metric("chat_questions_total", outcome="rejected")
     with pytest.raises(BudgetExhaustedError):
         await chat.ask(session_id, IP, "q?")
+    assert metric("chat_questions_total", outcome="rejected") == rejected + 1
     assert model.calls == []
     assert await question_count(db, session_id) == 0
 

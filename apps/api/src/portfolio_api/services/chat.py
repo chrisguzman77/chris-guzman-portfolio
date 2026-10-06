@@ -13,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import ChatSettings, DirectusError
 from portfolio_api.clients.groq import ChatModel, ModelBusyError, ModelUnavailableError
-from portfolio_api.metrics import CHAT_BUDGET_USED_RATIO, CHAT_QUESTIONS, CHAT_TOKENS
+from portfolio_api.metrics import (
+    CHAT_BUDGET_USED_RATIO,
+    CHAT_QUESTIONS,
+    CHAT_REJECTED,
+    CHAT_TOKENS,
+)
 from portfolio_api.models import ChatOutcome
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as repo
@@ -182,8 +187,10 @@ class ChatService:
                 raise SessionNotFoundError
             count = await repo.reserve_question(session, session_id, MAX_QUESTIONS)
             if count is None:
+                CHAT_QUESTIONS.labels(outcome=CHAT_REJECTED).inc()
                 raise SessionLimitError
             if await repo.tokens_used(session, now.date()) >= self._daily_budget:
+                CHAT_QUESTIONS.labels(outcome=CHAT_REJECTED).inc()
                 raise BudgetExhaustedError  # rolls the reservation back
             pairs = await repo.recent_exchanges(session, session_id, HISTORY_PAIRS)
         settled = False  # True once the question is either kept for an answer or given back

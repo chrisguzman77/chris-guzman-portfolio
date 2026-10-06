@@ -14,7 +14,13 @@ from portfolio_api.main import create_app
 from portfolio_api.models import ChatUsageDaily
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.services.chat import ChatService, ChatSwitch
-from tests.fakes import FakeChatModel, FakeChatSettingsSource, FakeRetriever, FakeTurnstile
+from tests.fakes import (
+    FakeChatModel,
+    FakeChatSettingsSource,
+    FakeRetriever,
+    FakeTurnstile,
+    metric,
+)
 
 Sessions = async_sessionmaker[AsyncSession]
 IP = "203.0.113.7"
@@ -181,8 +187,10 @@ async def test_message_rate_limit(settings: Settings, db: Sessions) -> None:
     sid = await open_session(app)
     for i in range(5):
         await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": f"q{i}?"})
+    rejected = metric("chat_questions_total", outcome="rejected")
     res = await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": "sixth?"})
     assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
+    assert metric("chat_questions_total", outcome="rejected") == rejected + 1
 
 
 async def test_ipv6_clients_share_their_64(settings: Settings, db: Sessions) -> None:

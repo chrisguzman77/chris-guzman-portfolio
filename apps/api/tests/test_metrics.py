@@ -1,6 +1,7 @@
 import uuid
 
 from httpx import ASGITransport, AsyncClient
+from prometheus_client import CollectorRegistry, Counter, generate_latest
 
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
@@ -78,3 +79,48 @@ async def test_unhandled_errors_are_measured_as_500(settings: Settings) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         assert (await c.get("/boom")).status_code == 500
     assert metric("http_requests_total", **labels) == before + 1
+
+
+async def test_metrics_have_no_created_series_and_leave_other_registries_alone(
+    client: AsyncClient,
+) -> None:
+    assert "_created" not in (await client.get("/metrics")).text
+    other = CollectorRegistry()
+    Counter("other_total", "A counter outside the API's registry.", registry=other).inc()
+    assert b"other_created" in generate_latest(other)  # no process-wide switch was flipped
+
+
+async def test_oversized_bodies_are_measured_as_unmatched(client: AsyncClient) -> None:
+    # BodySizeLimit sits inside RequestMetrics but in front of the router, so a 413 for a
+    # declared Content-Length never reaches routing and gets the "unmatched" label even
+    # though /v1/contact is a real route.
+    labels = {"method": "POST", "route": "unmatched", "status": "413"}
+    before = metric("http_requests_total", **labels)
+    res = await client.post(
+        "/v1/contact",
+        content=b"x" * (64 * 1024),
+        headers={"Content-Type": "application/json"},
+    )
+    assert res.status_code == 413
+    assert metric("http_requests_total", **labels) == before + 1
+    assert metric("http_requests_total", method="POST", route="/v1/contact", status="413") == 0
+
+
+def test_budget_gauge_job_runs_only_with_chat(settings: Settings) -> None:
+    on = create_app(
+        settings.model_copy(
+            update={
+                "groq_api_key": "gsk",
+                "directus_token": "tok",
+                "turnstile_secret": "sec",
+                "chat_hash_salt": "salt",
+            }
+        )
+    )
+    assert "chat-budget-gauge" in on.state.job_names
+    assert "chat-budget-gauge" not in create_app(settings).state.job_names
+
+
+async def test_rejected_chat_questions_start_at_zero(client: AsyncClient) -> None:
+    text = (await client.get("/metrics")).text
+    assert 'chat_questions_total{outcome="rejected"}' in text

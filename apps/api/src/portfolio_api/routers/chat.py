@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from portfolio_api.clients.groq import ModelBusyError, ModelUnavailableError
 from portfolio_api.clients.turnstile import TurnstileUnavailableError, TurnstileVerifier
 from portfolio_api.errors import ApiError
+from portfolio_api.metrics import CHAT_QUESTIONS, CHAT_REJECTED
 from portfolio_api.ratelimit import SlidingWindowLimiter, client_ip, client_key
 from portfolio_api.schemas.chat import (
     MessageRequest,
@@ -45,7 +46,12 @@ async def limit_sessions(request: Request) -> None:
 
 
 async def limit_messages(request: Request) -> None:
-    _limit(request.app.state.chat_message_limiter, request, "Too many questions. Try later.")
+    try:
+        _limit(request.app.state.chat_message_limiter, request, "Too many questions. Try later.")
+    except ApiError as exc:
+        if exc.code == "rate_limited":  # not the 400 for a request without an address
+            CHAT_QUESTIONS.labels(outcome=CHAT_REJECTED).inc()
+        raise
 
 
 async def require_chat(request: Request) -> ChatService:
