@@ -92,23 +92,25 @@ export function GitHubActivity({
         aria-label={`${totalText} GitHub ${plural(total)} in the last year`}
         className="flex gap-[3px]"
       >
+        {/* ~370 cells: shared classes sit on the column and keys are slot indexes, so each
+            cell stays small in both the HTML and the inlined RSC payload. */}
         {weeks.map((week, index) => (
           <div
             key={week.days[0]?.date ?? index}
             className={cn(
-              "flex flex-1 flex-col gap-[3px]",
+              "flex flex-1 flex-col gap-[3px] *:aspect-square *:rounded-[2px]",
               olderThanMobile(index) && "hidden md:flex",
             )}
           >
             {slots(week.days).map((day, slot) =>
               day ? (
                 <span
-                  key={day.date}
+                  key={slot}
                   title={contributionTitle(day)}
-                  className={cn("aspect-square rounded-[2px]", LEVEL_CLASS[day.level])}
+                  className={LEVEL_CLASS[day.level]}
                 />
               ) : (
-                <span key={`empty-${slot}`} className="aspect-square" />
+                <span key={slot} />
               ),
             )}
           </div>
