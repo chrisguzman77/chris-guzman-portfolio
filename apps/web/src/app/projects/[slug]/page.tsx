@@ -14,6 +14,7 @@ import { getProject } from "@/lib/directus/queries";
 import type { Project } from "@/lib/directus/schemas";
 import { formatMonthYear } from "@/lib/format";
 import { renderMarkdown } from "@/lib/markdown";
+import { outlineButton } from "@/lib/styles";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -21,9 +22,6 @@ const TYPE_LABELS: Record<Project["type"], string> = {
   personal: "Personal project",
   competition: "Competition",
 };
-
-const outlineButton =
-  "inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-[13px] text-foreground transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;

@@ -8,11 +8,9 @@ import { getPost } from "@/lib/directus/queries";
 import { formatPostDate } from "@/lib/format";
 import { renderMarkdown, type Heading } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
+import { outlineButton } from "@/lib/styles";
 
 type Props = { params: Promise<{ slug: string }> };
-
-const outlineButton =
-  "inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-[13px] text-foreground transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
