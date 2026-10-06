@@ -14,6 +14,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN /app/.venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/app/models')"
 
 FROM python:3.12-slim-bookworm AS runner
+# Pull Debian security fixes newer than the base image (Trivy fails the release on fixed CRITICALs).
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 RUN groupadd --gid 1000 app && useradd --uid 1000 --gid app --home-dir /app --no-create-home --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
