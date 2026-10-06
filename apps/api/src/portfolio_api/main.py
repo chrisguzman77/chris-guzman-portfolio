@@ -25,6 +25,7 @@ from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.request_id import install_request_id
 from portfolio_api.routers import chat, contact, github, health, internal, metrics, status
+from portfolio_api.security_headers import SecurityHeaders
 from portfolio_api.services.chat import ChatService, ChatSwitch
 from portfolio_api.services.contact import ContactService
 from portfolio_api.services.github import GitHubActivityService
@@ -117,12 +118,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(BodySizeLimit)
     # Between the two: sees 413s, and unhandled errors before they become JSON 500s.
     app.add_middleware(RequestMetrics)
+    app.add_middleware(SecurityHeaders)
     install_request_id(app)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
     )
     app.include_router(health.router)
     app.include_router(contact.router)
