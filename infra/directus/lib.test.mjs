@@ -6,11 +6,11 @@ import {
   DirectusClient,
   adminLoginFailure,
   planSchema,
-  planSeed,
+  planSeedOnce,
   sameJson,
   seedKeys,
 } from "./lib.mjs";
-import { CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
+import { BOOTSTRAP_STATE, CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const EMPTY = { collections: [], fields: [], relations: [] };
 
@@ -92,9 +92,9 @@ test("planSchema on its own result plans nothing (real schema)", () => {
 test("schema declares every content collection, status on non-singletons, unique slugs", () => {
   assert.deepEqual(
     collections.map((c) => c.collection),
-    CONTENT_COLLECTIONS,
+    [...CONTENT_COLLECTIONS, BOOTSTRAP_STATE],
   );
-  for (const c of collections) {
+  for (const c of collections.filter((c) => c.collection !== BOOTSTRAP_STATE)) {
     const names = c.fields.map((f) => f.field);
     assert.equal(names.includes("status"), !SINGLETONS.includes(c.collection), c.collection);
     assert.equal(Boolean(c.meta.singleton), SINGLETONS.includes(c.collection), c.collection);
@@ -107,27 +107,26 @@ test("schema declares every content collection, status on non-singletons, unique
   assert.equal(projectFields.some((f) => f.field === "gallery"), false);
 });
 
-test("planSeed on an empty collection returns every seed item", () => {
-  const seed = [{ slug: "a" }, { slug: "b" }];
-  assert.deepEqual(planSeed([], seed), seed);
+test("bootstrap_state is a hidden singleton outside the reader policy's collections", () => {
+  const state = collections.find((c) => c.collection === BOOTSTRAP_STATE);
+  assert.equal(state.meta.singleton, true);
+  assert.equal(state.meta.hidden, true);
+  assert.deepEqual(
+    state.fields.map((f) => [f.field, f.type]),
+    [["seeded", "json"]],
+  );
+  assert.equal(CONTENT_COLLECTIONS.includes(BOOTSTRAP_STATE), false);
+  assert.equal(SINGLETONS.includes(BOOTSTRAP_STATE), false);
 });
 
-test("planSeed on a collection with any item returns nothing, even an unrelated one", () => {
-  const existing = [{ id: 1, slug: "renamed-by-chris" }];
-  assert.deepEqual(planSeed(existing, [{ slug: "a" }, { slug: "b" }]), []);
+test("planSeedOnce seeds a never-seeded empty collection", () => {
+  assert.equal(planSeedOnce([], "projects", 0), "seed");
 });
-
-test("planSeed is idempotent: a second run after seeding plans nothing", () => {
-  const seed = [{ slug: "a" }, { slug: "b" }];
-  const first = planSeed([], seed);
-  assert.equal(first.length, 2);
-  const afterFirst = first.map((item, i) => ({ id: i + 1, ...item }));
-  assert.deepEqual(planSeed(afterFirst, seed), []);
+test("planSeedOnce records a pre-existing populated collection without seeding", () => {
+  assert.equal(planSeedOnce([], "projects", 4), "record");
 });
-
-test("planSeed does not re-create a seed item Chris deleted while others remain", () => {
-  const existing = [{ id: 2, slug: "b" }];
-  assert.deepEqual(planSeed(existing, [{ slug: "a" }, { slug: "b" }]), []);
+test("planSeedOnce never re-seeds a recorded collection, even when emptied", () => {
+  assert.equal(planSeedOnce(["projects"], "projects", 0), "skip");
 });
 
 test("sameJson ignores object key order but not values or array order", () => {
@@ -153,8 +152,6 @@ test("seedKeys: singletons, experience company+role, education, involvement, pro
   assert.equal(seedKeys.education({ school: "AU" }), "AU");
   assert.equal(seedKeys.involvement({ organization: "ACM@AU" }), "ACM@AU");
   assert.equal(seedKeys.projects({ slug: "this-portfolio" }), "this-portfolio");
-  assert.equal(planSeed([{ id: 1 }], [{ name: "x" }]).length, 0);
-  assert.equal(planSeed([], [{ name: "x" }]).length, 1);
 });
 
 test("seed files: valid JSON, no phone number, unique keys", async () => {

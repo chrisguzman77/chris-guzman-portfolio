@@ -55,11 +55,13 @@ export function planSchema(existing, desired) {
 }
 
 /**
- * Seed a collection only while it is completely empty (any status). Once it has
- * any item, nothing is planned, so deleting or renaming content always sticks.
+ * Seed-once decision for one collection. `seededNames` is bootstrap_state.seeded:
+ * every collection the bootstrap has already seeded or found populated. A recorded
+ * collection is never seeded again, so emptying it in the CMS sticks.
  */
-export function planSeed(existingItems, seedItems) {
-  return existingItems.length === 0 ? [...seedItems] : [];
+export function planSeedOnce(seededNames, name, existingCount) {
+  if (seededNames.includes(name)) return "skip";
+  return existingCount === 0 ? "seed" : "record";
 }
 
 /** Deep equality for JSON values; object key order is ignored (jsonb reorders keys). */

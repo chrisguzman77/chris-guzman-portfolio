@@ -6,7 +6,7 @@ Ordered checklist of every external account and machine this project needs. Each
 1. Install: Node 24, pnpm 11, uv, Docker Desktop, age, sops (`brew install sops age`), pre-commit (`uv tool install pre-commit`).
 2. `cp infra/compose/env.example infra/compose/.env`
 3. `make help` lists every target. `make up` then open http://localhost:3000, http://localhost:8000/docs, http://localhost:8055 (admin@example.com / admin).
-3a. `make cms-bootstrap` creates the CMS collections, the read-only web token, the revalidation Flow, and the seed content in the dev Directus (safe to re-run; it seeds only empty collections and never overwrites edits). The dev `web` container reads Directus with the dev token from `compose.dev.yaml`; open http://localhost:3000/experience to see seeded content.
+3a. `make cms-bootstrap` creates the CMS collections, the read-only web token, the revalidation Flow, and the seed content in the dev Directus (safe to re-run; it seeds each collection at most once, only while it is empty, and never overwrites edits). The dev `web` container reads Directus with the dev token from `compose.dev.yaml`; open http://localhost:3000/experience to see seeded content.
 4. `cd apps/web && pnpm install` (the prettier hook needs it) and `cd apps/api && uv sync`, then `pre-commit install`
 5. Secrets: generate an age key (`age-keygen -o ~/.config/sops/age/keys.txt`) and have its public key added to `.sops.yaml`. On macOS, sops looks for the key under `~/Library/Application Support/sops/age/keys.txt`, so add `export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"` to your shell profile (the Linux VM sets the same variable to `/etc/portfolio/age.key`). Test with `sops decrypt infra/compose/prod.enc.env | head -2`.
 
@@ -63,3 +63,12 @@ Steps 1–7 (including the secrets push) happen before the Phase 6 code PR merge
    - Grafana → Alerting → Contact points → email → Test: the email arrives.
 9. **Umami.** Open https://analytics.christopherguzman.me and log in as `admin` / `umami`, then change the password at once (Settings → Profile). Settings → Websites → Add website: name `portfolio`, domain `christopherguzman.me`. Copy its Website ID, add it as `UMAMI_WEBSITE_ID` with `make secrets-edit`, commit and push. The tracker appears after that deploy.
 10. **Swap.** On the VM: `cd /opt/portfolio && sudo ./infra/vm/bootstrap.sh`, then `swapon --show` lists `/swapfile` (2G).
+
+## Directus bootstrap token (Phase 7)
+
+Optional. Until it is set, every deploy's CMS bootstrap logs in with `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD`, as before.
+
+1. **Generate.** Directus admin UI → User Directory → your admin user → Token → Generate. Copy the value before saving the user (Directus shows it only once), then Save.
+2. **Store.** `make secrets-edit`, add `DIRECTUS_BOOTSTRAP_TOKEN=<value>`, save; `make secrets-check`; commit and merge.
+3. **Check.** The deploy log's `==> CMS bootstrap` step prints `auth: static token` (it printed `auth: admin password` before).
+4. **Afterwards.** `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD` stay in `prod.enc.env` as Directus's first-admin settings (read only at first install), but deploys no longer use them, so changing the admin password or turning on 2FA no longer breaks deploys. To rotate the token, generate a new one in the same place and repeat step 2.

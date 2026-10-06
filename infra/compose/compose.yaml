@@ -53,6 +53,8 @@ services:
       # Phase 5, optional: api-reader token and the reindex Flow step's secret.
       DIRECTUS_API_TOKEN: ${DIRECTUS_API_TOKEN:-}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-}
+      # Phase 7, optional: the admin user's static token; unset keeps the password login.
+      DIRECTUS_BOOTSTRAP_TOKEN: ${DIRECTUS_BOOTSTRAP_TOKEN:-}
     volumes:
       - directus-uploads:/directus/uploads
       - ../directus:/directus/bootstrap:ro
