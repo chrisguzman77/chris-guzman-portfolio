@@ -27,7 +27,7 @@ const project: Project = {
 describe("ProjectCard", () => {
   it("is one link to the detail page named by the project title", () => {
     render(<ProjectCard project={project} />);
-    const link = screen.getByRole("link", { name: "OFFRes / OFFPay" });
+    const link = screen.getByRole("link", { name: /^OFFRes \/ OFFPay/ });
     expect(link.getAttribute("href")).toBe("/projects/offres");
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });

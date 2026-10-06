@@ -23,6 +23,16 @@ describe("MobileNav", () => {
     expect(screen.queryByRole("link", { name: "blog" })).toBeNull();
   });
 
+  it("gives the toggle button and links a visible focus ring", () => {
+    render(<MobileNav />);
+    const button = screen.getByRole("button", { name: "Open menu" });
+    expect(button.className).toContain("focus-visible:outline");
+    fireEvent.click(button);
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.className).toContain("focus-visible:outline");
+    }
+  });
+
   it("opens to show all six links", () => {
     render(<MobileNav />);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));

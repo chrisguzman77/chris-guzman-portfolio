@@ -49,6 +49,11 @@ describe("ChatLauncher", () => {
     expect(pill()?.querySelector("kbd")?.textContent).toBe(label);
   });
 
+  it("gives the pill a visible focus ring", async () => {
+    await renderLauncher();
+    expect(pill()?.className).toContain("focus-visible:outline");
+  });
+
   it("shows no shortcut on touch devices", async () => {
     stubDevice("iPhone", true);
     await renderLauncher();

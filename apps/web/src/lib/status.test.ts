@@ -172,3 +172,24 @@ describe("formatAgo", () => {
     expect(mod.formatAgo(iso, now)).toBe(text);
   });
 });
+
+describe("uptimeSummary", () => {
+  it("summarises the 30 days for screen readers", () => {
+    const days = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, "0")}`,
+      uptime: i === 4 ? 0.987 : 1,
+    }));
+    expect(mod.uptimeSummary(days)).toBe("30-day uptime, 29 days at 100%, 1 day at 98.7%");
+  });
+
+  it("counts days without data", () => {
+    const days = [
+      ...Array.from({ length: 28 }, () => ({ date: "2026-09-01", uptime: null })),
+      { date: "2026-09-29", uptime: 1 },
+      { date: "2026-09-30", uptime: 0.999 },
+    ];
+    expect(mod.uptimeSummary(days)).toBe(
+      "30-day uptime, 1 day at 100%, 1 day at 99.9%, 28 days with no data",
+    );
+  });
+});

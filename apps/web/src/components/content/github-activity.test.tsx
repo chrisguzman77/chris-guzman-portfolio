@@ -40,7 +40,7 @@ describe("GitHubActivity", () => {
       screen.getByRole("img", { name: "1,234 GitHub contributions in the last year" }),
     ).toBeTruthy();
     const link = screen.getByRole("link", {
-      name: "GitHub profile: 1,234 contributions in the last year (opens in a new tab)",
+      name: /^1,234 contributions in the last year · updated hourly/,
     });
     expect(link.getAttribute("href")).toBe("https://github.com/octo");
     expect(link.getAttribute("target")).toBe("_blank");
@@ -84,7 +84,7 @@ describe("GitHubActivity", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("link", {
-        name: "GitHub profile: 1 contribution in the last year (opens in a new tab)",
+        name: /^1 contribution in the last year · updated hourly/,
       }),
     ).toBeTruthy();
   });

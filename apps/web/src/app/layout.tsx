@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { UmamiScript } from "@/components/analytics/umami-script";
 import { ChatSlot } from "@/components/chat/chat-slot";
+import { SkipLink } from "@/components/layout/skip-link";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -40,9 +41,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <UmamiScript nonce={nonce} />
       </head>
       <body className="flex min-h-screen flex-col bg-background font-sans text-foreground antialiased">
+        <SkipLink />
         <ThemeProvider nonce={nonce}>
           <SiteHeader />
-          <main className="flex-1">{children}</main>
+          <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
+            {children}
+          </main>
           <SiteFooter />
           <Suspense fallback={null}>
             <ChatSlot />

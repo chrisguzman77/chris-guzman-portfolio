@@ -25,6 +25,7 @@ export function NavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         "text-muted-foreground transition-colors hover:text-foreground",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand",
         active && "text-foreground underline decoration-accent-brand underline-offset-4",
         className,
       )}

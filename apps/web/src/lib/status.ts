@@ -56,6 +56,26 @@ export function formatPercent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
+/** "30-day uptime, 29 days at 100%, 1 day at 98.7%": one label for the whole bar strip. */
+export function uptimeSummary(daily: { date: string; uptime: number | null }[]): string {
+  const groups = new Map<string, { uptime: number; days: number }>();
+  let none = 0;
+  for (const { uptime } of daily) {
+    if (uptime === null) {
+      none += 1;
+      continue;
+    }
+    const key = formatPercent(uptime);
+    groups.set(key, { uptime, days: (groups.get(key)?.days ?? 0) + 1 });
+  }
+  const noun = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
+  const parts = [...groups.entries()]
+    .sort(([, a], [, b]) => b.uptime - a.uptime)
+    .map(([percent, { days }]) => `${noun(days)} at ${percent.replace(/\.?0+%$/, "%")}`);
+  if (none > 0) parts.push(`${noun(none)} with no data`);
+  return ["30-day uptime", ...parts].join(", ");
+}
+
 const dayFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
