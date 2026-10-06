@@ -12,7 +12,7 @@ x-service: &service
 services:
   postgres:
     <<: *service
-    image: pgvector/pgvector:0.8.6-pg17
+    image: pgvector/pgvector:0.8.7-pg17
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
