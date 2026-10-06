@@ -1,8 +1,10 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
+import structlog
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ValidationError
@@ -16,6 +18,7 @@ from portfolio_api.errors import ApiError
 from portfolio_api.jobs import Job, run_forever
 from portfolio_api.main import create_app
 from portfolio_api.models import ContactSubmission, EmailStatus, GitHubActivityCache
+from portfolio_api.observability import configure_logging
 
 
 class Body(BaseModel):
@@ -267,3 +270,12 @@ async def test_lifespan_cleans_up_when_the_app_fails(settings: Settings) -> None
         async with app.router.lifespan_context(app):
             raise RuntimeError("startup failed after the jobs started")
     assert app.state.http.is_closed
+
+
+def test_logs_are_one_json_line_per_event(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging("INFO")
+    structlog.get_logger().info("x", k=1)
+    [line] = capsys.readouterr().out.splitlines()
+    record = json.loads(line)
+    assert record["event"] == "x" and record["k"] == 1
+    assert record["level"] == "info" and "timestamp" in record

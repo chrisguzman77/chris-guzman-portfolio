@@ -18,7 +18,7 @@ class FakeIndexer:
         self.requests += 1
 
 
-def make_app(settings: Settings, secret: str | None = "s3cret") -> tuple[FastAPI, FakeIndexer]:
+def make_app(settings: Settings, secret: str | None = "s3cret") -> tuple[FastAPI, FakeIndexer]:  # noqa: S107 - test value
     app = create_app(settings.model_copy(update={"internal_secret": secret}))
     indexer = FakeIndexer()
     app.state.indexer = indexer

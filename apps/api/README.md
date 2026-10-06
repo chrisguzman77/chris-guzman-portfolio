@@ -16,4 +16,4 @@ uv run alembic upgrade head
 uv run pytest
 ```
 
-DB tests truncate the Phase 4 and Phase 5 tables and fail (not skip) without `API_DATABASE_URL`, so run the suite against a throwaway database, from one checkout at a time.
+DB tests truncate every app table (contact, GitHub cache, RAG and chat) and fail (not skip) without `API_DATABASE_URL`, so run the suite against a throwaway database, from one checkout at a time.
