@@ -166,6 +166,8 @@ jobs:
         run: docker build -t ci-runner infra/runner
       - name: Backup round trip (backup.sh, restore.sh, verify.sql)
         run: infra/backup/test-roundtrip.sh
+      - name: Runner GitHub App JWT (github-app.sh)
+        run: infra/runner/test-app-jwt.sh
       - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           scandir: .

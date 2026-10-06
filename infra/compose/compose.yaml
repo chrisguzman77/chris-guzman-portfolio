@@ -275,8 +275,12 @@ services:
   runner:
     <<: *service
     image: ghcr.io/chrisguzman77/chris-guzman-portfolio/runner:${RUNNER_TAG:-latest}
+    # Set GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (GitHub App, preferred) or
+    # GITHUB_RUNNER_TOKEN (PAT); the entrypoint refuses to start with neither.
     environment:
-      GITHUB_RUNNER_TOKEN: ${GITHUB_RUNNER_TOKEN:?}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_RUNNER_TOKEN: ${GITHUB_RUNNER_TOKEN:-}
       GITHUB_RUNNER_REPO: ${GITHUB_RUNNER_REPO:-chrisguzman77/chris-guzman-portfolio}
     group_add: ["${DOCKER_GID:?}"]
     volumes:

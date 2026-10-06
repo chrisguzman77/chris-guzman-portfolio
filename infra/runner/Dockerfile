@@ -30,6 +30,7 @@ RUN curl -fsSLo /usr/local/lib/docker/cli-plugins/docker-compose \
            /home/runner/externals/node*/bin/npm \
            /home/runner/externals/node*/bin/npx
 
+COPY --chmod=0644 github-app.sh /usr/local/lib/runner-github-app.sh
 COPY --chmod=0755 entrypoint.sh /usr/local/bin/runner-entrypoint
 USER 1001:1001
 ENTRYPOINT ["/usr/local/bin/runner-entrypoint"]

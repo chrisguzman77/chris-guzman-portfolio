@@ -72,3 +72,20 @@ Optional. Until it is set, every deploy's CMS bootstrap logs in with `DIRECTUS_A
 2. **Store.** `make secrets-edit`, add `DIRECTUS_BOOTSTRAP_TOKEN=<value>`, save; `make secrets-check`; commit and merge.
 3. **Check.** The deploy log's `==> CMS bootstrap` step prints `auth: static token` (it printed `auth: admin password` before).
 4. **Afterwards.** `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD` stay in `prod.enc.env` as Directus's first-admin settings (read only at first install), but deploys no longer use them, so changing the admin password or turning on 2FA no longer breaks deploys. To rotate the token, generate a new one in the same place and repeat step 2.
+
+## Runner GitHub App (Phase 7)
+
+Optional. Until both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, the runner registers with the `GITHUB_RUNNER_TOKEN` PAT, as before. One of the two (the app pair or the PAT) is required; the runner refuses to start with neither. The app replaces a PAT that expires yearly with a key that does not, and every token it mints lasts at most an hour.
+
+1. **Create the app.** GitHub → Settings → Developer settings → GitHub Apps → New GitHub App. Name it (for example `portfolio-runner`), set the homepage URL to the repo, and untick Webhook → Active. Repository permissions: Administration read and write (the runner registration token requires it) and Metadata read-only. "Where can this GitHub App be installed?": Only on this account. Create it and note the App ID at the top of its page.
+2. **Install it.** The app's page → Install App → your account → Only select repositories → `chris-guzman-portfolio`.
+3. **Generate a private key.** The app's page → Private keys → Generate a private key. The browser downloads a `.pem` file.
+4. **Store the secrets.** The entrypoint expects the PEM on one line with each newline written as the two characters `\n` (sops dotenv values are single-line; a real multi-line PEM also works if it ever arrives that way). Copy the converted key to the clipboard without printing it:
+   ```bash
+   awk 'NR > 1 { printf "\\n" } { printf "%s", $0 }' ~/Downloads/<app>.private-key.pem | pbcopy
+   ```
+   `make secrets-edit`, add `GITHUB_APP_ID=<app id>` and `GITHUB_APP_PRIVATE_KEY=<paste>` (unquoted, one line), save; `make secrets-check`; commit and merge. Then delete the downloaded `.pem` (GitHub can generate a new key at any time).
+5. **Check.** After the deploy, on the VM: `docker logs portfolio-runner-1 2>&1 | grep auth:` shows `auth: github app` (it showed `auth: pat` before). The runner is listed as Idle under the repo's Settings → Actions → Runners.
+6. **Retire the PAT.** Settings → Developer settings → Fine-grained tokens → `portfolio-runner` → Revoke. Then `make secrets-edit` to delete `GITHUB_RUNNER_TOKEN`, and in the same commit move `GITHUB_RUNNER_TOKEN` in `infra/compose/prod.env.example` from the "Stored in prod.enc.env" block to the "Optional" block so `make secrets-check` stops requiring it; commit and merge.
+
+To rotate the key, generate a new one on the app's page, repeat step 4, deploy, then delete the old key there.
