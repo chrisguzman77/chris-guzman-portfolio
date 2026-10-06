@@ -77,6 +77,14 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
 - **Seed content and deletes.** Every deploy runs the CMS bootstrap (`==> CMS bootstrap` in the deploy log). It seeds a collection (from `infra/directus/seed/`) only while that collection is completely empty and never changes existing items, so CMS edits and individual deletes survive deploys. Deleting **every** item in a collection, however, makes it empty, and the next deploy re-seeds it. To clear a section from the site, **set its items to `draft` instead of deleting them.**
 - **First Phase 3 deploy.** The bootstrap runs after the containers start, so on the very first deploy that adds the CMS collections the site can briefly serve empty sections (or fallback values) until the bootstrap finishes and the Flow refreshes the cache. Later deploys are unaffected.
 - **Images in project or post bodies.** Upload the file in Directus and insert it into the markdown. The site rewrites `/assets/<id>` to `/cms-assets/<id>` and serves a file only while published content references it. Files are served with a 1-year immutable cache, so to change an image **upload a new file** and point the markdown at it; never use Directus "Replace file" on an existing asset (visitors and Cloudflare would keep the old bytes).
+- **Check the edge caches CMS images (Cloudflare cache rule).** Pick any published image id and request it twice:
+
+  ```bash
+  curl -sI https://christopherguzman.me/cms-assets/<id> | grep -i cf-cache-status
+  curl -sI https://christopherguzman.me/cms-assets/<id> | grep -i cf-cache-status
+  ```
+
+  The first may say `MISS`; the second must say `HIT`. `DYNAMIC` on both means the cache rule is missing (Cloudflare does not cache extensionless paths by default). Create it under Caching → Cache Rules: when URI Path starts with `/cms-assets/`, set "Eligible for cache" and Edge TTL to "Use cache-control header if present, bypass cache if not" (the origin sends `public, max-age=31536000, immutable`). Details in `infra/cloudflare/README.md`.
 - **Markdown headings start at `##`.** The page title is the page's only `h1`, so project and post bodies use `##` and below.
 - **Resume.** Export a copy of the resume **without the phone number** (the repo and site are public; never commit the PDF). In Directus open the `resume` singleton, upload the PDF into `file`, set `version_label` (e.g. `fall-2026`) and `updated_at`, save. `/resume` then shows the PDF and the Download button.
 - **Re-run the bootstrap by hand:** on the VM it runs on every deploy; locally `make cms-bootstrap`.
@@ -131,6 +139,22 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 - **Test alert email:** Grafana → Alerting → Contact points → the email contact point → Test.
 - **Analytics:** https://analytics.christopherguzman.me (Access, then the Umami login). Custom events: `resume-download`, `chat-open`, `chat-question`, `contact-sent`, `outbound-click`. Without `UMAMI_WEBSITE_ID` the site loads no tracker.
 - **Status card:** the homepage card reads `GET /v1/status` (`curl -s https://api.christopherguzman.me/v1/status`). If it shows `degraded` with every value `—`, Prometheus is usually down: `docker logs --tail 50 portfolio-prometheus-1`.
+
+### Memory watch
+
+The `mem_limit` caps in `infra/compose/compose.yaml` add up to about 4.7 GiB on a 4 GiB VM. That is deliberate (limits are ceilings, not reservations), but nobody has watched real use yet. For the first month after launch, open Grafana → "Host & containers" once a week, with the time range set to 7 days:
+
+- **Container memory (working set):** the sum of all containers. Investigate when the total sustains above **3.2 GiB**.
+- **VM memory and swap** and **Swap used:** investigate when swap stays above **512 MiB** for hours (a brief spike during a deploy is normal).
+- **Container memory vs mem_limit:** any container at 90% or more of its limit for a day is about to be OOM-killed; raise that limit instead of lowering others.
+
+If a threshold trips, lower caps in this order, redeploy, and re-check for a week:
+
+1. `runner` (768m): it is idle between deploys; try 512m.
+2. `prometheus` (320m): try 256m, or shorten `--storage.tsdb.retention.time`.
+3. `api` (768m): the embedding model is about 300 MB resident; only lower it if the chat is off.
+
+Never lower `grafana` below 384m (it stalls on start, see the comment in the compose file). The Memory tight alert (VM above 90% for 10 minutes) is the safety net while you watch.
 
 ## Backups
 
