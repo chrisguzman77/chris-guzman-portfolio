@@ -9,7 +9,7 @@ import { ThemeToggle } from "./theme-toggle";
 export function SiteHeader() {
   return (
     <header className="relative border-b border-border">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-8 px-6 font-mono text-xs">
+      <div className="mx-auto flex h-(--site-header-h) max-w-5xl items-center justify-between gap-8 px-6 font-mono text-xs">
         <Link
           href="/"
           className="shrink-0 text-accent-brand hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"

@@ -37,6 +37,8 @@
 :root {
   color-scheme: light;
   --radius: 0.625rem;
+  /* h-14 on the site header; the blog table of contents sticks below it. */
+  --site-header-h: 3.5rem;
   --background: #fbfbfa;
   --terminal: #000000;
   --card: #ffffff;

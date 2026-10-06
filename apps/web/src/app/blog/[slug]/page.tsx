@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 function TableOfContents({ headings }: { headings: Heading[] }) {
   let section = 0;
   return (
-    <aside className="hidden self-start lg:sticky lg:top-24 lg:block">
+    <aside className="hidden self-start lg:sticky lg:top-[calc(var(--site-header-h)+2.5rem)] lg:block">
       <nav
         aria-label="On this page"
         className="border-l border-border pl-3.5 font-mono text-xs leading-[1.9] text-muted-foreground"
