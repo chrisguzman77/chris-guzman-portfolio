@@ -9,6 +9,7 @@ import {
   graduationLabel,
   isCurrent,
   lastPathSegment,
+  lastPathSegmentOrNull,
   sectionNumbers,
   sortExperience,
 } from "./format";
@@ -115,5 +116,15 @@ describe("lastPathSegment", () => {
     ["https://www.linkedin.com/in/christopher-emmanuel-guzman/", "christopher-emmanuel-guzman"],
   ])("%s", (url, expected) => {
     expect(lastPathSegment(url)).toBe(expected);
+  });
+});
+
+describe("lastPathSegmentOrNull", () => {
+  it("returns the last path segment of a valid URL", () => {
+    expect(lastPathSegmentOrNull("https://github.com/chrisguzman77")).toBe("chrisguzman77");
+  });
+
+  it.each(["not a url", "", "/relative/path"])("returns null instead of throwing for %j", (bad) => {
+    expect(lastPathSegmentOrNull(bad)).toBeNull();
   });
 });

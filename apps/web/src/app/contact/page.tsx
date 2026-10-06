@@ -8,7 +8,7 @@ import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { outboundProps } from "@/lib/analytics";
 import { getProfile } from "@/lib/directus/queries";
 import { serverEnv } from "@/lib/env";
-import { lastPathSegment } from "@/lib/format";
+import { lastPathSegmentOrNull } from "@/lib/format";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -33,6 +33,9 @@ export default async function ContactPage() {
   // ProfileSchema turns empty or non-http(s) URLs into null, so they fall back here.
   const linkedin = profile?.linkedin_url ?? siteConfig.links.linkedin;
   const github = profile?.github_url ?? siteConfig.links.github;
+  // A malformed URL skips its row rather than throwing and taking the page down.
+  const linkedinHandle = lastPathSegmentOrNull(linkedin);
+  const githubHandle = lastPathSegmentOrNull(github);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -71,46 +74,50 @@ export default async function ContactPage() {
                 <CopyEmail email={email} />
               </div>
             </li>
-            <li className={rowClass}>
-              <span className={iconClass}>
-                <LinkedInIcon className="size-4" aria-hidden />
-              </span>
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold">LinkedIn</h3>
-                <p className={valueClass}>{lastPathSegment(linkedin)}</p>
-              </div>
-              <a
-                href={linkedin}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open LinkedIn profile"
-                className={openClass}
-                {...outboundProps("linkedin")}
-              >
-                <ExternalLink className="size-3.5" aria-hidden />
-                Open
-              </a>
-            </li>
-            <li className={rowClass}>
-              <span className={iconClass}>
-                <GitHubIcon className="size-4" aria-hidden />
-              </span>
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold">GitHub</h3>
-                <p className={valueClass}>@{lastPathSegment(github)}</p>
-              </div>
-              <a
-                href={github}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open GitHub profile"
-                className={openClass}
-                {...outboundProps("github")}
-              >
-                <ExternalLink className="size-3.5" aria-hidden />
-                Open
-              </a>
-            </li>
+            {linkedinHandle !== null ? (
+              <li className={rowClass}>
+                <span className={iconClass}>
+                  <LinkedInIcon className="size-4" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold">LinkedIn</h3>
+                  <p className={valueClass}>{linkedinHandle}</p>
+                </div>
+                <a
+                  href={linkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open LinkedIn profile"
+                  className={openClass}
+                  {...outboundProps("linkedin")}
+                >
+                  <ExternalLink className="size-3.5" aria-hidden />
+                  Open
+                </a>
+              </li>
+            ) : null}
+            {githubHandle !== null ? (
+              <li className={rowClass}>
+                <span className={iconClass}>
+                  <GitHubIcon className="size-4" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold">GitHub</h3>
+                  <p className={valueClass}>@{githubHandle}</p>
+                </div>
+                <a
+                  href={github}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open GitHub profile"
+                  className={openClass}
+                  {...outboundProps("github")}
+                >
+                  <ExternalLink className="size-3.5" aria-hidden />
+                  Open
+                </a>
+              </li>
+            ) : null}
           </ul>
         </section>
       </div>

@@ -146,6 +146,21 @@ describe("/contact", () => {
     expect(screen.getByText("christopher-emmanuel-guzman")).toBeTruthy();
   });
 
+  it("skips a link whose URL is malformed instead of throwing", async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ...profile,
+      github_url: "not a url",
+      linkedin_url: "also bad",
+    });
+    render(await ContactPage());
+
+    expect(screen.queryByRole("link", { name: /open github/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /open linkedin/i })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3, name: "GitHub" })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3, name: "LinkedIn" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "Email" })).toBeTruthy();
+  });
+
   it("offers the email action (mailto fallback in jsdom, which has no clipboard)", async () => {
     vi.mocked(getProfile).mockResolvedValue(profile);
     render(await ContactPage());
