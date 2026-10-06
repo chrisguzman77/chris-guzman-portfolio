@@ -30,7 +30,7 @@ Local development needs none of this: `compose.dev.yaml` uses Turnstile's publis
 2. **Turnstile:** Cloudflare dashboard → Turnstile → add widget, hostnames `christopherguzman.me` and `localhost`, mode Managed. This gives a site key and a secret key.
 3. **GitHub:** Settings → Public profile → enable "Include private contributions on my profile". Settings → Developer settings → fine-grained token, public repositories read-only, no extra permissions, 1-year expiry.
 4. **Secrets:** `make secrets-edit` to add `RESEND_API_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `GITHUB_ACTIVITY_TOKEN`, `CONTACT_TO`; add the same keys to `infra/compose/prod.env.example`; `make secrets-check`; commit and merge.
-5. **Optional:** a Cloudflare rate-limiting rule on `api.christopherguzman.me/v1/contact` as a second layer (the free plan allows one rule).
+5. **Optional:** a second rate-limit layer at Cloudflare; see [Cloudflare WAF rules](#cloudflare-waf-rules-phase-7).
 
 ## Groq and chat secrets (Phase 5)
 
@@ -96,3 +96,30 @@ Optional. Until both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, the r
 6. **Retire the PAT.** Settings → Developer settings → Fine-grained tokens → `portfolio-runner` → Revoke. Then `make secrets-edit` to delete `GITHUB_RUNNER_TOKEN`, and in the same commit move `GITHUB_RUNNER_TOKEN` in `infra/compose/prod.env.example` from the "Stored in prod.enc.env" block to the "Optional" block so `make secrets-check` stops requiring it; commit and merge.
 
 To rotate the key, generate a new one on the app's page, repeat step 4, recreate the runner and check its log as in step 5, and only then delete the old key there (the running container keeps the old key until it is recreated).
+
+## Cloudflare WAF rules (Phase 7)
+
+Two rules on the `christopherguzman.me` zone. Both are optional second layers: the API already rate-limits in process ([ADR 0007](adr/0007-in-process-rate-limits-and-jobs.md)).
+
+**Rate limit for the API.** The free plan allows one rate-limiting rule, so one expression covers both paths.
+
+1. Cloudflare dashboard → the zone → Security → Security rules → Create rule → Rate limiting rules.
+2. Name: `api contact and chat`.
+3. Edit the expression and paste:
+   ```
+   (http.host eq "api.christopherguzman.me" and (starts_with(http.request.uri.path, "/v1/contact") or starts_with(http.request.uri.path, "/v1/chat/")))
+   ```
+4. Characteristics: IP. Requests: 10, period: 10 seconds.
+5. Action: Block, duration: 10 seconds. Deploy.
+6. Check: `for i in $(seq 1 15); do curl -s -o /dev/null -w '%{http_code}\n' https://api.christopherguzman.me/v1/contact; done` shows `429` or `403` after the tenth request, then recovers 10 seconds later.
+
+**Block `/api/revalidate` from the internet.** The route only serves the Directus Flow, which calls `http://web:3000/api/revalidate` over the Docker network (`REVALIDATE_URL` in `infra/directus/bootstrap.mjs`), never through Cloudflare. Blocking the public path stops anonymous probes from filling the web logs, and nothing legitimate is affected.
+
+1. Security → Security rules → Create rule → Custom rules.
+2. Name: `block revalidate`.
+3. Expression:
+   ```
+   http.host eq "christopherguzman.me" and http.request.uri.path eq "/api/revalidate"
+   ```
+4. Action: Block. Deploy.
+5. Check: `curl -s -o /dev/null -w '%{http_code}\n' -X POST https://christopherguzman.me/api/revalidate` prints `403`. Then save a change in Directus and confirm the site updates (the Flow still works).

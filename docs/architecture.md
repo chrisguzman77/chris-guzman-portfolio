@@ -123,5 +123,6 @@ flowchart LR
 
 ## Notes
 
+- Threat model, controls and the exact headers: [security.md](security.md).
 - FastAPI's `/docs` and `/openapi.json` are intentionally public (the API contract is part of the showcase).
 - `next build` fetches Geist and JetBrains Mono from Google Fonts at build time, so image builds need network access.

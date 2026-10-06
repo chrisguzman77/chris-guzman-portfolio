@@ -210,7 +210,7 @@ Both are optional so deploys keep working before Chris adds the new secrets.
   - `model_busy` or `rate_limited`: "Busy right now. Try again in a minute."
   - `session_limit`: "That's the limit for this session. Press clear to start a new one."
   - `chat_unavailable`, network failure, or Turnstile failure: "Chat is unavailable right now. Try the contact page."
-- The browser calls `https://api.christopherguzman.me` (`PUBLIC_API_URL`), already allowed by CORS and the CSP.
+- The browser calls `https://api.christopherguzman.me` (`PUBLIC_API_URL`), already allowed by CORS (CSP added in Phase 7a; see docs/security.md).
 
 ### Data from Directus
 

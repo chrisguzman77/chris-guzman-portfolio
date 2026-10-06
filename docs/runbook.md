@@ -124,7 +124,7 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 
 ## Ask about Chris (chat)
 
-- **Switch on/off:** Directus → Chat Settings → `enabled`. Off hides the launcher within seconds (Flow revalidation) and the API refuses new questions within a minute. Suggested questions are edited in the same place (the first four are shown).
+- **Switch on/off:** Directus → Chat Settings → `enabled`. Off hides the launcher within seconds (Flow revalidation) and the API refuses new questions within a minute. Suggested questions are edited in the same place (the chat shows up to four; three are seeded).
 - **Re-index now:** `make reindex` on the VM. Publishing in Directus already triggers one (the Flow's `reindex` step, debounced 5 s), and one runs every 15 minutes and at API startup.
 - **Read chats:** `make chats` (last 7 days) or `DAYS=30 make chats`. Outcomes: `answered`, `no_match` (nothing relevant, model not called), `uncited` (model answered without citing; the visitor saw the fixed reply, the raw answer is shown here), `error` (Groq failed). Chats are deleted after 30 days.
 - **Check answer quality:** `make chat-eval` (~10 minutes, uses about a third of the day's Groq quota). Every line should be PASS; a FAIL shows the answer and why.
@@ -137,7 +137,7 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 - **Alerts** email `CONTACT_TO` from `alerts@christopherguzman.me`: Disk filling, Memory tight, Site down, API errors, Container down, Backup stale, Chat budget, Runner offline (runner container unseen for 15 minutes). Container down keeps firing for up to 24 h after a planned container removal (it looks back 24 h), so silence it first. They are provisioned from `infra/observability/grafana/provisioning/`; change them there, not in the UI.
 - **Silence an alert** (planned work or a known issue): Grafana → Alerting → Silences → New silence. Add the matcher `alertname` = the alert's name (for example `Site down`), pick a duration, write a comment, save. It ends on its own; to end it early, open Alerting → Silences and expire it. A silence only stops the emails; the rule keeps evaluating.
 - **Test alert email:** Grafana → Alerting → Contact points → the email contact point → Test.
-- **Analytics:** https://analytics.christopherguzman.me (Access, then the Umami login). Custom events: `resume-download`, `chat-open`, `chat-question`, `contact-sent`, `outbound-click`. Without `UMAMI_WEBSITE_ID` the site loads no tracker.
+- **Analytics:** https://analytics.christopherguzman.me (Access, then the Umami login). Custom events: `resume-download`, `chat-open`, `chat-question`, `contact-sent`, `outbound-click`. Without `UMAMI_WEBSITE_ID` the site loads no tracker. `resume-download` fires only when the PDF link on `/resume` is clicked, so its `from` is always `/resume`; read where visitors came from off the `/resume` page view's referrer in Umami.
 - **Status card:** the homepage card reads `GET /v1/status` (`curl -s https://api.christopherguzman.me/v1/status`). If it shows `degraded` with every value `—`, Prometheus is usually down: `docker logs --tail 50 portfolio-prometheus-1`.
 
 ### Memory watch
@@ -155,6 +155,32 @@ If a threshold trips, lower caps in this order, redeploy, and re-check for a wee
 3. `api` (768m): the embedding model is about 300 MB resident; only lower it if the chat is off.
 
 Never lower `grafana` below 384m (it stalls on start, see the comment in the compose file). The Memory tight alert (VM above 90% for 10 minutes) is the safety net while you watch.
+
+## CSP and headers
+
+The full list and the reasoning are in [security.md](security.md).
+
+- **Check headers:** `curl -sI https://christopherguzman.me/` and `curl -sI https://api.christopherguzman.me/v1/status`. The site should show `content-security-policy` (with a nonce), HSTS, `x-content-type-options`, `referrer-policy`, `permissions-policy` and `cross-origin-opener-policy`, and no `x-powered-by`. The API shows its own five.
+- **Find CSP violations:** open the page with the browser console open and look for "Refused to ..." messages. In CI, the Playwright job (`apps/web/e2e/`) fails on any CSP or axe violation, so a policy change that breaks a page fails the PR.
+- **Change the policy:** edit `apps/web/src/lib/csp.ts` and update its test in the same commit. The proxy (`apps/web/src/proxy.ts`) only applies the result.
+- **Keep these Cloudflare features off.** They inject scripts that the nonce policy blocks: Email Obfuscation, Rocket Loader, and Web Analytics auto-inject. If a script you did not write is blocked, check them first.
+- **Yearly:** bump `Expires` in `apps/web/public/.well-known/security.txt`. A web test fails when fewer than 30 days remain, so CI will remind you.
+- **Weekly proof routine:** confirm the latest `backup-verify` run is green, and during the first month check the Grafana memory watch above.
+
+## Proxmox SSH: keys only
+
+The Proxmox host's root login accepted a password. Switch it to keys. Keep the first session open until the end, so a mistake cannot lock you out.
+
+1. From the laptop: `ssh-copy-id root@<proxmox>`.
+2. In a second terminal, confirm key login works: `ssh -o PasswordAuthentication=no root@<proxmox> true`.
+3. On the host, create `/etc/ssh/sshd_config.d/10-keys-only.conf`:
+   ```
+   PasswordAuthentication no
+   PermitRootLogin prohibit-password
+   ```
+   If `sshd -T | grep -E 'passwordauthentication|permitrootlogin'` still shows the old values, another file sets them first; the first value read wins, so keep this file's name sorted ahead of it.
+4. `sshd -t && systemctl reload ssh`.
+5. In a new terminal, test again: key login works, and `ssh -o PubkeyAuthentication=no root@<proxmox>` is refused. Only then close the first session.
 
 ## Backups
 
