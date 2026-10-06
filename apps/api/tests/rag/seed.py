@@ -25,8 +25,9 @@ def load_seed_content() -> SiteContent:
         experience=_items("experience"),
         education=_items("education"),
         involvement=_items("involvement"),
-        certifications=_items("certifications"),
+        # Not seeded: infra/directus/bootstrap.mjs SEED_ORDER has no certifications or posts.
+        certifications=[],
         projects=_items("projects"),
-        posts=_items("posts"),
+        posts=[],
         resume_text=None,
     )

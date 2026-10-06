@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import time
@@ -192,19 +193,21 @@ class ChatService:
             except (ModelBusyError, ModelUnavailableError) as exc:
                 log.warning("chat model failed", error=str(exc))
                 try:
-                    async with self._sessions.begin() as session:
-                        await repo.record_message(
-                            session,
-                            session_id=session_id,
-                            question=question,
-                            answer=None,
-                            outcome=ChatOutcome.error,
-                            sources=[],
-                            input_tokens=0,
-                            output_tokens=0,
-                        )
-                        await repo.release_question(session, session_id)
-                    settled = True
+                    async with self._sessions() as session:
+                        async with session.begin():
+                            await repo.record_message(
+                                session,
+                                session_id=session_id,
+                                question=question,
+                                answer=None,
+                                outcome=ChatOutcome.error,
+                                sources=[],
+                                input_tokens=0,
+                                output_tokens=0,
+                            )
+                            await repo.release_question(session, session_id)
+                        # Committed; set before the session closes (no double release).
+                        settled = True
                 except Exception:
                     # Report the model's failure to the visitor, not this one.
                     log.exception("could not record chat error", session_id=str(session_id))
@@ -212,31 +215,34 @@ class ChatService:
                 raise
             counts = composed.outcome == ChatOutcome.answered
             used_today: int | None = None
-            async with self._sessions.begin() as session:
-                await repo.record_message(
-                    session,
-                    session_id=session_id,
-                    question=question,
-                    answer=composed.raw
-                    if composed.outcome == ChatOutcome.uncited
-                    else composed.answer,
-                    outcome=composed.outcome,
-                    sources=[asdict(s) for s in composed.sources],
-                    input_tokens=composed.input_tokens,
-                    output_tokens=composed.output_tokens,
-                )
-                if not counts:
-                    await repo.release_question(session, session_id)
-                if composed.raw is not None:  # the model was called
-                    await repo.add_usage(
-                        session, now.date(), composed.input_tokens + composed.output_tokens
+            async with self._sessions() as session:
+                async with session.begin():
+                    await repo.record_message(
+                        session,
+                        session_id=session_id,
+                        question=question,
+                        answer=composed.raw
+                        if composed.outcome == ChatOutcome.uncited
+                        else composed.answer,
+                        outcome=composed.outcome,
+                        sources=[asdict(s) for s in composed.sources],
+                        input_tokens=composed.input_tokens,
+                        output_tokens=composed.output_tokens,
                     )
-                    used_today = await repo.tokens_used(session, now.date())
-            settled = True
+                    if not counts:
+                        await repo.release_question(session, session_id)
+                    if composed.raw is not None:  # the model was called
+                        await repo.add_usage(
+                            session, now.date(), composed.input_tokens + composed.output_tokens
+                        )
+                        used_today = await repo.tokens_used(session, now.date())
+                # Committed; set before the session closes so a cancel there cannot double-release.
+                settled = True
         finally:
             # Any other exit (a bug, a cancelled request, a failed commit) gives the question back.
             if not settled:
-                await self._release(session_id)
+                # Shielded: a second cancel cannot abort the refund half way.
+                await asyncio.shield(self._release(session_id))
         CHAT_QUESTIONS.labels(outcome=composed.outcome.value).inc()
         if used_today is not None:
             CHAT_TOKENS.labels(kind="input").inc(composed.input_tokens)

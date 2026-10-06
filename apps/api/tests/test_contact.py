@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from typing import Any
 
@@ -324,3 +325,28 @@ async def test_get_contact_is_405(contact_settings: Settings) -> None:
         res = await c.get("/v1/contact")
     assert res.status_code == 405
     assert res.json()["error"]["code"] == "method_not_allowed"
+
+
+async def post_typed(app: FastAPI, body: dict[str, Any], content_type: str | None) -> Response:
+    headers = {"CF-Connecting-IP": "203.0.113.7"}
+    if content_type is not None:
+        headers["Content-Type"] = content_type
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        return await c.post("/v1/contact", content=json.dumps(body), headers=headers)
+
+
+@pytest.mark.parametrize("content_type", ["text/plain", None, "application/x-www-form-urlencoded"])
+async def test_non_json_content_type_is_400(
+    contact_settings: Settings, content_type: str | None
+) -> None:
+    turnstile = FakeTurnstile()
+    res = await post_typed(make_app(contact_settings, None, turnstile, None), VALID, content_type)
+    assert res.status_code == 400
+    assert res.json()["error"]["code"] == "invalid_request"
+    assert turnstile.calls == []
+
+
+async def test_json_with_charset_is_accepted(contact_settings: Settings, db: Sessions) -> None:
+    app = make_app(contact_settings, db, FakeTurnstile(), FakeSender())
+    res = await post_typed(app, VALID, "application/json; charset=utf-8")
+    assert res.status_code == 202

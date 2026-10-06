@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import event, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from structlog.testing import capture_logs
@@ -17,6 +17,7 @@ from portfolio_api.clients.directus import ChatSettings, DirectusError
 from portfolio_api.clients.groq import ChatTurn, ModelBusyError, ModelReply, ModelUnavailableError
 from portfolio_api.models import ChatMessage, ChatOutcome, ChatSession, ChatUsageDaily
 from portfolio_api.rag.retrieval import Retrieved
+from portfolio_api.repositories import chat as chat_repo
 from portfolio_api.services.chat import (
     MAX_QUESTIONS,
     BudgetExhaustedError,
@@ -224,14 +225,18 @@ class CommitFails:
         self.broken = False
 
     def __call__(self) -> AsyncSession:
-        return self.real()
+        session = self.real()
+        event.listen(session.sync_session, "before_commit", self.check)
+        return session
+
+    def check(self, _: object) -> None:
+        if self.broken:
+            raise SQLAlchemyError("commit failed")
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator[AsyncSession]:
-        async with self.real.begin() as session:
+        async with self() as session, session.begin():
             yield session
-            if self.broken:
-                raise SQLAlchemyError("commit failed")
 
 
 class BusyAndBreaksTheDatabase:
@@ -277,13 +282,10 @@ async def test_unexpected_error_gives_the_question_back(db: Sessions) -> None:
 
 
 class CommitFailsOnce(CommitFails):
-    @asynccontextmanager
-    async def begin(self) -> AsyncGenerator[AsyncSession]:
-        async with self.real.begin() as session:
-            yield session
-            if self.broken:
-                self.broken = False
-                raise SQLAlchemyError("commit failed")
+    def check(self, _: object) -> None:
+        if self.broken:
+            self.broken = False
+            raise SQLAlchemyError("commit failed")
 
 
 class AnswersAndBreaksTheDatabase:
@@ -324,6 +326,36 @@ async def test_cancelled_ask_gives_the_question_back(db: Sessions) -> None:
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+    assert await question_count(db, session_id) == 0
+
+
+async def test_release_survives_a_second_cancel(
+    db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = GatedModel()
+    chat = ChatService(
+        db, FakeRetriever(), model, hash_salt="salt", daily_budget=180_000, min_similarity=0.5
+    )
+    session_id, _ = await chat.open_session(IP)
+    entered, gate, released = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    real_release = chat_repo.release_question
+
+    async def slow_release(session: AsyncSession, sid: uuid.UUID) -> None:
+        entered.set()
+        await gate.wait()
+        await real_release(session, sid)
+        released.set()
+
+    monkeypatch.setattr(chat_repo, "release_question", slow_release)
+    task = asyncio.create_task(chat.ask(session_id, IP, "q?"))
+    await asyncio.wait_for(model.entered.wait(), timeout=5)
+    task.cancel()  # first cancel: the refund starts
+    await asyncio.wait_for(entered.wait(), timeout=5)
+    task.cancel()  # second cancel while the refund is running
+    gate.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await asyncio.wait_for(released.wait(), timeout=5)
     assert await question_count(db, session_id) == 0
 
 
