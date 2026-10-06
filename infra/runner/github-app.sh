@@ -14,6 +14,7 @@ app_jwt() {
   header="$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | _b64url)"
   payload="$(jq -cn --arg iss "${app_id}" --argjson iat "${iat}" \
     '{iat: $iat, exp: ($iat + 600), iss: $iss}' | _b64url)"
+  [[ -n "${header}" && -n "${payload}" ]] || return 1
   unsigned="${header}.${payload}"
   sig="$(printf '%s' "${unsigned}" |
     openssl dgst -sha256 -binary -sign <(printf '%s\n' "${key}") | _b64url)" || return 1

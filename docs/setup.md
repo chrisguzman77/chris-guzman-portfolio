@@ -85,7 +85,14 @@ Optional. Until both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, the r
    awk 'NR > 1 { printf "\\n" } { printf "%s", $0 }' ~/Downloads/<app>.private-key.pem | pbcopy
    ```
    `make secrets-edit`, add `GITHUB_APP_ID=<app id>` and `GITHUB_APP_PRIVATE_KEY=<paste>` (unquoted, one line), save; `make secrets-check`; commit and merge. Then delete the downloaded `.pem` (GitHub can generate a new key at any time).
-5. **Check.** After the deploy, on the VM: `docker logs portfolio-runner-1 2>&1 | grep auth:` shows `auth: github app` (it showed `auth: pat` before). The runner is listed as Idle under the repo's Settings → Actions → Runners.
+5. **Recreate the runner, then check.** A normal deploy never restarts the runner, so the merge alone leaves it on its old image and old env (still the PAT). Once the release from step 4 is green and no deploy is running, on the VM run the "Update the runner" commands from `docs/runbook.md`:
+   ```bash
+   sudo /opt/portfolio/scripts/sync-repo.sh
+   cd /opt/portfolio
+   DEPLOYED=$(docker inspect -f '{{.Config.Image}}' portfolio-api-1 | cut -d: -f2)
+   sudo IMAGE_TAG="$DEPLOYED" SERVICES=runner scripts/deploy.sh
+   ```
+   Then `docker logs portfolio-runner-1 2>&1 | grep auth:` must show `auth: github app` (it showed `auth: pat` before), and the runner is listed as Idle under the repo's Settings → Actions → Runners. **Do not go on to step 6 until both checks pass**: revoking the PAT while the runner still uses it stops every deploy, including the one that would fix it.
 6. **Retire the PAT.** Settings → Developer settings → Fine-grained tokens → `portfolio-runner` → Revoke. Then `make secrets-edit` to delete `GITHUB_RUNNER_TOKEN`, and in the same commit move `GITHUB_RUNNER_TOKEN` in `infra/compose/prod.env.example` from the "Stored in prod.enc.env" block to the "Optional" block so `make secrets-check` stops requiring it; commit and merge.
 
-To rotate the key, generate a new one on the app's page, repeat step 4, deploy, then delete the old key there.
+To rotate the key, generate a new one on the app's page, repeat step 4, recreate the runner and check its log as in step 5, and only then delete the old key there (the running container keeps the old key until it is recreated).
