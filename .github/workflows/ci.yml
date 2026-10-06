@@ -145,7 +145,7 @@ jobs:
             yq -e '.apiVersion == 1' "$f" >/dev/null || { echo "bad provisioning file: $f"; exit 1; }
           done
           rules="$(yq '[.groups[].rules[]] | length' infra/observability/grafana/provisioning/alerting/rules.yml)"
-          [[ "${rules}" == 7 ]] || { echo "expected 7 alert rules, found ${rules}"; exit 1; }
+          [[ "${rules}" == 8 ]] || { echo "expected 8 alert rules, found ${rules}"; exit 1; }
           if grep -n '\$' infra/observability/grafana/provisioning/alerting/rules.yml; then
             echo "rules.yml must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
           fi
