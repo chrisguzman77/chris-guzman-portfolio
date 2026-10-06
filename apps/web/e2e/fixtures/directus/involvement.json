@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "organization": "ACM@AU",
+    "role": "Lead Developer",
+    "year": "2026",
+    "summary": "Built and run the chapter's production platform."
+  },
+  {
+    "id": 2,
+    "organization": "The Delta Chi Fraternity",
+    "role": "Officer of Philanthropy",
+    "year": "2024",
+    "summary": null
+  }
+]

@@ -18,5 +18,6 @@ export default defineConfig({
     // `// @vitest-environment jsdom` comment at the top of the file.
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
+    exclude: ["e2e/**", "node_modules/**"],
   },
 });

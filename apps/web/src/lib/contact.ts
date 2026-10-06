@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+// Client-side zod would probe for eval with Function(""), which the nonce CSP reports as a
+// violation in every browser. The JIT needs eval anyway, so turn it off.
+z.config({ jitless: true });
+
 export const CONTACT_LIMITS = { name: 100, email: 254, messageMin: 10, messageMax: 5000 } as const;
 
 export const CONTACT_MESSAGES = {
