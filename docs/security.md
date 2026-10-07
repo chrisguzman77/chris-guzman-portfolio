@@ -41,6 +41,7 @@ A short threat model for a single-owner portfolio on one VM. It says what is wor
 - **The runner's Docker socket.** The runner can run any container, which makes it root-equivalent on the VM (ADR 0006). It is repo-scoped and ephemeral, and only the owner can push. Runner credentials (the PAT or the GitHub App key) are visible to jobs through the Docker socket (`docker inspect`), the same exposure ADR 0006 accepts.
 - **Single-VM availability.** One VM means one failure domain. A fallback Worker serves a "back shortly" page and Better Stack pages me, but there is no failover. Restoring from backup is the recovery plan.
 - **Grafana and Umami admin behind Access plus their own logins.** Two layers, but both are managed by one person and one identity provider setup.
+- **API docs pages allow jsDelivr scripts and `'unsafe-inline'`.** Swagger UI and ReDoc load from `cdn.jsdelivr.net` and run an inline init script, so `/docs`, `/docs/oauth2-redirect` and `/redoc` get a looser CSP. It is scoped to those three static paths, which take no user input; every other path keeps `default-src 'none'`.
 - **Public API docs.** `/docs` and `/openapi.json` are open on purpose; the contract is part of the showcase.
 
 ## Headers
