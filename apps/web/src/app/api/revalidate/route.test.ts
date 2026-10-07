@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CONTENT_COLLECTIONS } from "@/lib/directus/tags";
 
-import { POST } from "./route";
-
 const { revalidateTag, env } = vi.hoisted(() => ({
   revalidateTag: vi.fn(),
   env: { revalidateSecret: "correct-horse-battery-staple" as string | undefined },
@@ -31,8 +29,11 @@ function request(body: string, secret?: string): Request {
 const json = (value: unknown) => JSON.stringify(value);
 
 let logs: unknown[][];
+let POST: typeof import("./route").POST;
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules(); // the unauthorized-log throttle is module state
+  ({ POST } = await import("./route"));
   env.revalidateSecret = SECRET;
   logs = [];
   for (const level of ["info", "warn", "error", "log"] as const) {
@@ -43,6 +44,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   revalidateTag.mockReset();
 });
@@ -116,11 +118,25 @@ describe("POST /api/revalidate", () => {
     expect(revalidateTag).toHaveBeenCalledWith("profile", { expire: 0 });
   });
 
-  it("logs nothing for unauthorized requests", async () => {
-    await POST(request(json({ collection: "projects" })));
-    await POST(request(json({ collection: "projects" }), "wrong-secret-value"));
+  it("logs unauthorized calls at most once a minute, with the suppressed count", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2030-01-01T00:00:00Z"));
+    try {
+      const unauthorized = () =>
+        POST(request(json({ collection: "projects" }), "wrong-secret-value"));
+      await unauthorized();
+      await unauthorized();
+      await unauthorized();
+      expect(logs).toHaveLength(1);
 
-    expect(logs).toEqual([]);
+      vi.advanceTimersByTime(60_001);
+      await unauthorized();
+      expect(logs).toHaveLength(2);
+      expect(JSON.stringify(logs[1])).toContain("2 suppressed");
+      expect(JSON.stringify(logs)).not.toContain("wrong-secret-value");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("logs the collection but never a secret", async () => {

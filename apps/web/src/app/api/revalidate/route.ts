@@ -18,9 +18,26 @@ function secretMatches(given: string | null, expected: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+// Unauthorized calls are public noise, so log at most once a minute per process.
+const UNAUTHORIZED_LOG_MS = 60_000;
+let lastUnauthorizedLog = -Infinity;
+let suppressed = 0;
+
+function logUnauthorized(): void {
+  const now = Date.now();
+  if (now - lastUnauthorizedLog < UNAUTHORIZED_LOG_MS) {
+    suppressed += 1;
+    return;
+  }
+  console.warn(`revalidate: unauthorized request (${suppressed} suppressed since last log)`);
+  lastUnauthorizedLog = now;
+  suppressed = 0;
+}
+
 export async function POST(request: Request) {
   const expected = serverEnv().revalidateSecret;
   if (!expected || !secretMatches(request.headers.get("x-revalidate-secret"), expected)) {
+    logUnauthorized();
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
