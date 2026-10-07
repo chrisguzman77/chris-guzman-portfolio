@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod-client";
 
 export const CONTACT_LIMITS = { name: 100, email: 254, messageMin: 10, messageMax: 5000 } as const;
 

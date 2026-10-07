@@ -9,7 +9,9 @@ import {
   EducationSchema,
   ExperienceSchema,
   InvolvementSchema,
+  PostAssetRefSchema,
   PostSchema,
+  PostSummarySchema,
   ProfileSchema,
   ProjectSchema,
   ResumeSchema,
@@ -19,6 +21,8 @@ import {
   type Experience,
   type Involvement,
   type Post,
+  type PostAssetRef,
+  type PostSummary,
   type Profile,
   type Project,
   type Resume,
@@ -133,12 +137,16 @@ export function getProject(slug: string): Promise<Project | null> {
   return getBySlug("projects", ProjectSchema, slug);
 }
 
-export function getPosts(): Promise<Post[]> {
-  return getList("posts", PostSchema, "-published_at");
+export function getPosts(): Promise<PostSummary[]> {
+  return getList("posts", PostSummarySchema, "-published_at");
 }
 
 export function getPost(slug: string): Promise<Post | null> {
   return getBySlug("posts", PostSchema, slug);
+}
+
+function getPostAssetRefs(): Promise<PostAssetRef[]> {
+  return getList("posts", PostAssetRefSchema, "-published_at");
 }
 
 export function getResume(): Promise<Resume | null> {
@@ -149,11 +157,15 @@ export function getChatSettings(): Promise<ChatSettings | null> {
   return getSingleton("chat_settings", ChatSettingsSchema);
 }
 
-// Allow-list for /cms-assets: only files that published content points at. Reuses the cached
-// (published-only) list queries, so checking a file costs no extra Directus requests once pages
-// have rendered.
+// Allow-list for /cms-assets: only files that published content points at. Resume and project
+// lookups reuse the cached (published-only) queries; posts use their own cached query
+// (getPostAssetRefs, cover and body only), fetched on first use and then served from cache.
 export async function isReferencedFile(id: string): Promise<boolean> {
-  const [resume, projects, posts] = await Promise.all([getResume(), getProjects(), getPosts()]);
+  const [resume, projects, posts] = await Promise.all([
+    getResume(),
+    getProjects(),
+    getPostAssetRefs(),
+  ]);
   if (resume?.file === id) return true;
   const ref = `/assets/${id}`;
   return [...projects, ...posts].some(

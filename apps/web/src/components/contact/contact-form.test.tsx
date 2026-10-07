@@ -103,6 +103,21 @@ describe("ContactForm", () => {
     expect(screen.queryByRole("form")).toBeNull();
   });
 
+  it("accepts a maximum-length message padded with spaces, measured trimmed like the API", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+    await act(async () => {
+      renderForm();
+    });
+    // A native maxLength would count the padding and block typing; validation trims instead.
+    for (const label of ["Name", "Email", "Message"]) {
+      expect((screen.getByLabelText(label) as HTMLInputElement).maxLength).toBe(-1);
+    }
+    const message = "x".repeat(5000);
+    fill({ ...valid, Message: `  ${message}  ` });
+    await submit();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).message).toBe(message);
+  });
+
   it("disables the button and shows Sending… while waiting", async () => {
     let resolve: (r: Response) => void = () => {};
     fetchMock.mockReturnValue(new Promise<Response>((r) => (resolve = r)));

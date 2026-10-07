@@ -14,6 +14,13 @@ describe("SiteFooter", () => {
     expect(screen.getByText(`© ${new Date().getFullYear()} Christopher Guzman`)).toBeTruthy();
   });
 
+  it("gives every footer link a visible focus ring", () => {
+    render(<SiteFooter />);
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.className).toContain("focus-visible:outline");
+    }
+  });
+
   it("links GitHub and LinkedIn in a new tab with icon-only labelled links", () => {
     render(<SiteFooter />);
     const github = screen.getByRole("link", { name: "GitHub" });

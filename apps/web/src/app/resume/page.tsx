@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ResumeLink } from "@/components/analytics/resume-link";
+import { PdfEmbed } from "@/components/content/pdf-embed";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { getResume } from "@/lib/directus/queries";
@@ -62,7 +63,6 @@ function ResumeViewer({
           {meta ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{meta}</p> : null}
         </div>
         <ResumeLink
-          kind="file"
           href={src}
           download="christopher-guzman-resume.pdf"
           className="inline-flex items-center gap-2 rounded-md bg-accent-brand px-3.5 py-2 text-sm font-semibold text-accent-brand-foreground transition-opacity hover:opacity-90"
@@ -71,25 +71,8 @@ function ResumeViewer({
           Download PDF
         </ResumeLink>
       </div>
-      <div className="hidden rounded-[10px] border border-border bg-card p-4 md:block">
-        <object
-          data={src}
-          type="application/pdf"
-          aria-label="Resume of Christopher Guzman (PDF)"
-          className="h-[80vh] w-full rounded"
-        >
-          <p className="p-6 text-sm text-muted-foreground">
-            Your browser cannot show the PDF here.{" "}
-            <ResumeLink
-              kind="file"
-              href={src}
-              className="text-accent-brand underline-offset-4 hover:underline"
-            >
-              Open the resume PDF
-            </ResumeLink>
-            .
-          </p>
-        </object>
+      <div className="hidden rounded-[10px] border border-border bg-card p-4 md:block md:min-h-[calc(80vh+2rem+2px)]">
+        <PdfEmbed src={src} />
       </div>
     </>
   );

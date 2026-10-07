@@ -36,8 +36,12 @@ describe("/contact", () => {
     const { container } = render(await ContactPage());
 
     expect(screen.getByText("$ ping chris")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1, name: "Get in touch" })).toBeTruthy();
+    const title = screen.getByRole("heading", { level: 1, name: "Get in touch" });
+    // The header block is exactly the prompt line and the h1: no caption paragraph beneath it.
+    expect(title.parentElement?.children).toHaveLength(2);
+    expect(title.nextElementSibling).toBeNull();
     expect(container.querySelector('a[href^="tel:"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/\+?\d[\d\s().-]{8,}\d/);
   });
 
   it("renders the form with the site key, public API URL and profile email", async () => {
@@ -140,6 +144,21 @@ describe("/contact", () => {
     );
     expect(screen.getByText("@chrisguzman77")).toBeTruthy();
     expect(screen.getByText("christopher-emmanuel-guzman")).toBeTruthy();
+  });
+
+  it("skips a link whose URL is malformed instead of throwing", async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ...profile,
+      github_url: "not a url",
+      linkedin_url: "also bad",
+    });
+    render(await ContactPage());
+
+    expect(screen.queryByRole("link", { name: /open github/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /open linkedin/i })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3, name: "GitHub" })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3, name: "LinkedIn" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "Email" })).toBeTruthy();
   });
 
   it("offers the email action (mailto fallback in jsdom, which has no clipboard)", async () => {

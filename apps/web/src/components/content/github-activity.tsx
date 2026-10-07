@@ -50,6 +50,18 @@ function monthLabels(weeks: Activity["weeks"]): (string | null)[] {
   });
 }
 
+// A label needs about three columns of room on mobile.
+const MIN_LABEL_GAP = 3;
+
+// On mobile the window starts mid-year, so its first column is usually mid-month and unlabelled.
+// Label it for mobile only, unless the next month label is too close to fit beside it.
+function mobileFirstLabel(weeks: Activity["weeks"], labels: (string | null)[]): number {
+  const first = weeks.length - MOBILE_WEEKS;
+  if (first < 0 || labels[first] !== null || !weeks[first].days[0]) return -1;
+  const next = labels.findIndex((label, index) => index > first && label !== null);
+  return next !== -1 && next - first < MIN_LABEL_GAP ? -1 : first;
+}
+
 export function GitHubActivity({
   activity,
   profileUrl,
@@ -60,6 +72,7 @@ export function GitHubActivity({
   const { weeks, total } = activity;
   const totalText = total.toLocaleString("en-US");
   const labels = monthLabels(weeks);
+  const mobileFirst = mobileFirstLabel(weeks, labels);
   const olderThanMobile = (index: number) => index < weeks.length - MOBILE_WEEKS;
 
   return (
@@ -67,7 +80,7 @@ export function GitHubActivity({
       href={profileUrl}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`GitHub profile: ${totalText} ${plural(total)} in the last year (opens in a new tab)`}
+      aria-label={`${totalText} ${plural(total)} in the last year · updated hourly: GitHub profile (opens in a new tab)`}
       className="block rounded-[10px] border border-border bg-card p-4 transition-colors hover:border-input focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
       {...outboundProps("github")}
     >
@@ -81,9 +94,11 @@ export function GitHubActivity({
             className={cn(
               "flex-1 overflow-visible whitespace-nowrap",
               olderThanMobile(index) && "hidden md:block",
+              index === mobileFirst && "md:invisible",
             )}
           >
-            {month ?? ""}
+            {month ??
+              (index === mobileFirst ? monthFormat.format(utc(weeks[index].days[0].date)) : "")}
           </span>
         ))}
       </div>
@@ -92,23 +107,25 @@ export function GitHubActivity({
         aria-label={`${totalText} GitHub ${plural(total)} in the last year`}
         className="flex gap-[3px]"
       >
+        {/* ~370 cells: shared classes sit on the column and keys are slot indexes, so each
+            cell stays small in both the HTML and the inlined RSC payload. */}
         {weeks.map((week, index) => (
           <div
             key={week.days[0]?.date ?? index}
             className={cn(
-              "flex flex-1 flex-col gap-[3px]",
+              "flex flex-1 flex-col gap-[3px] *:aspect-square *:rounded-[2px]",
               olderThanMobile(index) && "hidden md:flex",
             )}
           >
             {slots(week.days).map((day, slot) =>
               day ? (
                 <span
-                  key={day.date}
+                  key={slot}
                   title={contributionTitle(day)}
-                  className={cn("aspect-square rounded-[2px]", LEVEL_CLASS[day.level])}
+                  className={LEVEL_CLASS[day.level]}
                 />
               ) : (
-                <span key={`empty-${slot}`} className="aspect-square" />
+                <span key={slot} />
               ),
             )}
           </div>

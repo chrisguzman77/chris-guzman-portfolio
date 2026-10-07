@@ -2,10 +2,10 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import type { Post } from "@/lib/directus/schemas";
+import type { PostSummary } from "@/lib/directus/schemas";
 import { formatPostDate } from "@/lib/format";
 
-export function PostListItem({ post }: { post: Post }) {
+export function PostListItem({ post }: { post: PostSummary }) {
   return (
     <article className="py-4">
       <p className="font-mono text-[11.5px] text-muted-foreground">

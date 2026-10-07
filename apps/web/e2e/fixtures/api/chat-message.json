@@ -1,0 +1,12 @@
+{
+  "answer": "Chris built this site with Next.js and FastAPI [1].",
+  "sources": [
+    {
+      "n": 1,
+      "title": "This portfolio",
+      "url": "/projects/this-portfolio"
+    }
+  ],
+  "outcome": "answered",
+  "questions_left": 9
+}

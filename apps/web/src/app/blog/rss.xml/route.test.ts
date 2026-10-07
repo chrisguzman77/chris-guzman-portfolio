@@ -84,7 +84,7 @@ describe("GET /blog/rss.xml", () => {
 
   it("strips XML-illegal control characters so the feed stays parseable", async () => {
     vi.mocked(getPosts).mockResolvedValue([
-      { ...tricky, title: "Back\u0008space", excerpt: "Bell\u0007 and form\u000Cfeed" },
+      { ...tricky, title: "Back\u0008space\u0001", excerpt: "Bell\u0007 and form\u000Cfeed\u0001" },
     ]);
     const doc = parse(await (await GET()).text());
 
@@ -95,11 +95,20 @@ describe("GET /blog/rss.xml", () => {
     expect(childText("description")).toBe("Bell and formfeed");
   });
 
-  it("builds pubDate from the date part of a datetime value", async () => {
+  it("keeps the time of day of a datetime value (zone-less values are UTC)", async () => {
     vi.mocked(getPosts).mockResolvedValue([{ ...tricky, published_at: "2026-10-14T09:30:00" }]);
     const xml = await (await GET()).text();
 
-    expect(xml).toContain("<pubDate>Wed, 14 Oct 2026 00:00:00 GMT</pubDate>");
+    expect(xml).toContain("<pubDate>Wed, 14 Oct 2026 09:30:00 GMT</pubDate>");
+  });
+
+  it("honours an explicit UTC offset in the timestamp", async () => {
+    vi.mocked(getPosts).mockResolvedValue([
+      { ...tricky, published_at: "2026-10-14T09:30:00+02:00" },
+    ]);
+    const xml = await (await GET()).text();
+
+    expect(xml).toContain("<pubDate>Wed, 14 Oct 2026 07:30:00 GMT</pubDate>");
   });
 
   it("returns a valid empty feed when there are no posts", async () => {

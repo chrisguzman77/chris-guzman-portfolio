@@ -10,17 +10,16 @@ const TICK_MS = 12;
 export function TypedText({ text, animate }: { text: string; animate: boolean }) {
   const [shown, setShown] = useState(animate ? 0 : text.length);
 
+  const done = shown >= text.length;
+
+  // The timer stops through this cleanup when `done` flips, never from inside the state updater.
   useEffect(() => {
-    if (!animate) return;
+    if (!animate || done) return;
     const timer = setInterval(() => {
-      setShown((n) => {
-        const next = Math.min(text.length, n + CHARS_PER_TICK);
-        if (next >= text.length) clearInterval(timer);
-        return next;
-      });
+      setShown((n) => Math.min(text.length, n + CHARS_PER_TICK));
     }, TICK_MS);
     return () => clearInterval(timer);
-  }, [animate, text.length]);
+  }, [animate, done, text.length]);
 
   return (
     <p data-typed className="whitespace-pre-wrap text-foreground">

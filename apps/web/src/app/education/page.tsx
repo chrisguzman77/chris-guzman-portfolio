@@ -9,7 +9,10 @@ import { getCertifications, getEducation, getInvolvement } from "@/lib/directus/
 import type { Education } from "@/lib/directus/schemas";
 import { formatMonthYear, graduationLabel, sectionNumbers } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Education" };
+export const metadata: Metadata = {
+  title: "Education",
+  description: "Degrees, coursework, involvement, and certifications of Christopher Guzman.",
+};
 
 type EducationSection = "involvement" | "coursework" | "certifications";
 

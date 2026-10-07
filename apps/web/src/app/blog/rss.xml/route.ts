@@ -19,9 +19,13 @@ function escapeXml(value: string): string {
   return value.replace(XML_ILLEGAL, "").replace(/[&<>"']/g, (ch) => XML_ESCAPES[ch]);
 }
 
-/** RFC 822 date at 00:00 UTC, e.g. "Wed, 14 Oct 2026 00:00:00 GMT". */
-function rfc822(isoDate: string): string {
-  return new Date(`${isoDate.slice(0, 10)}T00:00:00Z`).toUTCString();
+// Date-only values are midnight UTC; datetimes without a zone are read as UTC, never server-local.
+const HAS_ZONE = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/** RFC 822 date, e.g. "Wed, 14 Oct 2026 09:30:00 GMT". */
+function rfc822(timestamp: string): string {
+  const iso = timestamp.includes("T") && !HAS_ZONE.test(timestamp) ? `${timestamp}Z` : timestamp;
+  return new Date(iso).toUTCString();
 }
 
 export async function GET(): Promise<Response> {

@@ -8,11 +8,9 @@ import { getPost } from "@/lib/directus/queries";
 import { formatPostDate } from "@/lib/format";
 import { renderMarkdown, type Heading } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
+import { outlineButton } from "@/lib/styles";
 
 type Props = { params: Promise<{ slug: string }> };
-
-const outlineButton =
-  "inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-[13px] text-foreground transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -24,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 function TableOfContents({ headings }: { headings: Heading[] }) {
   let section = 0;
   return (
-    <aside className="hidden self-start lg:sticky lg:top-24 lg:block">
+    <aside className="hidden self-start lg:sticky lg:top-[calc(var(--site-header-h)+2.5rem)] lg:block">
       <nav
         aria-label="On this page"
         className="border-l border-border pl-3.5 font-mono text-xs leading-[1.9] text-muted-foreground"

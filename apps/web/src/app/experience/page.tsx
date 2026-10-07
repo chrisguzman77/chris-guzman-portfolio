@@ -1,16 +1,17 @@
 import { Download } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { ResumeLink } from "@/components/analytics/resume-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { ExperienceEntry } from "@/components/content/experience-entry";
 import { PageHeader } from "@/components/content/page-header";
 import { getExperience } from "@/lib/directus/queries";
+import { outlineButton } from "@/lib/styles";
 
-export const metadata: Metadata = { title: "Experience" };
-
-const outlineButton =
-  "inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-[13px] text-foreground transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
+export const metadata: Metadata = {
+  title: "Experience",
+  description: "Roles, internships, and leadership experience of Christopher Guzman.",
+};
 
 export default async function ExperiencePage() {
   const entries = await getExperience();
@@ -33,10 +34,10 @@ export default async function ExperiencePage() {
         )}
       </div>
       <div className="mt-6">
-        <ResumeLink kind="page" href="/resume" className={outlineButton}>
+        <Link href="/resume" className={outlineButton}>
           <Download className="size-4" aria-hidden="true" />
           Download full resume
-        </ResumeLink>
+        </Link>
       </div>
     </div>
   );

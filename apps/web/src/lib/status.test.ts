@@ -120,6 +120,16 @@ describe("getStatus", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("shares one request between concurrent callers", async () => {
+    let resolve!: (res: Response) => void;
+    fetchMock.mockReturnValue(new Promise<Response>((r) => (resolve = r)));
+    const calls = [mod.getStatus(), mod.getStatus()];
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    resolve(Response.json(OK_BODY));
+    expect(await Promise.all(calls)).toEqual([OK_BODY, OK_BODY]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("memoises a failed result too", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-03T12:00:00Z"));
@@ -130,6 +140,17 @@ describe("getStatus", () => {
     fetchMock.mockResolvedValueOnce(Response.json(OK_BODY));
     await expect(mod.getStatus()).resolves.toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("isGreen", () => {
+  it.each([
+    [0.99495, true], // displays 99.50%
+    [0.995, true],
+    [0.99494, false], // displays 99.49%
+    [1, true],
+  ])("%d -> %s", (ratio, green) => {
+    expect(mod.isGreen(ratio)).toBe(green);
   });
 });
 
@@ -170,5 +191,26 @@ describe("formatAgo", () => {
     ["2026-10-03T12:05:00Z", "1m ago"],
   ])("%s -> %s", (iso, text) => {
     expect(mod.formatAgo(iso, now)).toBe(text);
+  });
+});
+
+describe("uptimeSummary", () => {
+  it("summarises the 30 days for screen readers", () => {
+    const days = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, "0")}`,
+      uptime: i === 4 ? 0.987 : 1,
+    }));
+    expect(mod.uptimeSummary(days)).toBe("30-day uptime, 29 days at 100%, 1 day at 98.7%");
+  });
+
+  it("counts days without data", () => {
+    const days = [
+      ...Array.from({ length: 28 }, () => ({ date: "2026-09-01", uptime: null })),
+      { date: "2026-09-29", uptime: 1 },
+      { date: "2026-09-30", uptime: 0.999 },
+    ];
+    expect(mod.uptimeSummary(days)).toBe(
+      "30-day uptime, 1 day at 100%, 1 day at 99.9%, 28 days with no data",
+    );
   });
 });

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod-client";
 
 export const CHAT_LIMITS = { question: 500 } as const;
 

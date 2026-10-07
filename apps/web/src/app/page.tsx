@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { ResumeLink } from "@/components/analytics/resume-link";
 import { ExperienceEntry } from "@/components/content/experience-entry";
 import { PostListItem } from "@/components/content/post-list-item";
 import { ProjectCard } from "@/components/content/project-card";
@@ -16,13 +15,11 @@ import { lastPathSegment, sectionNumbers } from "@/lib/format";
 import { getGithubActivity } from "@/lib/github-activity";
 import { personJsonLd, serializeJsonLd } from "@/lib/seo";
 import { siteConfig } from "@/lib/site";
+import { focusRing, outlineButton } from "@/lib/styles";
 
 type HomeSection = "projects" | "experience" | "activity" | "blog";
 
-const focusRing =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 const primaryButton = `inline-flex items-center gap-2 rounded-md bg-accent-brand px-3.5 py-2 text-[13px] font-semibold text-accent-brand-foreground transition-opacity hover:opacity-90 ${focusRing}`;
-const outlineButton = `inline-flex items-center gap-2 rounded-md border border-input px-3.5 py-2 text-[13px] text-foreground transition-colors hover:bg-card ${focusRing}`;
 const ghostLink = `inline-flex items-center gap-2 rounded-md py-2 pr-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground ${focusRing}`;
 
 export default async function HomePage() {
@@ -75,9 +72,9 @@ export default async function HomePage() {
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2.5">
-              <ResumeLink kind="page" href="/resume" className={primaryButton}>
+              <Link href="/resume" className={primaryButton}>
                 Download resume
-              </ResumeLink>
+              </Link>
               <Link href="/contact" className={outlineButton}>
                 Get in touch
               </Link>
