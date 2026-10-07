@@ -88,7 +88,7 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
 - **Markdown headings start at `##`.** The page title is the page's only `h1`, so project and post bodies use `##` and below.
 - **Resume.** Export a copy of the resume **without the phone number** (the repo and site are public; never commit the PDF). In Directus open the `resume` singleton, upload the PDF into `file`, set `version_label` (e.g. `fall-2026`) and `updated_at`, save. `/resume` then shows the PDF and the Download button.
 - **Re-run the bootstrap by hand:** on the VM it runs on every deploy; locally `make cms-bootstrap`.
-- **Optional hardening:** `/api/revalidate` is only ever called by Directus over the Docker network (`http://web:3000`), so a Cloudflare WAF custom rule that blocks `christopherguzman.me/api/revalidate` at the edge removes the public endpoint entirely. The route already rejects requests without the secret (401, not logged).
+- **Optional hardening:** `/api/revalidate` is only ever called by Directus over the Docker network (`http://web:3000`), so a Cloudflare WAF custom rule that blocks `christopherguzman.me/api/revalidate` at the edge removes the public endpoint entirely. The route already rejects requests without the secret (401); those are logged at most once per minute per process, with a count of the suppressed ones.
 
 ## Contact messages
 
