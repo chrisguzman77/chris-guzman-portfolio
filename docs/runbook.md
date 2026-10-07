@@ -95,6 +95,7 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
   ```
 
   The first may say `MISS`; the second must say `HIT`. `DYNAMIC` on both means the cache rule is missing (Cloudflare does not cache extensionless paths by default). Create it under Caching → Cache Rules: when URI Path starts with `/cms-assets/`, set "Eligible for cache" and Edge TTL to "Use cache-control header if present, bypass cache if not" (the origin sends `public, max-age=31536000, immutable`). Details in `infra/cloudflare/README.md`.
+- **Images must live in Directus.** Upload them to Directus and reference them through `/cms-assets`; the CSP (`img-src 'self' data: blob:`) blocks hot-linked external images, which render as broken.
 - **Markdown headings start at `##`.** The page title is the page's only `h1`, so project and post bodies use `##` and below.
 - **Resume.** Export a copy of the resume **without the phone number** (the repo and site are public; never commit the PDF). In Directus open the `resume` singleton, upload the PDF into `file`, set `version_label` (e.g. `fall-2026`) and `updated_at`, save. `/resume` then shows the PDF and the Download button.
 - **Re-run the bootstrap by hand:** on the VM it runs on every deploy; locally `make cms-bootstrap`.
