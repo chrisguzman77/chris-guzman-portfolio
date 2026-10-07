@@ -57,7 +57,7 @@ style-src 'self' 'unsafe-inline'
 img-src 'self' data: blob:
 font-src 'self'
 connect-src 'self' {API origin from PUBLIC_API_URL} https://challenges.cloudflare.com
-frame-src https://challenges.cloudflare.com
+frame-src 'self' https://challenges.cloudflare.com
 object-src 'self'
 base-uri 'none'
 form-action 'self'
@@ -68,6 +68,7 @@ upgrade-insecure-requests
 - `'unsafe-eval'` is added to `script-src` only when `NODE_ENV` is not `production`.
 - `upgrade-insecure-requests` is present only when `SITE_URL` is https.
 - Turnstile loads because `'strict-dynamic'` trusts scripts that a nonced script loads.
+- `frame-src` includes `'self'` because Chromium browsers (Chrome, Brave) render the resume's `<object>` PDF in an internal frame governed by `frame-src`; without it they show the fallback text. Bundled Playwright Chromium has no PDF viewer, so e2e cannot catch this; check `/resume` in desktop Chrome after CSP changes.
 - zod runs in jitless mode on the client (`apps/web/src/lib/zod-client.ts`), so it never needs `'unsafe-eval'`.
 - The proxy skips `_next/static`, `_next/image`, `favicon.ico`, `cms-assets`, `stats`, `api` and `.well-known`, plus prefetch requests.
 - A Playwright gate in CI (`apps/web/e2e/`) fails on any CSP violation or axe violation.
