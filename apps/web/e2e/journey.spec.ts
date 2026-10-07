@@ -51,9 +51,13 @@ test("contact: validation, then send", async ({ page }) => {
 test("chat: ask a question, get a cited answer", async ({ page, isMobile }) => {
   await page.goto("/");
   const terminal = page.getByRole("region", { name: "Ask about Chris" });
-  if (isMobile) await pressChatShortcut(page);
-  else await page.getByRole("button", { name: /Ask about Chris/ }).click();
-  await expect(terminal).toBeVisible();
+  // The launcher's key and click handlers exist only after hydration, which can lag the load
+  // event on a slow CI runner; retry until the terminal opens.
+  await expect(async () => {
+    if (isMobile) await pressChatShortcut(page);
+    else await page.getByRole("button", { name: /Ask about Chris/ }).click();
+    await expect(terminal).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
 
   const input = terminal.getByRole("textbox", { name: "Ask a question about Chris" });
   await expect(input).toHaveAttribute("placeholder", "type a question…");

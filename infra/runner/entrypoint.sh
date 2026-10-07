@@ -8,6 +8,7 @@
 set -euo pipefail
 
 # shellcheck source=infra/runner/github-app.sh
+# shellcheck disable=SC1091 # path differs between the image and the repo; linted on its own
 source /usr/local/lib/runner-github-app.sh
 
 : "${GITHUB_RUNNER_REPO:?set GITHUB_RUNNER_REPO to owner/repo}"

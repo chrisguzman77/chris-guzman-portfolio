@@ -5,6 +5,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=infra/runner/github-app.sh
+# shellcheck disable=SC1091 # path differs between the image and the repo; linted on its own
 source "${here}/github-app.sh"
 
 work="$(mktemp -d)"
