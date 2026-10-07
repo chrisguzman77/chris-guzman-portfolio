@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "school": "School of Computer and Cyber Sciences, Augusta University",
+    "location": "Augusta, GA",
+    "end_date": "2027-05-01",
+    "degrees": [
+      {
+        "kind": "degree",
+        "name": "B.S. in Computer Science"
+      },
+      {
+        "kind": "degree",
+        "name": "B.S. in Cyber Operations"
+      },
+      {
+        "kind": "minor",
+        "name": "Mathematics"
+      }
+    ],
+    "coursework": []
+  }
+]

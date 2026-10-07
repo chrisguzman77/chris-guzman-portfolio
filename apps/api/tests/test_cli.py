@@ -158,3 +158,15 @@ def test_judge_ignores_unicode_hyphens_and_spaces() -> None:
     case = {"question": "q", "must_include": ["UNSW-NB15", "May 2027"], "sources": ["/p"]}
     answer = composed("Uses UNSW\u2011NB15, ends May\u202f2027 [1].", ChatOutcome.answered, "/p")
     assert judge_answerable(case, answer) is None
+
+
+def test_reindex_directus_failure_is_one_line_and_exit_1(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("API_DIRECTUS_TOKEN", "tok")
+    monkeypatch.setenv("API_DIRECTUS_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("API_DATABASE_URL", "postgresql+asyncpg://nobody:nobody@127.0.0.1:1/x")
+    assert main(["reindex"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("reindex failed: ") and err.count("\n") == 1
+    assert "Traceback" not in err

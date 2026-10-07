@@ -169,6 +169,14 @@ describe("list queries", () => {
     expect(path).toContain(PUBLISHED);
     expect(tags).toEqual(["posts"]);
   });
+
+  it("getPosts omits the markdown body from the list query and result", async () => {
+    get.mockResolvedValue([post({ body: "Long body" })]);
+    const [item] = await getPosts();
+    const [path] = get.mock.calls[0];
+    expect(path.match(/fields=([^&]*)/)?.[1].split(",")).not.toContain("body");
+    expect(item).not.toHaveProperty("body");
+  });
 });
 
 describe("detail queries", () => {

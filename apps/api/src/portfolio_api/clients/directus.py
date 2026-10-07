@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import httpx
+import structlog
 from pypdf import PdfReader
-from pypdf.errors import PdfReadError
+from pypdf.errors import PyPdfError
 
 from portfolio_api.rag.documents import SiteContent
 
+log = structlog.get_logger()
+
 PUBLISHED = {"fields": "*", "filter[status][_eq]": "published", "limit": "-1"}
+MAX_RESUME_BYTES = 10 * 1024 * 1024
 LISTS = ["experience", "education", "involvement", "certifications", "projects", "posts"]
 
 
@@ -27,7 +31,7 @@ def pdf_text(data: bytes) -> str:
     try:
         reader = PdfReader(io.BytesIO(data))
         return "\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
-    except (PdfReadError, ValueError, OSError) as exc:
+    except (PyPdfError, ValueError) as exc:
         raise DirectusError(f"resume PDF unreadable: {type(exc).__name__}") from exc
 
 
@@ -80,7 +84,10 @@ class DirectusContent:
         file_id = resume.get("file") if resume else None
         if isinstance(file_id, str) and file_id:
             pdf = await self._request(f"/assets/{file_id}")
-            resume_text = await asyncio.to_thread(pdf_text, pdf.content)
+            if len(pdf.content) > MAX_RESUME_BYTES:
+                log.warning("resume PDF too large; skipped", bytes=len(pdf.content))
+            else:
+                resume_text = await asyncio.to_thread(pdf_text, pdf.content)
         return SiteContent(profile=profile, resume_text=resume_text, **lists)
 
     async def fetch_chat_settings(self) -> ChatSettings:

@@ -4,7 +4,8 @@ import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { outboundProps } from "@/lib/analytics";
 import { siteConfig } from "@/lib/site";
 
-const iconLink = "text-muted-foreground transition-colors hover:text-foreground";
+const iconLink =
+  "text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 
 export function SiteFooter() {
   return (

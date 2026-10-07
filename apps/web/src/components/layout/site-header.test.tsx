@@ -13,8 +13,19 @@ afterEach(cleanup);
 describe("SiteHeader", () => {
   it("links the ~/chris-guzman logo home with an accessible name", () => {
     render(<SiteHeader />);
-    const home = screen.getByRole("link", { name: /chris-guzman/ });
+    const home = screen.getByRole("link", { name: /^~\/chris-guzman/ });
     expect(home.getAttribute("href")).toBe("/");
+  });
+
+  it("gives the logo and nav links a visible focus ring", () => {
+    render(<SiteHeader />);
+    expect(screen.getByRole("link", { name: /^~\/chris-guzman/ }).className).toContain(
+      "focus-visible:outline",
+    );
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    for (const link of nav.querySelectorAll("a")) {
+      expect(link.className).toContain("focus-visible:outline");
+    }
   });
 
   it("renders all six nav links in order", () => {

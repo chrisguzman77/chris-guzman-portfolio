@@ -26,13 +26,7 @@ def test_empty_content_builds_nothing() -> None:
 def test_profile_document() -> None:
     content = replace(
         EMPTY,
-        **{
-            "profile": {
-                "name": "Christopher Guzman",
-                "intro": "CS student.",
-                "location": "Augusta, GA",
-            },
-        },
+        profile={"name": "Christopher Guzman", "intro": "CS student.", "location": "Augusta, GA"},
     )
     [doc] = build_documents(content)
     assert doc == SourceDocument(

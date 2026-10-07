@@ -41,14 +41,14 @@ def _field_name(loc: tuple[Any, ...]) -> str:
 
 
 async def _api_error(_: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, ApiError)
+    assert isinstance(exc, ApiError)  # noqa: S101 - narrows the type; registered only for it
     return JSONResponse(
         error_body(exc.code, exc.message, exc.fields), status_code=exc.status, headers=exc.headers
     )
 
 
 async def _validation_error(_: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, RequestValidationError)
+    assert isinstance(exc, RequestValidationError)  # noqa: S101 - narrows the type; registered only for it
     fields: dict[str, str] = {}
     for err in exc.errors():
         fields.setdefault(_field_name(tuple(err["loc"])), str(err["msg"]))
@@ -58,7 +58,7 @@ async def _validation_error(_: Request, exc: Exception) -> JSONResponse:
 
 
 async def _http_error(_: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, StarletteHTTPException)
+    assert isinstance(exc, StarletteHTTPException)  # noqa: S101 - narrows the type; registered only for it
     code = _HTTP_CODES.get(exc.status_code, "http_error")
     return JSONResponse(
         error_body(code, str(exc.detail)), status_code=exc.status_code, headers=exc.headers

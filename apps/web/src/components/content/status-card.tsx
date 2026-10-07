@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 
-import { GREEN_AT, dayLabel, formatAgo, formatPercent, getStatus } from "@/lib/status";
+import {
+  dayLabel,
+  formatAgo,
+  formatPercent,
+  getStatus,
+  isGreen,
+  uptimeSummary,
+} from "@/lib/status";
 import { cn } from "@/lib/utils";
 
 const DAYS = 30;
@@ -9,6 +16,7 @@ const STACK = "Proxmox · Docker · Cloudflare Tunnel";
 const MUTED_BAR = "bg-muted-foreground/30";
 
 type Bar = { key: string; label: string | null; className: string };
+type Daily = { date: string; uptime: number | null }[];
 
 function show<T>(value: T | null | undefined, format: (value: T) => string): string {
   return value === null || value === undefined ? NONE : format(value);
@@ -16,7 +24,7 @@ function show<T>(value: T | null | undefined, format: (value: T) => string): str
 
 function barClass(uptime: number | null): string {
   if (uptime === null) return MUTED_BAR;
-  return uptime >= GREEN_AT ? "bg-live" : "bg-warn";
+  return isGreen(uptime) ? "bg-live" : "bg-warn";
 }
 
 function Frame({
@@ -54,27 +62,25 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function Bars({ bars }: { bars: Bar[] }) {
+function Bars({ bars, summary }: { bars: Bar[]; summary: string | null }) {
   return (
     <>
-      <div className="mt-1 mb-1.5 flex gap-0.5">
-        {bars.map((bar) =>
-          bar.label ? (
-            <span
-              key={bar.key}
-              role="img"
-              title={bar.label}
-              aria-label={bar.label}
-              className={cn("h-[18px] flex-1 rounded-[2px] opacity-85", bar.className)}
-            />
-          ) : (
-            <span
-              key={bar.key}
-              aria-hidden="true"
-              className={cn("h-[18px] flex-1 rounded-[2px]", bar.className)}
-            />
-          ),
-        )}
+      <div
+        {...(summary ? { role: "img", "aria-label": summary } : { "aria-hidden": true })}
+        className="mt-1 mb-1.5 flex gap-0.5"
+      >
+        {bars.map((bar) => (
+          <span
+            key={bar.key}
+            aria-hidden="true"
+            title={bar.label ?? undefined}
+            className={cn(
+              "h-[18px] flex-1 rounded-[2px]",
+              bar.label && "opacity-85",
+              bar.className,
+            )}
+          />
+        ))}
       </div>
       <div className="mb-1.5 flex justify-between text-[10px]">
         <span>30 days ago</span>
@@ -86,7 +92,10 @@ function Bars({ bars }: { bars: Bar[] }) {
 
 function Pending() {
   return (
-    <span aria-hidden="true" className="inline-block h-3 w-12 animate-pulse rounded bg-muted" />
+    <>
+      <span className="sr-only">loading</span>
+      <span aria-hidden="true" className="inline-block h-3 w-12 animate-pulse rounded bg-muted" />
+    </>
   );
 }
 
@@ -102,7 +111,7 @@ export function StatusCardSkeleton() {
       <dl>
         <Row label="uptime (30d)" value={<Pending />} />
       </dl>
-      <Bars bars={bars} />
+      <Bars bars={bars} summary={null} />
       <dl>
         <Row label="api response (p95)" value={<Pending />} />
         <Row label="requests today" value={<Pending />} />
@@ -117,6 +126,8 @@ export function StatusCardSkeleton() {
 export async function StatusCard() {
   const status = await getStatus();
   const operational = status?.status === "operational";
+  const daily: Daily =
+    status?.daily ?? Array.from({ length: DAYS }, () => ({ date: "", uptime: null }));
   const bars: Bar[] = status
     ? status.daily.map((day) => ({
         key: day.date,
@@ -137,7 +148,7 @@ export async function StatusCard() {
       <dl>
         <Row label="uptime (30d)" value={show(status?.uptime_30d, formatPercent)} />
       </dl>
-      <Bars bars={bars} />
+      <Bars bars={bars} summary={uptimeSummary(daily)} />
       <dl>
         <Row label="api response (p95)" value={show(status?.p95_ms, (ms) => `${ms} ms`)} />
         <Row

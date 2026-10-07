@@ -1,4 +1,5 @@
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ SEED_DIR = Path(__file__).resolve().parents[4] / "infra" / "directus" / "seed"
 def _items(name: str) -> list[dict[str, Any]]:
     path = SEED_DIR / f"{name}.json"
     if not path.exists():
+        warnings.warn(f"seed file missing: {path}", stacklevel=2)
         return []
     items: list[dict[str, Any]] = json.loads(path.read_text())
     # Seed rows have no ids (Directus assigns them); number them like Directus would.
@@ -23,8 +25,9 @@ def load_seed_content() -> SiteContent:
         experience=_items("experience"),
         education=_items("education"),
         involvement=_items("involvement"),
-        certifications=_items("certifications"),
+        # Not seeded: infra/directus/bootstrap.mjs SEED_ORDER has no certifications or posts.
+        certifications=[],
         projects=_items("projects"),
-        posts=_items("posts"),
+        posts=[],
         resume_text=None,
     )

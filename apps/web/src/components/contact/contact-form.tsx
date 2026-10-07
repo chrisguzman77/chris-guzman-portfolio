@@ -6,7 +6,6 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { track } from "@/lib/analytics";
 import {
   CONTACT_FIELDS,
-  CONTACT_LIMITS,
   CONTACT_MESSAGES,
   submitContact,
   validateContact,
@@ -155,24 +154,14 @@ export function ContactForm({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field field="name" label="Name" error={errors.name}>
-          <input
-            type="text"
-            autoComplete="name"
-            maxLength={CONTACT_LIMITS.name}
-            {...fieldProps("name")}
-          />
+          <input type="text" autoComplete="name" {...fieldProps("name")} />
         </Field>
         <Field field="email" label="Email" error={errors.email}>
-          <input
-            type="email"
-            autoComplete="email"
-            maxLength={CONTACT_LIMITS.email}
-            {...fieldProps("email")}
-          />
+          <input type="email" autoComplete="email" {...fieldProps("email")} />
         </Field>
       </div>
       <Field field="message" label="Message" error={errors.message}>
-        <textarea rows={6} maxLength={CONTACT_LIMITS.messageMax} {...fieldProps("message")} />
+        <textarea rows={6} {...fieldProps("message")} />
       </Field>
       <div aria-hidden="true" className="absolute -left-[9999px] size-px overflow-hidden">
         {/* Named so autofill leaves it alone; still sent to the API as `website`. */}

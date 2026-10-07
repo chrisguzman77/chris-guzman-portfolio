@@ -60,6 +60,9 @@ describe("/blog/[slug]", () => {
     const toc = screen.getByRole("navigation", { name: "On this page" });
     const aside = toc.closest("aside")!;
     expect(aside.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:block"]));
+    // Sticky offset is derived from the shared header-height variable, not a magic number.
+    expect(aside.className).toContain("lg:top-[calc(var(--site-header-h)+2.5rem)]");
+    expect(aside.className).not.toContain("top-24");
     expect(screen.getByRole("link", { name: "1. Setup" }).getAttribute("href")).toBe("#setup");
     const details = screen.getByRole("link", { name: "Details" });
     expect(details.getAttribute("href")).toBe("#details");

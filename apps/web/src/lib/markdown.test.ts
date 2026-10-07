@@ -30,13 +30,26 @@ describe("renderMarkdown", () => {
 
   it("adds heading ids without a clobber prefix and lists h2/h3 headings", async () => {
     const { html, headings } = await renderMarkdown(
-      "# Title\n\n## Why a Cloudflare Tunnel\n\n### Sub `x`\n\n#### Deep\n",
+      "## Why a Cloudflare Tunnel\n\n### Sub `x`\n\n#### Deep\n",
     );
     expect(html).toContain('<h2 id="why-a-cloudflare-tunnel">');
     expect(headings).toEqual([
       { id: "why-a-cloudflare-tunnel", text: "Why a Cloudflare Tunnel", depth: 2 },
       { id: "sub-x", text: "Sub x", depth: 3 },
     ]);
+  });
+
+  it("demotes markdown h1 headings to h2 so the post title stays the only h1", async () => {
+    const { html, headings } = await renderMarkdown("# Intro\n\nText\n\n## Next\n");
+    expect(html).not.toContain("<h1");
+    expect(html).toContain('<h2 id="intro">Intro</h2>');
+    expect(headings.map((h) => h.id)).toEqual(["intro", "next"]);
+  });
+
+  it("gives duplicate headings unique ids", async () => {
+    const { html, headings } = await renderMarkdown("## Setup\n\ntext\n\n## Setup\n");
+    expect(headings.map((h) => h.id)).toEqual(["setup", "setup-1"]);
+    expect(html).toContain('id="setup-1"');
   });
 
   it("strips script tags and event handlers", async () => {

@@ -9,9 +9,9 @@ import { contributionTitle, GitHubActivity, MOBILE_WEEKS } from "./github-activi
 afterEach(cleanup);
 
 // 30 Sunday-start weeks from 2026-03-01; the first week starts on a Wednesday (partial).
-function makeActivity(): Activity {
+function makeActivity(startMonthDay: [number, number] = [2, 1]): Activity {
   const weeks: Activity["weeks"] = [];
-  const start = Date.UTC(2026, 2, 1);
+  const start = Date.UTC(2026, startMonthDay[0], startMonthDay[1]);
   for (let w = 0; w < 30; w++) {
     const days = [];
     for (let d = w === 0 ? 3 : 0; d < 7; d++) {
@@ -40,7 +40,7 @@ describe("GitHubActivity", () => {
       screen.getByRole("img", { name: "1,234 GitHub contributions in the last year" }),
     ).toBeTruthy();
     const link = screen.getByRole("link", {
-      name: "GitHub profile: 1,234 contributions in the last year (opens in a new tab)",
+      name: /^1,234 contributions in the last year · updated hourly/,
     });
     expect(link.getAttribute("href")).toBe("https://github.com/octo");
     expect(link.getAttribute("target")).toBe("_blank");
@@ -76,6 +76,24 @@ describe("GitHubActivity", () => {
     }
   });
 
+  it("labels the first mobile-visible month on mobile only when the next label is not too close", () => {
+    // Sundays from Mar 15: column 8 (May 10) is the first on mobile, its month label sits at column 7.
+    const { container } = render(
+      <GitHubActivity activity={makeActivity([2, 15])} profileUrl="https://github.com/octo" />,
+    );
+    const mobileOnly = screen
+      .getAllByText("May")
+      .filter((el) => el.className.includes("md:invisible"));
+    expect(mobileOnly).toHaveLength(1);
+    expect(container.querySelectorAll('[aria-hidden="true"] > span')[8]).toBe(mobileOnly[0]);
+  });
+
+  it("drops the mobile first-month label when it would overlap the next label", () => {
+    // Fixture from Mar 1: column 8 (Apr 26) is followed by the May label one column later.
+    render(<GitHubActivity activity={makeActivity()} profileUrl="https://github.com/octo" />);
+    expect(screen.getAllByText("Apr")).toHaveLength(1);
+  });
+
   it("says contribution in the singular for a total of one", () => {
     const activity = { ...makeActivity(), total: 1 };
     render(<GitHubActivity activity={activity} profileUrl="https://github.com/octo" />);
@@ -84,7 +102,7 @@ describe("GitHubActivity", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("link", {
-        name: "GitHub profile: 1 contribution in the last year (opens in a new tab)",
+        name: /^1 contribution in the last year · updated hourly/,
       }),
     ).toBeTruthy();
   });

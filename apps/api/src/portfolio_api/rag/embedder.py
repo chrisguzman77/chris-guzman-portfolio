@@ -10,6 +10,13 @@ EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 EMBEDDING_DIM = 384
 
 
+def check_dimensions(vectors: Sequence[Sequence[float]]) -> None:
+    """A clear error before pgvector rejects a vector of the wrong size."""
+    for vector in vectors:
+        if len(vector) != EMBEDDING_DIM:
+            raise ValueError(f"embedding has {len(vector)} dimensions, expected {EMBEDDING_DIM}")
+
+
 class Embedder(Protocol):
     model_name: str
 

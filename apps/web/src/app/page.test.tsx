@@ -330,7 +330,7 @@ describe("HomePage analytics", () => {
     expect(linkedin.getAttribute("data-umami-event-to")).toBe("linkedin");
   });
 
-  it("tracks Download resume as a resume download from /", async () => {
+  it("links Download resume to /resume without counting it as a download", async () => {
     const umamiTrack = vi.fn();
     window.umami = { track: umamiTrack };
     render(await HomePage());
@@ -342,6 +342,6 @@ describe("HomePage analytics", () => {
     document.addEventListener("click", block);
     fireEvent.click(resume);
     document.removeEventListener("click", block);
-    expect(umamiTrack.mock.calls).toEqual([["resume-download", { from: "/" }]]);
+    expect(umamiTrack).not.toHaveBeenCalled(); // only the PDF link on /resume counts
   });
 });

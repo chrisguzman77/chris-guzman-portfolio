@@ -55,11 +55,13 @@ export function planSchema(existing, desired) {
 }
 
 /**
- * Seed a collection only while it is completely empty (any status). Once it has
- * any item, nothing is planned, so deleting or renaming content always sticks.
+ * Seed-once decision for one collection. `seededNames` is bootstrap_state.seeded:
+ * every collection the bootstrap has already seeded or found populated. A recorded
+ * collection is never seeded again, so emptying it in the CMS sticks.
  */
-export function planSeed(existingItems, seedItems) {
-  return existingItems.length === 0 ? [...seedItems] : [];
+export function planSeedOnce(seededNames, name, existingCount) {
+  if (seededNames.includes(name)) return "skip";
+  return existingCount === 0 ? "seed" : "record";
 }
 
 /** Deep equality for JSON values; object key order is ignored (jsonb reorders keys). */
@@ -100,6 +102,12 @@ export function adminLoginFailure(status, body) {
   ].join(" ");
 }
 
+/** The message for a rejected DIRECTUS_BOOTSTRAP_TOKEN (401/403), or null. Never includes the token. */
+export function bootstrapTokenFailure(status) {
+  if (status !== 401 && status !== 403) return null;
+  return `DIRECTUS_BOOTSTRAP_TOKEN was rejected (HTTP ${status}); regenerate it for an admin user (docs/setup.md, "Directus bootstrap token")`;
+}
+
 export class DirectusClient {
   constructor(baseUrl, fetchImpl = globalThis.fetch) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
@@ -117,6 +125,18 @@ export class DirectusClient {
       throw err;
     }
     this.token = data.access_token;
+  }
+
+  /** Uses a static token, checked with one GET /users/me before any other call. */
+  async useStaticToken(token) {
+    this.token = token;
+    try {
+      await this.get("/users/me");
+    } catch (err) {
+      const message = bootstrapTokenFailure(err.status);
+      if (message) throw new Error(message, { cause: err });
+      throw err;
+    }
   }
 
   get(path) {

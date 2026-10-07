@@ -35,6 +35,15 @@ function walk(node: Root | RootContent, visit: (element: Element) => void): void
   if ("children" in node) node.children.forEach((child) => walk(child, visit));
 }
 
+// A post page already renders the title as its one h1, so markdown "#" becomes h2.
+function demoteH1() {
+  return (tree: Root) => {
+    walk(tree, (element) => {
+      if (element.tagName === "h1") element.tagName = "h2";
+    });
+  };
+}
+
 function collectHeadings(headings: Heading[]) {
   return () => (tree: Root) => {
     walk(tree, (element) => {
@@ -52,6 +61,7 @@ export async function renderMarkdown(md: string): Promise<{ html: string; headin
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkRehype)
+    .use(demoteH1)
     .use(rehypeSlug)
     .use(rehypeSanitize, sanitizeSchema)
     .use(collectHeadings(headings))

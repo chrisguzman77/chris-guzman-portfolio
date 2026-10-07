@@ -1,18 +1,24 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
+import structlog
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from starlette.types import Message, Receive, Scope, Send
 
+from portfolio_api.body_limit import BodySizeLimit
 from portfolio_api.config import Settings
+from portfolio_api.db import make_engine
 from portfolio_api.errors import ApiError
 from portfolio_api.jobs import Job, run_forever
 from portfolio_api.main import create_app
 from portfolio_api.models import ContactSubmission, EmailStatus, GitHubActivityCache
+from portfolio_api.observability import configure_logging
 
 
 class Body(BaseModel):
@@ -188,3 +194,88 @@ async def test_tables_exist_with_defaults(db: async_sessionmaker[AsyncSession]) 
     assert saved.attempts == 0
     assert saved.created_at.tzinfo is not None
     assert cache.payload == {"total": 1, "weeks": []}
+
+
+@pytest.mark.parametrize("length", ["١٢".encode(), "²".encode("latin-1"), b"12x", b""])
+async def test_non_ascii_digit_content_length_is_400(length: bytes) -> None:
+    reached: list[bool] = []
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        reached.append(True)
+
+    sent: list[Message] = []
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    scope: Scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/v1/contact",
+        "headers": [(b"content-length", length)],
+    }
+    await BodySizeLimit(app)(scope, receive, send)
+    assert reached == []
+    assert sent[0]["status"] == 400
+
+
+def test_engine_hides_parameters_in_errors() -> None:
+    engine = make_engine("postgresql+asyncpg://nobody:nobody@127.0.0.1:1/portfolio")
+    assert engine.sync_engine.hide_parameters is True
+
+
+class Stop(Exception):
+    pass
+
+
+def recording_sleep(waits: list[float], limit: int):
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) >= limit:
+            raise Stop
+
+    return sleep
+
+
+async def test_run_forever_backs_off_after_failures_and_resets_on_success() -> None:
+    results = [False, False, False, True, False]
+    waits: list[float] = []
+
+    async def job() -> None:
+        if not results.pop(0):
+            raise RuntimeError("down")
+
+    with pytest.raises(Stop):
+        await run_forever(Job("flaky", 10, job), sleep=recording_sleep(waits, 5))
+    assert waits == [20, 40, 80, 10, 20]
+
+
+async def test_run_forever_backoff_is_capped_at_an_hour() -> None:
+    waits: list[float] = []
+
+    async def job() -> None:
+        raise RuntimeError("down")
+
+    with pytest.raises(Stop):
+        await run_forever(Job("down", 1000, job), sleep=recording_sleep(waits, 3))
+    assert waits == [2000, 3600, 3600]
+
+
+async def test_lifespan_cleans_up_when_the_app_fails(settings: Settings) -> None:
+    app = create_app(settings)
+    with pytest.raises(RuntimeError):
+        async with app.router.lifespan_context(app):
+            raise RuntimeError("startup failed after the jobs started")
+    assert app.state.http.is_closed
+
+
+def test_logs_are_one_json_line_per_event(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging("INFO")
+    structlog.get_logger().info("x", k=1)
+    [line] = capsys.readouterr().out.splitlines()
+    record = json.loads(line)
+    assert record["event"] == "x" and record["k"] == 1
+    assert record["level"] == "info" and "timestamp" in record

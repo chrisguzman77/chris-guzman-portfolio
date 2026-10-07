@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import structlog
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.github import ContributionsSource, GitHubError
@@ -38,7 +39,12 @@ class GitHubActivityService:
             row = await repo.load(session)
         if row is None:
             return None
-        return ActivityResponse.model_validate({**row.payload, "fetched_at": row.fetched_at})
+        try:
+            return ActivityResponse.model_validate({**row.payload, "fetched_at": row.fetched_at})
+        except (TypeError, ValidationError) as exc:
+            # A corrupt copy reads like no copy; the next refresh overwrites it.
+            log.warning("cached github activity unreadable", error=type(exc).__name__)
+            return None
 
     async def refresh(self) -> None:
         if self._source is None:
@@ -53,7 +59,11 @@ class GitHubActivityService:
         log.info("github activity refreshed", total=activity.total)
 
     async def refresh_if_stale(self) -> None:
-        async with self._sessions() as session:
-            row = await repo.load(session)
-        if row is None or self._clock() - row.fetched_at >= STALE_AFTER:
-            await self.refresh()
+        """The job entry point: logs any failure instead of raising."""
+        try:
+            async with self._sessions() as session:
+                row = await repo.load(session)
+            if row is None or self._clock() - row.fetched_at >= STALE_AFTER:
+                await self.refresh()
+        except Exception:
+            log.exception("github refresh failed; keeping cached copy")

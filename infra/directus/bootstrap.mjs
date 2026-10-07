@@ -3,13 +3,15 @@
 // Creates missing schema, the read-only web-reader policy/role/user (token from
 // DIRECTUS_WEB_TOKEN), the optional api-reader user (token from DIRECTUS_API_TOKEN),
 // the revalidation Flow, the optional reindex step (secret from INTERNAL_API_SECRET),
-// and seed content
-// (only into collections that are completely empty). Never deletes anything and
-// never overwrites content Chris edited in the CMS.
+// and seed content (each collection at most once, and only while it is empty; the
+// hidden bootstrap_state singleton records which ones are done). Never deletes
+// anything and never overwrites content Chris edited in the CMS.
+// Auth: DIRECTUS_BOOTSTRAP_TOKEN (an admin user's static token) when set, otherwise
+// an ADMIN_EMAIL/ADMIN_PASSWORD login.
 import { readFile } from "node:fs/promises";
 
-import { DirectusClient, planSchema, planSeed, sameJson } from "./lib.mjs";
-import { CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
+import { DirectusClient, planSchema, planSeedOnce, sameJson } from "./lib.mjs";
+import { BOOTSTRAP_STATE, CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const BASE_URL = "http://127.0.0.1:8055";
 const WEB_READER = {
@@ -257,24 +259,36 @@ async function loadSeed(name) {
 }
 
 async function ensureSeed(api) {
+  const state = await api.get(`/items/${BOOTSTRAP_STATE}`);
+  const seeded = Array.isArray(state?.seeded) ? state.seeded : [];
+  const next = [...seeded];
   let inserted = 0;
   for (const name of SEED_ORDER) {
-    const seed = await loadSeed(name);
-    if (SINGLETONS.includes(name)) {
+    const singleton = SINGLETONS.includes(name);
+    let existingCount;
+    if (singleton) {
       const current = await api.get(`/items/${name}`);
-      const existing = current?.id == null ? [] : [current];
-      if (planSeed(existing, [seed]).length > 0) {
-        await api.patch(`/items/${name}`, seed);
-        inserted++;
-      }
-      continue;
+      existingCount = current?.id == null ? 0 : 1;
+    } else {
+      existingCount = (await api.get(`/items/${name}${q({ fields: "id", limit: "-1" })}`)).length;
     }
-    const existing = await api.get(`/items/${name}${q({ fields: "*", limit: "-1" })}`);
-    const inserts = planSeed(existing, seed);
-    if (inserts.length > 0) await api.post(`/items/${name}`, inserts);
-    inserted += inserts.length;
+    const plan = planSeedOnce(seeded, name, existingCount);
+    if (plan === "skip") continue;
+    next.push(name);
+    if (plan === "record") continue;
+    const seed = await loadSeed(name);
+    if (singleton) {
+      await api.patch(`/items/${name}`, seed);
+      inserted++;
+    } else {
+      await api.post(`/items/${name}`, seed);
+      inserted += seed.length;
+    }
   }
-  console.log(`seed: ${inserted} inserted`);
+  if (next.length !== seeded.length) {
+    await api.patch(`/items/${BOOTSTRAP_STATE}`, { seeded: next });
+  }
+  console.log(`seed: ${inserted} inserted; seeded once: ${next.join(", ")}`);
 }
 
 async function main() {
@@ -285,7 +299,14 @@ async function main() {
   const internalSecret = process.env.INTERNAL_API_SECRET;
   await waitForPing();
   const api = new DirectusClient(BASE_URL);
-  await api.login(env("ADMIN_EMAIL"), env("ADMIN_PASSWORD"));
+  const bootstrapToken = process.env.DIRECTUS_BOOTSTRAP_TOKEN;
+  if (bootstrapToken) {
+    await api.useStaticToken(bootstrapToken);
+    console.log("auth: static token");
+  } else {
+    await api.login(env("ADMIN_EMAIL"), env("ADMIN_PASSWORD"));
+    console.log("auth: admin password");
+  }
   await ensureSchema(api);
   const policyId = await ensurePolicy(api);
   const webRoleId = await ensureRole(api, policyId, WEB_READER.name);

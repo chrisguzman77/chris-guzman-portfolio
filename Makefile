@@ -3,7 +3,7 @@ COMPOSE := docker compose -f infra/compose/compose.dev.yaml
 .PHONY: help up down logs ps build migrate cms-bootstrap test lint dev-web dev-api prod-config secrets-edit secrets-check reindex chats chat-eval backup-now
 
 help:          ## Show this help
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
 
 up:            ## Build and start the full local stack
 	$(COMPOSE) up -d --build
@@ -52,19 +52,23 @@ secrets-check: ## Check prod secrets decrypt, have every key, and no change-me v
 	@SOPS_AGE_KEY_FILE=$(SOPS_KEY) scripts/secrets-check.sh
 
 # Production helpers: run on the VM (use sudo if your user is not in the docker group).
-API_CONTAINER = $$(docker ps -q --filter label=com.docker.compose.project=portfolio --filter label=com.docker.compose.service=api | head -n 1)
 DAYS ?= 7
 
+# $(call in_service,<compose service>,<command>): run a command in that service's container, or fail clearly.
+define in_service
+@c=$$(docker ps -q --filter label=com.docker.compose.project=portfolio --filter label=com.docker.compose.service=$(1) | head -n 1); \
+	test -n "$$c" || { echo "$(1) container not running; is the stack up?" >&2; exit 1; }; \
+	docker exec $$c $(2)
+endef
+
 reindex:       ## (VM) Sync the chat index with published content now
-	docker exec $(API_CONTAINER) portfolio-api reindex
+	$(call in_service,api,portfolio-api reindex)
 
 chats:         ## (VM) Print recent chats (DAYS=30 make chats for more)
-	docker exec $(API_CONTAINER) portfolio-api chats --days $(DAYS)
+	$(call in_service,api,portfolio-api chats --days $(DAYS))
 
 chat-eval:     ## (VM) Run the chat answer-quality cases against Groq (~10 min, uses quota)
-	docker exec $(API_CONTAINER) portfolio-api chat-eval
-
-BACKUP_CONTAINER = $$(docker ps -q --filter label=com.docker.compose.project=portfolio --filter label=com.docker.compose.service=backup | head -n 1)
+	$(call in_service,api,portfolio-api chat-eval)
 
 backup-now:    ## (VM) Back up to R2 now (the nightly job: dumps, encrypts, uploads, pings Better Stack)
-	docker exec $(BACKUP_CONTAINER) backup.sh
+	$(call in_service,backup,backup.sh)

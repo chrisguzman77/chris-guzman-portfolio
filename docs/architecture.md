@@ -52,7 +52,7 @@ sequenceDiagram
 - **Invalidation by collection.** The Flow sends only the collection name (no item IDs or slugs), so the revalidate route invalidates the collection tag; list and detail queries both carry it. The route checks `x-revalidate-secret` in constant time and accepts only known collection names.
 - **Validation at the boundary.** Responses are parsed with zod; a malformed list item is skipped and logged, a malformed detail item renders the 404 page.
 - **Assets.** `/cms-assets/<id>` streams files from Directus with the read-only token (`Cache-Control: public, max-age=31536000, immutable`) and only for IDs referenced by published content or the resume; `cms.christopherguzman.me` stays behind Cloudflare Access.
-- **Schema as code.** `infra/directus/bootstrap.mjs` runs inside the Directus container on every deploy: it creates missing collections and fields (never alters or deletes), the read-only `web-reader` policy and token, the revalidation Flow, and seed items for collections that are still empty.
+- **Schema as code.** `infra/directus/bootstrap.mjs` runs inside the Directus container on every deploy: it creates missing collections and fields (never alters or deletes), the read-only `web-reader` policy and token, the revalidation Flow, and seed items for collections that are still empty and were never seeded before (recorded in the hidden `bootstrap_state` singleton).
 
 ## Interactions (Phase 4)
 
@@ -123,5 +123,6 @@ flowchart LR
 
 ## Notes
 
+- Threat model, controls and the exact headers: [security.md](security.md).
 - FastAPI's `/docs` and `/openapi.json` are intentionally public (the API contract is part of the showcase).
 - `next build` fetches Geist and JetBrains Mono from Google Fonts at build time, so image builds need network access.

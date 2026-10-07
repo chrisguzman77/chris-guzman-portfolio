@@ -29,19 +29,16 @@
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 /* Light theme */
 :root {
   color-scheme: light;
   --radius: 0.625rem;
+  /* h-14 on the site header; the blog table of contents sticks below it. */
+  --site-header-h: 3.5rem;
   --background: #fbfbfa;
   --terminal: #000000;
   --card: #ffffff;

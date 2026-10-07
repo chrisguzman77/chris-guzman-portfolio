@@ -15,7 +15,14 @@ from portfolio_api.clients.prometheus import HttpPrometheus, PrometheusError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
 from portfolio_api.services import status
-from portfolio_api.services.status import LAST_BACKUP, LATEST_PROBE, P95, StatusService
+from portfolio_api.services.status import (
+    LAST_BACKUP,
+    LATEST_PROBE,
+    MAX_CONCURRENT_QUERIES,
+    MEMO_SECONDS,
+    P95,
+    StatusService,
+)
 
 NOW = datetime(2026, 10, 3, 16, 0, tzinfo=UTC)  # noon in New York (EDT)
 FIRST = datetime(2026, 9, 20, 4, 0, tzinfo=UTC).timestamp()  # midnight Sep 20 in New York
@@ -236,6 +243,15 @@ async def test_partial_window_under_one_probe_is_null() -> None:
     assert uptime(body, "2026-10-02") == 1.0
 
 
+async def test_ten_seconds_after_new_york_midnight_today_is_null() -> None:
+    now = MIDNIGHT + timedelta(seconds=10)  # 00:00:10 EDT: no whole probe is due yet
+    body = (await service(FakePrometheus(now=now), now=now).get()).model_dump()
+    assert body["daily"][-1]["date"] == "2026-10-03"
+    assert uptime(body, "2026-10-03") is None
+    assert uptime(body, "2026-10-02") == 1.0
+    assert body["uptime_30d"] == 1.0
+
+
 async def test_first_probe_day_partial_window_healthy_is_full() -> None:
     first = (NOW - timedelta(seconds=59)).timestamp()
     body = (await service(FakePrometheus(first=first)).get()).model_dump()
@@ -347,7 +363,7 @@ async def test_result_is_memoized_for_60_seconds() -> None:
     assert len(prometheus.calls) == queries
     clock.t += 2
     await status.get()
-    assert len(prometheus.calls) == 2 * queries
+    assert len(prometheus.calls) == 2 * queries - 1  # the first probe is not looked up again
 
 
 def make_app(settings: Settings) -> FastAPI:
@@ -425,3 +441,50 @@ async def test_slow_db_check_means_database_down(monkeypatch: pytest.MonkeyPatch
     assert time.monotonic() - started < 1
     assert body.status == "degraded"
     assert body.uptime_30d == 1.0  # Prometheus numbers are still reported
+
+
+class ConcurrencyPrometheus(FakePrometheus):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.in_flight = 0
+        self.peak = 0
+
+    async def query(self, promql: str, at: float) -> list[float]:
+        self.in_flight += 1
+        self.peak = max(self.peak, self.in_flight)
+        try:
+            await asyncio.sleep(0.001)
+            return await super().query(promql, at)
+        finally:
+            self.in_flight -= 1
+
+
+async def test_at_most_eight_queries_are_in_flight() -> None:
+    prometheus = ConcurrencyPrometheus()
+    body = await service(prometheus).get()
+    assert body.uptime_30d == 1.0
+    assert len(prometheus.calls) > MAX_CONCURRENT_QUERIES
+    assert prometheus.peak == MAX_CONCURRENT_QUERIES == 8
+
+
+async def test_first_probe_is_looked_up_until_found_then_kept() -> None:
+    prometheus = FakePrometheus(first=None)
+    clock = Clock()
+    status = service(prometheus, monotonic=clock)
+    await status.get()
+    clock.t += MEMO_SECONDS
+    prometheus.first = FIRST
+    assert (await status.get()).uptime_30d == 1.0
+    clock.t += MEMO_SECONDS
+    await status.get()
+    lookups = [q for q, _ in prometheus.calls if "timestamp(" in q]
+    assert len(lookups) == 2  # missing, then found; the third refresh reuses it
+
+
+async def test_status_requests_are_left_out_of_requests_today_and_p95() -> None:
+    prometheus = FakePrometheus()
+    await service(prometheus).get()
+    [requests] = [q for q, _ in prometheus.calls if "increase(" in q]
+    assert 'http_requests_total{job="api",route!="/v1/status"}' in requests
+    assert P95 in [q for q, _ in prometheus.calls]
+    assert '{job="api",route!~"/v1/chat/.*|/v1/status"}' in P95

@@ -75,4 +75,41 @@ describe("getGithubActivity", () => {
     await getGithubActivity();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it("shares one in-flight request between concurrent callers", async () => {
+    let resolve!: (res: Response) => void;
+    fetchMock.mockReturnValue(new Promise<Response>((r) => (resolve = r)));
+    const calls = [getGithubActivity(), getGithubActivity(), getGithubActivity()];
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    resolve(Response.json(body));
+    expect(await Promise.all(calls)).toEqual([body, body, body]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("dedupes concurrent callers at memo expiry", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => Response.json(body));
+    await getGithubActivity();
+    vi.advanceTimersByTime(301_000);
+    await Promise.all([getGithubActivity(), getGithubActivity()]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops days with impossible dates", async () => {
+    const bad = {
+      ...body,
+      weeks: [
+        {
+          days: [
+            { date: "2026-02-30", count: 1, level: 1 },
+            { date: "2026-09-14", count: 3, level: 4 },
+          ],
+        },
+      ],
+    };
+    fetchMock.mockResolvedValue(Response.json(bad));
+    expect((await getGithubActivity())?.weeks[0].days).toEqual([
+      { date: "2026-09-14", count: 3, level: 4 },
+    ]);
+  });
 });

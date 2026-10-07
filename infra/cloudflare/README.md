@@ -35,6 +35,8 @@ Applications `Grafana` (`grafana.christopherguzman.me`) and `Umami` (`analytics.
 
 No cache rule is needed. Cloudflare caches `.js`/`.css` by default, and Next.js serves `/_next/static/*` with `cache-control: public, max-age=31536000, immutable`, so the edge keeps them for a year (verified 2026-10-01: `cf-cache-status: HIT`). Re-check with `curl -sI https://christopherguzman.me/_next/static/<any file> | grep -i cf-cache-status`. Add a rule only if a future asset type isn't cached by default.
 
+CMS images are the exception: `/cms-assets/<id>` has no file extension, so Cloudflare treats it as dynamic. Add a Cache Rule (Caching → Cache Rules): URI Path starts with `/cms-assets/` → Eligible for cache, Edge TTL "Use cache-control header if present, bypass cache if not" (the origin sends `public, max-age=31536000, immutable`). Verify with `curl -sI https://christopherguzman.me/cms-assets/<id> | grep -i cf-cache-status` run twice: the second answer must be `HIT`.
+
 ## External uptime monitor
 
 Better Stack (free tier) checks `https://christopherguzman.me/api/healthz` every 3 minutes and emails the owner. It runs outside the home network, so it reports VM, home-internet, and tunnel outages; the fallback Worker returns 503, which the monitor counts as down.

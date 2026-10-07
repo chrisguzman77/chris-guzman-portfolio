@@ -48,7 +48,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/web
@@ -70,6 +70,22 @@ jobs:
       - run: pnpm build
         env:
           NEXT_TELEMETRY_DISABLED: 1
+      - name: Playwright browser cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          CI: true
+          NEXT_TELEMETRY_DISABLED: 1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-traces
+          path: apps/web/test-results
+          retention-days: 7
       - name: Build image (catches Dockerfile and base-image breakage)
         working-directory: .
         run: docker build --build-arg NEXT_PUBLIC_APP_VERSION=ci -t ci-web apps/web
@@ -84,7 +100,7 @@ jobs:
         working-directory: apps/api
     services:
       postgres:
-        image: pgvector/pgvector:0.8.6-pg17
+        image: pgvector/pgvector:0.8.7-pg17
         env:
           POSTGRES_USER: portfolio
           POSTGRES_PASSWORD: portfolio
@@ -131,6 +147,8 @@ jobs:
         run: |
           docker compose -f infra/compose/compose.dev.yaml config -q
           docker compose -f infra/compose/compose.yaml --env-file infra/compose/prod.env.example config -q
+      - name: Shared image tags agree (prod compose, dev compose, CI)
+        run: scripts/check-image-drift.sh
       - name: Prometheus and blackbox configs
         run: |
           docker run --rm --entrypoint promtool \
@@ -145,9 +163,10 @@ jobs:
             yq -e '.apiVersion == 1' "$f" >/dev/null || { echo "bad provisioning file: $f"; exit 1; }
           done
           rules="$(yq '[.groups[].rules[]] | length' infra/observability/grafana/provisioning/alerting/rules.yml)"
-          [[ "${rules}" == 7 ]] || { echo "expected 7 alert rules, found ${rules}"; exit 1; }
-          if grep -n '\$' infra/observability/grafana/provisioning/alerting/rules.yml; then
-            echo "rules.yml must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
+          [[ "${rules}" == 8 ]] || { echo "expected 8 alert rules, found ${rules}"; exit 1; }
+          # Grafana expands $VAR in every provisioning file; the only intended use is ${CONTACT_TO}.
+          if grep -n '\$' infra/observability/grafana/provisioning/*/*.yml | grep -v '\${CONTACT_TO}'; then
+            echo "provisioning files must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
           fi
           for f in infra/observability/grafana/dashboards/*.json; do
             jq -e '(.uid | type == "string") and (.panels | length > 0)' "$f" >/dev/null || { echo "bad dashboard: $f"; exit 1; }
@@ -163,6 +182,8 @@ jobs:
         run: docker build -t ci-runner infra/runner
       - name: Backup round trip (backup.sh, restore.sh, verify.sql)
         run: infra/backup/test-roundtrip.sh
+      - name: Runner GitHub App JWT (github-app.sh)
+        run: infra/runner/test-app-jwt.sh
       - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           scandir: .

@@ -1,0 +1,71 @@
+[
+  {
+    "id": 1,
+    "slug": "offres-offpay",
+    "title": "OFFRes / OFFPay",
+    "summary": "Offline payment device on a Raspberry Pi 5 with HMAC-signed QR transactions and a local LLM for disaster information.",
+    "body": "## What it is\n\nOFFRes / OFFPay won Capital One's Best Financial Hack at Vanderbilt's VandyHacks. It is an offline payment device built on a Raspberry Pi 5, meant for places where a disaster has taken the network down.\n\n## How payments work\n\nVendors and buyers pay with QR codes. Every transaction is signed with HMAC-SHA256, so a vendor can verify a payment on the device without reaching a server.\n\n## The assistant\n\nThe same device runs a local LLM (TinyLlama 1.1B) with BM25-based retrieval (RAG) over a disaster knowledge base, so people can get disaster information with no internet connection.",
+    "type": "competition",
+    "award": "Capital One Best Financial Hack",
+    "tech": [
+      "python",
+      "fastapi",
+      "react",
+      "sqlite",
+      "sqlalchemy",
+      "typescript",
+      "vite",
+      "leaflet.js"
+    ],
+    "repo_url": null,
+    "live_url": null,
+    "cover": null,
+    "date": "2026-03-01",
+    "featured": true
+  },
+  {
+    "id": 2,
+    "slug": "cyber-threat-lakehouse",
+    "title": "Cyber Threat Lakehouse",
+    "summary": "Spark lakehouse pipeline over 2M+ network flow records with Bronze/Silver/Gold layers and 40+ engineered ML features.",
+    "body": "## What it is\n\nA lakehouse pipeline that processes 2M+ network flow records from the UNSW-NB15 dataset.\n\n## The pipeline\n\nApache Spark ETL moves the data through Bronze, Silver, and Gold layers on Delta Lake: raw ingest, cleaned and typed records, then analysis-ready tables.\n\n## Detection\n\nFrom the Gold layer I engineered 40+ ML features and trained classification models to detect malicious network activity.",
+    "type": "personal",
+    "award": null,
+    "tech": ["python", "apache spark", "delta lake", "databricks", "sql"],
+    "repo_url": null,
+    "live_url": null,
+    "cover": null,
+    "date": "2026-02-01",
+    "featured": true
+  },
+  {
+    "id": 3,
+    "slug": "acm-au-platform",
+    "title": "ACM@AU platform",
+    "summary": "The ACM chapter's production site with end-to-end auth (rotating refresh tokens, TOTP 2FA) and a block-based CMS, self-hosted.",
+    "body": "## What it is\n\nThe production website for Augusta University's ACM chapter: a SvelteKit/TypeScript frontend and a FastAPI/PostgreSQL backend, running on a self-managed Oracle Cloud ARM VM behind a Cloudflare Tunnel. It is Dockerized, with Alembic migrations and nightly backups.\n\n## Authentication\n\nI designed auth end to end: JWT access tokens and rotating refresh tokens with token-family theft detection, Argon2 password hashing, TOTP 2FA, email verification, and a step-up sudo mode for admins.\n\n## CMS\n\nOfficers edit their pages and events in a block-based CMS. Owner and editor permissions are enforced server-side on every request.",
+    "type": "personal",
+    "award": null,
+    "tech": ["sveltekit", "typescript", "fastapi", "postgresql", "docker"],
+    "repo_url": null,
+    "live_url": null,
+    "cover": null,
+    "date": "2026-01-01",
+    "featured": true
+  },
+  {
+    "id": 4,
+    "slug": "this-portfolio",
+    "title": "This portfolio",
+    "summary": "Next.js, FastAPI, and Directus, self-hosted on Proxmox behind a Cloudflare Tunnel with a CI/CD pipeline that scans and deploys every merge.",
+    "body": "## The stack\n\nA Next.js frontend, a FastAPI service, and Directus as the CMS, all backed by PostgreSQL. Content is edited in Directus and the site refreshes within seconds of publishing.\n\n## Hosting\n\nEverything runs with Docker Compose on a VM on my Proxmox home server. A Cloudflare Tunnel is the only way in, so the VM opens no inbound ports.\n\n## Deploys\n\nEvery merge to main builds the images in GitHub Actions and scans them with Trivy; a failed scan stops the release. An ephemeral self-hosted runner on the VM then pulls the new images and deploys them. Production secrets are encrypted in the repo with SOPS.",
+    "type": "personal",
+    "award": null,
+    "tech": ["next.js", "fastapi", "directus", "postgresql", "docker", "github actions"],
+    "repo_url": "https://github.com/chrisguzman77/chris-guzman-portfolio",
+    "live_url": "https://christopherguzman.me",
+    "cover": null,
+    "date": "2026-09-01",
+    "featured": false
+  }
+]

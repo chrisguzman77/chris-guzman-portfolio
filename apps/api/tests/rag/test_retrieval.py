@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.rag.retrieval import PER_DOCUMENT, TOP_K, Retriever, fuse
+from portfolio_api.repositories import rag as repo
 from portfolio_api.repositories.rag import ChunkHit
 from portfolio_api.services.indexer import IndexService
 from tests.fakes import FakeEmbedder
@@ -40,3 +41,12 @@ async def test_search_returns_relevant_chunks_and_best_similarity(db: Sessions) 
 async def test_search_on_empty_index(db: Sessions) -> None:
     result = await Retriever(db, FakeEmbedder()).search("anything")
     assert result.hits == [] and result.best_similarity == 0.0
+
+
+async def test_keyword_search_matches_any_term(db: Sessions) -> None:
+    await IndexService(db, FakeSource(content_with_projects()), FakeEmbedder()).sync()
+    async with db() as session:
+        hits = await repo.keyword_search(session, "rotating zeppelin", 20)
+        stopwords_only = await repo.keyword_search(session, "the and of", 20)
+    assert [h.url for h in hits] == ["/projects/acm"]
+    assert stopwords_only == []

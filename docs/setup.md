@@ -6,7 +6,7 @@ Ordered checklist of every external account and machine this project needs. Each
 1. Install: Node 24, pnpm 11, uv, Docker Desktop, age, sops (`brew install sops age`), pre-commit (`uv tool install pre-commit`).
 2. `cp infra/compose/env.example infra/compose/.env`
 3. `make help` lists every target. `make up` then open http://localhost:3000, http://localhost:8000/docs, http://localhost:8055 (admin@example.com / admin).
-3a. `make cms-bootstrap` creates the CMS collections, the read-only web token, the revalidation Flow, and the seed content in the dev Directus (safe to re-run; it seeds only empty collections and never overwrites edits). The dev `web` container reads Directus with the dev token from `compose.dev.yaml`; open http://localhost:3000/experience to see seeded content.
+3a. `make cms-bootstrap` creates the CMS collections, the read-only web token, the revalidation Flow, and the seed content in the dev Directus (safe to re-run; it seeds each collection at most once, only while it is empty, and never overwrites edits). The dev `web` container reads Directus with the dev token from `compose.dev.yaml`; open http://localhost:3000/experience to see seeded content.
 4. `cd apps/web && pnpm install` (the prettier hook needs it) and `cd apps/api && uv sync`, then `pre-commit install`
 5. Secrets: generate an age key (`age-keygen -o ~/.config/sops/age/keys.txt`) and have its public key added to `.sops.yaml`. On macOS, sops looks for the key under `~/Library/Application Support/sops/age/keys.txt`, so add `export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"` to your shell profile (the Linux VM sets the same variable to `/etc/portfolio/age.key`). Test with `sops decrypt infra/compose/prod.enc.env | head -2`.
 
@@ -30,7 +30,7 @@ Local development needs none of this: `compose.dev.yaml` uses Turnstile's publis
 2. **Turnstile:** Cloudflare dashboard → Turnstile → add widget, hostnames `christopherguzman.me` and `localhost`, mode Managed. This gives a site key and a secret key.
 3. **GitHub:** Settings → Public profile → enable "Include private contributions on my profile". Settings → Developer settings → fine-grained token, public repositories read-only, no extra permissions, 1-year expiry.
 4. **Secrets:** `make secrets-edit` to add `RESEND_API_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `GITHUB_ACTIVITY_TOKEN`, `CONTACT_TO`; add the same keys to `infra/compose/prod.env.example`; `make secrets-check`; commit and merge.
-5. **Optional:** a Cloudflare rate-limiting rule on `api.christopherguzman.me/v1/contact` as a second layer (the free plan allows one rule).
+5. **Optional:** a second rate-limit layer at Cloudflare; see [Cloudflare WAF rules](#cloudflare-waf-rules-phase-7).
 
 ## Groq and chat secrets (Phase 5)
 
@@ -63,3 +63,63 @@ Steps 1–7 (including the secrets push) happen before the Phase 6 code PR merge
    - Grafana → Alerting → Contact points → email → Test: the email arrives.
 9. **Umami.** Open https://analytics.christopherguzman.me and log in as `admin` / `umami`, then change the password at once (Settings → Profile). Settings → Websites → Add website: name `portfolio`, domain `christopherguzman.me`. Copy its Website ID, add it as `UMAMI_WEBSITE_ID` with `make secrets-edit`, commit and push. The tracker appears after that deploy.
 10. **Swap.** On the VM: `cd /opt/portfolio && sudo ./infra/vm/bootstrap.sh`, then `swapon --show` lists `/swapfile` (2G).
+
+## Directus bootstrap token (Phase 7)
+
+Optional. Until it is set, every deploy's CMS bootstrap logs in with `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD`, as before.
+
+1. **Generate.** Directus admin UI → User Directory → your admin user → Token → Generate. Copy the value before saving the user (Directus shows it only once), then Save.
+2. **Store.** `make secrets-edit`, add `DIRECTUS_BOOTSTRAP_TOKEN=<value>`, save; `make secrets-check`; commit and merge.
+3. **Check.** The deploy log's `==> CMS bootstrap` step prints `auth: static token` (it printed `auth: admin password` before).
+4. **Afterwards.** `DIRECTUS_ADMIN_EMAIL` / `DIRECTUS_ADMIN_PASSWORD` stay in `prod.enc.env` as Directus's first-admin settings (read only at first install), but deploys no longer use them, so changing the admin password or turning on 2FA no longer breaks deploys. To rotate the token, generate a new one in the same place and repeat step 2.
+
+## Runner GitHub App (Phase 7)
+
+Optional. Until both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, the runner registers with the `GITHUB_RUNNER_TOKEN` PAT, as before. One of the two (the app pair or the PAT) is required; the runner refuses to start with neither. The app replaces a PAT that expires yearly with a key that does not, and every token it mints lasts at most an hour.
+
+1. **Create the app.** GitHub → Settings → Developer settings → GitHub Apps → New GitHub App. Name it (for example `portfolio-runner`), set the homepage URL to the repo, and untick Webhook → Active. Repository permissions: Administration read and write (the runner registration token requires it) and Metadata read-only. "Where can this GitHub App be installed?": Only on this account. Create it and note the App ID at the top of its page.
+2. **Install it.** The app's page → Install App → your account → Only select repositories → `chris-guzman-portfolio`.
+3. **Generate a private key.** The app's page → Private keys → Generate a private key. The browser downloads a `.pem` file.
+4. **Store the secrets.** The entrypoint expects the PEM on one line with each newline written as the two characters `\n` (sops dotenv values are single-line; a real multi-line PEM also works if it ever arrives that way). Copy the converted key to the clipboard without printing it:
+   ```bash
+   awk 'NR > 1 { printf "\\n" } { printf "%s", $0 }' ~/Downloads/<app>.private-key.pem | pbcopy
+   ```
+   `make secrets-edit`, add `GITHUB_APP_ID=<app id>` and `GITHUB_APP_PRIVATE_KEY=<paste>` (unquoted, one line), save; `make secrets-check`; commit and merge. Then delete the downloaded `.pem` (GitHub can generate a new key at any time).
+5. **Recreate the runner, then check.** A normal deploy never restarts the runner, so the merge alone leaves it on its old image and old env (still the PAT). Once the release from step 4 is green and no deploy is running, on the VM run the "Update the runner" commands from `docs/runbook.md`:
+   ```bash
+   sudo /opt/portfolio/scripts/sync-repo.sh
+   cd /opt/portfolio
+   DEPLOYED=$(docker inspect -f '{{.Config.Image}}' portfolio-api-1 | cut -d: -f2)
+   sudo IMAGE_TAG="$DEPLOYED" SERVICES=runner scripts/deploy.sh
+   ```
+   Then `docker logs portfolio-runner-1 2>&1 | grep auth:` must show `auth: github app` (it showed `auth: pat` before), and the runner is listed as Idle under the repo's Settings → Actions → Runners. **Do not go on to step 6 until both checks pass**: revoking the PAT while the runner still uses it stops every deploy, including the one that would fix it. The runner-offline alert cannot detect a crash-looping runner (it restarts and stays visible to cAdvisor), so this check is the real proof.
+6. **Retire the PAT.** Settings → Developer settings → Fine-grained tokens → `portfolio-runner` → Revoke. Then `make secrets-edit` to delete `GITHUB_RUNNER_TOKEN`, and in the same commit move `GITHUB_RUNNER_TOKEN` in `infra/compose/prod.env.example` from the "Stored in prod.enc.env" block to the "Optional" block so `make secrets-check` stops requiring it; commit and merge.
+
+To rotate the key, generate a new one on the app's page, repeat step 4, recreate the runner and check its log as in step 5, and only then delete the old key there (the running container keeps the old key until it is recreated).
+
+## Cloudflare WAF rules (Phase 7)
+
+Two rules on the `christopherguzman.me` zone. Both are optional second layers: the API already rate-limits in process ([ADR 0007](adr/0007-in-process-rate-limits-and-jobs.md)).
+
+**Rate limit for the API.** The free plan allows one rate-limiting rule, so one expression covers both paths.
+
+1. Cloudflare dashboard → the zone → Security → Security rules → Create rule → Rate limiting rules.
+2. Name: `api contact and chat`.
+3. Edit the expression and paste:
+   ```
+   (http.host eq "api.christopherguzman.me" and (starts_with(http.request.uri.path, "/v1/contact") or starts_with(http.request.uri.path, "/v1/chat/")))
+   ```
+4. Characteristics: IP. Requests: 10, period: 10 seconds.
+5. Action: Block, duration: 10 seconds. Deploy.
+6. Check: `for i in $(seq 1 15); do curl -s -o /dev/null -w '%{http_code}\n' https://api.christopherguzman.me/v1/contact; done` shows `429` or `403` after the tenth request, then recovers 10 seconds later.
+
+**Block `/api/revalidate` from the internet.** The route only serves the Directus Flow, which calls `http://web:3000/api/revalidate` over the Docker network (`REVALIDATE_URL` in `infra/directus/bootstrap.mjs`), never through Cloudflare. Blocking the public path stops anonymous probes from filling the web logs, and nothing legitimate is affected.
+
+1. Security → Security rules → Create rule → Custom rules.
+2. Name: `block revalidate`.
+3. Expression:
+   ```
+   http.host eq "christopherguzman.me" and http.request.uri.path eq "/api/revalidate"
+   ```
+4. Action: Block. Deploy.
+5. Check: `curl -s -o /dev/null -w '%{http_code}\n' -X POST https://christopherguzman.me/api/revalidate` prints `403`. Then save a change in Directus and confirm the site updates (the Flow still works).

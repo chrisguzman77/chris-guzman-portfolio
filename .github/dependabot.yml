@@ -5,6 +5,10 @@ updates:
     schedule: { interval: weekly }
     groups:
       web-minor: { update-types: [minor, patch] }
+    ignore:
+      # runtime is Node 24; bump with the base image
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: uv
     directory: /apps/api
     schedule: { interval: weekly }
@@ -36,6 +40,10 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+  # Dependabot reads every compose*.y(a)ml in the directory (compose.yaml and
+  # compose.dev.yaml), keeping tag and digest. It cannot see image tags in
+  # .github/workflows or the supercronic ARG in infra/backup/Dockerfile; the
+  # infra CI job runs scripts/check-image-drift.sh to catch those drifting.
   - package-ecosystem: docker-compose
     directory: /infra/compose
     schedule: { interval: weekly }

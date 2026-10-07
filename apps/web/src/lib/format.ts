@@ -55,3 +55,12 @@ export function sectionNumbers<T extends string>(visible: T[]): Record<T, string
 export function lastPathSegment(url: string): string {
   return new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? url;
 }
+
+// Like lastPathSegment, but a malformed URL (e.g. bad CMS data) yields null instead of throwing.
+export function lastPathSegmentOrNull(url: string): string | null {
+  try {
+    return lastPathSegment(url);
+  } catch {
+    return null;
+  }
+}

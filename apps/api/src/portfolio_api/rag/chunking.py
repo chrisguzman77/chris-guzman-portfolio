@@ -27,6 +27,8 @@ def _blocks(body: str) -> list[str]:
 
 
 def _windows(words: list[str], size: int) -> list[str]:
+    if size <= OVERLAP_WORDS:
+        raise ValueError(f"window size {size} must be larger than the overlap ({OVERLAP_WORDS})")
     step = size - OVERLAP_WORDS
     out: list[str] = []
     for start in range(0, len(words), step):
