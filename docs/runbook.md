@@ -60,6 +60,16 @@ sudo IMAGE_TAG="$DEPLOYED" SERVICES=runner scripts/deploy.sh
 
 Run it while no deploy is in progress: recreating the runner mid-job kills that job. IMAGE_TAG is the currently deployed version, so the migration step it runs is a no-op.
 
+## Apply bootstrap changes (VM)
+
+Bootstrap changes, such as the Docker apt origin for unattended-upgrades (backlog I9), only land when bootstrap runs; a deploy does not run it. After merging one, on the VM (idempotent):
+
+```bash
+cd /opt/portfolio && sudo ./infra/vm/bootstrap.sh
+```
+
+Once the origin is in place, unattended docker-ce upgrades restart dockerd and therefore every container. Expect a brief outage, with the fallback Worker serving the "back shortly" page.
+
 ## Status and logs
 
 ```bash
