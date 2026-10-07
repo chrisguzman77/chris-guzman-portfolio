@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { siteConfig } from "@/lib/site";
 
@@ -9,7 +9,13 @@ import { MobileNav } from "./mobile-nav";
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 
+// jsdom cannot navigate; cancelling the default after React's handlers ran keeps it quiet.
+const cancelNavigation = (event: Event) => event.preventDefault();
+
+beforeEach(() => document.addEventListener("click", cancelNavigation));
+
 afterEach(() => {
+  document.removeEventListener("click", cancelNavigation);
   cleanup();
   nav.pathname = "/";
 });

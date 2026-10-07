@@ -75,7 +75,11 @@ async function ask(text: string) {
   });
 }
 
+// jsdom cannot navigate; cancelling the default after React's handlers ran keeps it quiet.
+const cancelNavigation = (event: Event) => event.preventDefault();
+
 beforeEach(() => {
+  document.addEventListener("click", cancelNavigation);
   stubMotion(true);
   vi.stubGlobal("fetch", fetchMock);
   window.turnstile = turnstile;
@@ -85,6 +89,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.removeEventListener("click", cancelNavigation);
   cleanup();
   vi.unstubAllGlobals();
   vi.useRealTimers();
