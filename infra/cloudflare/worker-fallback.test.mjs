@@ -37,7 +37,10 @@ for (const status of [502, 521, 530]) {
     const res = await worker.fetch(new Request("https://christopherguzman.me/"));
     assert.equal(res.status, 503);
     assert.equal(res.headers.get("retry-after"), "300");
-    assert.match(await res.text(), /back shortly/i);
+    const html = await res.text();
+    assert.match(html, /back shortly/i);
+    // The meta refresh must match Retry-After so clients retry at the same pace.
+    assert.match(html, /http-equiv="refresh" content="300"/);
   });
 }
 

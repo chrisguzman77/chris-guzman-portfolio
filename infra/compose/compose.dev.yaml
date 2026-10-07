@@ -41,6 +41,7 @@ services:
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:-dev-revalidate-secret}
       DIRECTUS_API_TOKEN: ${DIRECTUS_API_TOKEN:-dev-api-token}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret}
+      DIRECTUS_BOOTSTRAP_TOKEN: ${DIRECTUS_BOOTSTRAP_TOKEN:-}
     volumes:
       - directus-uploads:/directus/uploads
       - ../directus:/directus/bootstrap:ro

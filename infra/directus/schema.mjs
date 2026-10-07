@@ -17,6 +17,9 @@ export const CONTENT_COLLECTIONS = [
 
 export const SINGLETONS = ["profile", "resume", "chat_settings"];
 
+/** Bootstrap bookkeeping (which collections were seeded); hidden, no reader access. */
+export const BOOTSTRAP_STATE = "bootstrap_state";
+
 const half = { width: "half" };
 
 const status = {
@@ -261,5 +264,10 @@ export const collections = [
     collection: "chat_settings",
     meta: { singleton: true, icon: "forum" },
     fields: [boolean("enabled"), tags("suggested_questions")],
+  },
+  {
+    collection: BOOTSTRAP_STATE,
+    meta: { singleton: true, hidden: true, icon: "settings" },
+    fields: [tags("seeded")],
   },
 ];

@@ -131,6 +131,8 @@ jobs:
         run: |
           docker compose -f infra/compose/compose.dev.yaml config -q
           docker compose -f infra/compose/compose.yaml --env-file infra/compose/prod.env.example config -q
+      - name: Shared image tags agree (prod compose, dev compose, CI)
+        run: scripts/check-image-drift.sh
       - name: Prometheus and blackbox configs
         run: |
           docker run --rm --entrypoint promtool \
@@ -145,9 +147,10 @@ jobs:
             yq -e '.apiVersion == 1' "$f" >/dev/null || { echo "bad provisioning file: $f"; exit 1; }
           done
           rules="$(yq '[.groups[].rules[]] | length' infra/observability/grafana/provisioning/alerting/rules.yml)"
-          [[ "${rules}" == 7 ]] || { echo "expected 7 alert rules, found ${rules}"; exit 1; }
-          if grep -n '\$' infra/observability/grafana/provisioning/alerting/rules.yml; then
-            echo "rules.yml must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
+          [[ "${rules}" == 8 ]] || { echo "expected 8 alert rules, found ${rules}"; exit 1; }
+          # Grafana expands $VAR in every provisioning file; the only intended use is ${CONTACT_TO}.
+          if grep -n '\$' infra/observability/grafana/provisioning/*/*.yml | grep -v '\${CONTACT_TO}'; then
+            echo "provisioning files must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
           fi
           for f in infra/observability/grafana/dashboards/*.json; do
             jq -e '(.uid | type == "string") and (.panels | length > 0)' "$f" >/dev/null || { echo "bad dashboard: $f"; exit 1; }
@@ -163,6 +166,8 @@ jobs:
         run: docker build -t ci-runner infra/runner
       - name: Backup round trip (backup.sh, restore.sh, verify.sql)
         run: infra/backup/test-roundtrip.sh
+      - name: Runner GitHub App JWT (github-app.sh)
+        run: infra/runner/test-app-jwt.sh
       - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           scandir: .

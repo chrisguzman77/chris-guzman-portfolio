@@ -1,4 +1,4 @@
-# The seven Phase 6 alerts. Each rule is an instant PromQL query (A) and a
+# The eight Phase 6/7 alerts. Each rule is an instant PromQL query (A) and a
 # threshold (C) on it. Grafana expands environment variables in provisioning
 # files, so no expression or template here may contain a dollar sign (CI checks).
 #
@@ -137,6 +137,9 @@ groups:
               instant: true
               # 1 per broken target or container, 0 per healthy one. max_over_time
               # keeps a container's last-seen time after cAdvisor stops reporting it.
+              # The 24 h lookback is deliberate: a removed container's series goes
+              # stale in minutes, and the lookback is what keeps "Down" firing for
+              # a day so a crashed-and-removed container cannot silently resolve.
               expr: (up == bool 0) or (time() - max by (name) (max_over_time(container_last_seen{name=~"portfolio-(postgres|directus|api|web|cloudflared|umami)-1"}[24h])) > bool 60)
           - refId: C
             datasourceUid: __expr__
@@ -207,5 +210,35 @@ groups:
         for: 0s
         annotations:
           summary: The chat has used more than 80% of today's Groq token budget.
+        labels:
+          severity: warning
+
+      - uid: runner-offline
+        title: Runner offline
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Seconds since cAdvisor last saw the runner container; absent for the
+              # whole 24 h window counts as offline (vector(1e12)), like Backup stale.
+              expr: (time() - max(max_over_time(container_last_seen{name=~"portfolio-runner-1"}[24h]))) or vector(1e12)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                # 15 minutes
+                - evaluator: { type: gt, params: [900] }
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: The deploy runner container has not been seen for 15 minutes; deploys will queue. See the runbook.
         labels:
           severity: warning

@@ -72,7 +72,7 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Network (all containers, cAdvisor)",
+      "title": "Network (all containers)",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [

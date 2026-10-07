@@ -12,7 +12,7 @@ const PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="60">
+<meta http-equiv="refresh" content="300">
 <title>Back shortly · Christopher Guzman</title>
 <style>
   :root { color-scheme: light dark; --bg: #f7f8fa; --ink: #1a2230; --muted: #5b6575; --accent: #2f4fa8; }
