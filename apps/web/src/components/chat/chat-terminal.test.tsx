@@ -305,6 +305,98 @@ describe("ChatTerminal", () => {
     expect(onClose).toHaveBeenCalledTimes(closes);
   });
 
+  describe("on a phone", () => {
+    const region = () => screen.getByRole("region", { name: "Ask about Chris" });
+    const backdrop = () => document.querySelector<HTMLElement>("[data-chat-backdrop]")!;
+
+    it("floats as a card over a dimmed backdrop and becomes the bottom panel at md", async () => {
+      await renderTerminal();
+      const card = region().classList;
+      for (const name of ["inset-x-3", "h-[70dvh]", "rounded-xl", "border", "shadow-2xl"]) {
+        expect(card.contains(name)).toBe(true);
+      }
+      for (const name of [
+        "md:inset-x-0",
+        "md:bottom-0",
+        "md:h-(--panel-h)",
+        "md:rounded-none",
+        "md:border-x-0",
+        "md:border-b-0",
+      ]) {
+        expect(card.contains(name)).toBe(true);
+      }
+      expect(backdrop().getAttribute("aria-hidden")).toBe("true");
+      expect(backdrop().classList.contains("md:hidden")).toBe(true);
+    });
+
+    it("closes when the backdrop is tapped", async () => {
+      const { onClose } = await renderTerminal();
+      fireEvent.click(backdrop());
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("hides the backdrop with the card", async () => {
+      await renderTerminal({ hidden: true });
+      expect(backdrop().hidden).toBe(true);
+    });
+
+    it("uses a 16px prompt so iOS does not zoom, and the small size from md", async () => {
+      await renderTerminal();
+      const input = screen.getByLabelText("Ask a question about Chris").classList;
+      expect(input.contains("text-base")).toBe(true);
+      expect(input.contains("md:text-xs")).toBe(true);
+    });
+
+    it("locks page scroll while open, and only below md", async () => {
+      await renderTerminal();
+      expect(document.documentElement.style.overflow).toBe("hidden");
+      cleanup();
+      expect(document.documentElement.style.overflow).toBe("");
+      stubMotion(true, true);
+      await renderTerminal();
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("stays inside the visual viewport when the keyboard opens", async () => {
+      const listeners = new Map<string, () => void>();
+      const viewport = {
+        height: 844,
+        offsetTop: 0,
+        addEventListener: vi.fn((type: string, fn: () => void) => listeners.set(type, fn)),
+        removeEventListener: vi.fn(),
+      };
+      vi.stubGlobal("visualViewport", viewport);
+      Object.defineProperty(document.documentElement, "clientHeight", {
+        value: 844,
+        configurable: true,
+      });
+      await renderTerminal();
+      expect(region().style.maxHeight).toBe("820px");
+      expect(region().style.bottom).toBe("");
+      viewport.height = 500; // keyboard up
+      await act(async () => listeners.get("resize")!());
+      expect(region().style.maxHeight).toBe("476px");
+      expect(region().style.bottom).toBe("356px");
+      cleanup();
+      expect(viewport.removeEventListener).toHaveBeenCalledWith("resize", expect.any(Function));
+      expect(viewport.removeEventListener).toHaveBeenCalledWith("scroll", expect.any(Function));
+      delete (document.documentElement as { clientHeight?: number }).clientHeight;
+    });
+
+    it("leaves the desktop panel's size alone", async () => {
+      vi.stubGlobal("visualViewport", {
+        height: 500,
+        offsetTop: 0,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+      stubMotion(true, true);
+      await renderTerminal();
+      expect(region().style.maxHeight).toBe("");
+      expect(region().style.bottom).toBe("");
+    });
+  });
+
   it("clear while a question is pending drops the stale answer", async () => {
     let resolveAnswer: (r: Response) => void = () => {};
     fetchMock.mockImplementation((url: string) =>

@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatLauncher } from "./chat-launcher";
 
+const route = vi.hoisted(() => ({ pathname: "/" }));
+vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
+
 vi.mock("./chat-terminal", () => ({
   ChatTerminal: ({ hidden, onClose }: { hidden: boolean; onClose: () => void }) => (
     <section role="region" aria-label="Ask about Chris" hidden={hidden}>
@@ -34,6 +37,7 @@ beforeEach(() => stubDevice("MacIntel"));
 
 afterEach(() => {
   cleanup();
+  route.pathname = "/";
   vi.unstubAllGlobals();
   delete (window.navigator as { platform?: string }).platform; // back to jsdom's own getter
 });
@@ -149,6 +153,76 @@ describe("ChatLauncher", () => {
     });
     expect(pill()?.style.transform).toBe("translateY(-70px)");
     footer.remove();
+  });
+
+  describe("re-measures the footer when layout changes without a scroll", () => {
+    let top: number;
+    let footer: HTMLElement;
+    const observers: { callback: () => void; target?: Element; disconnected: boolean }[] = [];
+
+    beforeEach(() => {
+      footer = document.createElement("footer");
+      document.body.appendChild(footer);
+      top = window.innerHeight + 100; // below the fold
+      footer.getBoundingClientRect = () => ({ top }) as DOMRect;
+      vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+        cb(0);
+        return 1;
+      });
+      observers.length = 0;
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          entry: (typeof observers)[number];
+          constructor(callback: () => void) {
+            this.entry = { callback, disconnected: false };
+            observers.push(this.entry);
+          }
+          observe(target: Element) {
+            this.entry.target = target;
+          }
+          disconnect() {
+            this.entry.disconnected = true;
+          }
+        },
+      );
+    });
+
+    afterEach(() => footer.remove());
+
+    it("when the body resizes", async () => {
+      await renderLauncher();
+      expect(pill()?.style.transform).toBe("");
+      const live = observers.find((o) => !o.disconnected);
+      expect(live?.target).toBe(document.body);
+      top = window.innerHeight - 50; // content shrank: the footer is now in view
+      await act(async () => {
+        live!.callback();
+      });
+      expect(pill()?.style.transform).toBe("translateY(-50px)");
+    });
+
+    it("when the route changes", async () => {
+      let rerender: ReturnType<typeof render>["rerender"] = () => {};
+      await act(async () => {
+        ({ rerender } = render(
+          <ChatLauncher apiUrl="https://api.example.com" siteKey="k" suggestions={[]} />,
+        ));
+      });
+      expect(pill()?.style.transform).toBe("");
+      top = window.innerHeight - 40; // the new, shorter page's footer is in view
+      route.pathname = "/education";
+      await act(async () => {
+        rerender(<ChatLauncher apiUrl="https://api.example.com" siteKey="k" suggestions={[]} />);
+      });
+      expect(pill()?.style.transform).toBe("translateY(-40px)");
+    });
+
+    it("disconnects its observer on unmount", async () => {
+      await renderLauncher();
+      cleanup();
+      expect(observers.every((o) => o.disconnected)).toBe(true);
+    });
   });
 
   it("carries the periodic glow effect", async () => {

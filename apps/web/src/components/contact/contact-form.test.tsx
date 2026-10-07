@@ -71,6 +71,17 @@ describe("ContactForm", () => {
     );
   });
 
+  it("renders fields at 16px below md so iOS does not zoom on focus", async () => {
+    await act(async () => {
+      renderForm();
+    });
+    for (const label of ["Name", "Email", "Message"]) {
+      const field = screen.getByLabelText(label).classList;
+      expect(field.contains("text-base")).toBe(true);
+      expect(field.contains("md:text-sm")).toBe(true);
+    }
+  });
+
   it("shows field errors, marks fields invalid and focuses the first one without calling the API", async () => {
     await act(async () => {
       renderForm();
