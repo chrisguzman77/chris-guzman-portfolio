@@ -100,7 +100,7 @@ jobs:
         working-directory: apps/api
     services:
       postgres:
-        image: pgvector/pgvector:0.8.6-pg17
+        image: pgvector/pgvector:0.8.7-pg17
         env:
           POSTGRES_USER: portfolio
           POSTGRES_PASSWORD: portfolio
