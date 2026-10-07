@@ -135,6 +135,17 @@ describe("ChatTerminal", () => {
     expect(live?.textContent).toBe(ANSWER.answer);
   });
 
+  it("re-announces an identical consecutive answer", async () => {
+    await renderTerminal();
+    await ask("FastAPI?");
+    const live = document.querySelector('[aria-live="polite"]');
+    const first = live?.textContent;
+    await ask("FastAPI?");
+    const second = live?.textContent;
+    expect(second).not.toBe(first); // an unchanged live region is not announced again
+    expect(second?.replaceAll("\u200b", "")).toBe(ANSWER.answer);
+  });
+
   it("submits a suggested question when clicked", async () => {
     await renderTerminal();
     await act(async () => {
@@ -149,6 +160,21 @@ describe("ChatTerminal", () => {
     await ask("x".repeat(501));
     expect(screen.getByText(CHAT_MESSAGES.tooLong)).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1); // only the session
+  });
+
+  it("keeps the typed text when the question is too long to send", async () => {
+    await renderTerminal();
+    await ask("x".repeat(501));
+    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("x".repeat(501));
+  });
+
+  it("counts code points, not UTF-16 units, against the limit", async () => {
+    await renderTerminal();
+    await ask("😀".repeat(CHAT_LIMITS.question)); // 500 code points, 1000 UTF-16 units
+    expect(screen.queryByText(CHAT_MESSAGES.tooLong)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await ask("😀".repeat(CHAT_LIMITS.question + 1));
+    expect(screen.getByText(CHAT_MESSAGES.tooLong)).toBeTruthy();
   });
 
   it.each([
@@ -229,6 +255,22 @@ describe("ChatTerminal", () => {
     expect(handle.getAttribute("aria-valuenow")).toBe("90");
     expect(screen.getByRole("button", { name: "Restore terminal size" })).toBeTruthy();
   });
+
+  it.each(["pointerUp", "pointerCancel"] as const)(
+    "ends a drag on %s: saves the height and ignores later moves",
+    async (end) => {
+      await renderTerminal();
+      const handle = screen.getByRole("separator", { name: "Resize terminal" });
+      Object.defineProperty(window, "innerHeight", { value: 1000, configurable: true });
+      fireEvent.pointerDown(handle, { pointerId: 1 });
+      fireEvent.pointerMove(handle, { clientY: 500 });
+      expect(handle.getAttribute("aria-valuenow")).toBe("50");
+      fireEvent[end](handle, { pointerId: 1 });
+      expect(window.localStorage.getItem("chat-panel-height")).toBe("50");
+      fireEvent.pointerMove(handle, { clientY: 200 });
+      expect(handle.getAttribute("aria-valuenow")).toBe("50");
+    },
+  );
 
   it("starts at the remembered height, clamped to 25-90", async () => {
     window.localStorage.setItem("chat-panel-height", "120");

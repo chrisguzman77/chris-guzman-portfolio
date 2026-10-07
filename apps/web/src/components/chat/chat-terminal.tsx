@@ -137,11 +137,12 @@ export function ChatTerminal({
   async function ask(raw: string) {
     const question = raw.trim();
     if (!question || session.status !== "ready" || thinking) return;
-    setInput("");
-    if (question.length > CHAT_LIMITS.question) {
+    // Code points, like the API's 500 limit; the text stays put when it is refused.
+    if ([...question].length > CHAT_LIMITS.question) {
       notice(CHAT_MESSAGES.tooLong);
       return;
     }
+    setInput("");
     push({ kind: "question", text: question });
     track("chat-question"); // never the text: questions can contain personal details
     setThinking(true);
@@ -156,7 +157,10 @@ export function ChatTerminal({
         sources: result.sources,
         animate: !reducedMotion(),
       });
-      setAnnouncement(result.answer);
+      // An unchanged live region is not announced again, so alternate a zero-width suffix.
+      setAnnouncement((previous) =>
+        previous === result.answer ? `${result.answer}\u200b` : result.answer,
+      );
       return;
     }
     if (result.failure === "ended" || result.failure === "sessionLimit") {
@@ -253,6 +257,7 @@ export function ChatTerminal({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         className="hidden h-2 shrink-0 cursor-ns-resize items-center justify-center focus-visible:outline-2 focus-visible:outline-accent-brand md:flex"
       >
         <span className="h-0.5 w-9 rounded bg-input" />
