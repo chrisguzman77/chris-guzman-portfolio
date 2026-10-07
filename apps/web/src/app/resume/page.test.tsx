@@ -52,6 +52,9 @@ describe("/resume", () => {
     // The embed itself is client-gated (see pdf-embed.test.tsx); the frame is desktop-only.
     const frame = container.querySelector(".md\\:block");
     expect(frame?.className).toContain("hidden");
+    // Reserves the embed's height (80vh plus the frame's padding and border) so the footer
+    // does not jump when the <object> mounts after hydration.
+    expect(frame?.className).toContain("md:min-h-[calc(80vh+2rem+2px)]");
   });
 
   it("omits missing parts of the version line", async () => {

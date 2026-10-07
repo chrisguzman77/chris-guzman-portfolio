@@ -36,8 +36,9 @@ describe("cache tags", () => {
 
   // infra/directus/schema.mjs drives the Directus revalidate Flow's collection list. If the two
   // drift, edits to a collection would silently stop invalidating the site cache.
+  // CI checks out the whole repo, so a missing file there is a failure, not a skip.
   const schemaPath = join(__dirname, "../../../../../infra/directus/schema.mjs");
-  it.skipIf(!existsSync(schemaPath))(
+  it.skipIf(!existsSync(schemaPath) && !process.env.CI)(
     "matches the collections in infra/directus/schema.mjs (the revalidate Flow's list)",
     () => {
       const src = readFileSync(schemaPath, "utf8");
