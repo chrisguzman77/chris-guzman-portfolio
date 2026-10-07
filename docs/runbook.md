@@ -5,7 +5,7 @@ Production is VM 400 (`192.168.1.50`) on the Proxmox host, reached from the inte
 ## First deploy (once, after bootstrap)
 
 1. The release workflow has run on main at least once (so web, api, runner and backup images exist), and all four GHCR packages — web, api, runner, backup — are public (GitHub → Packages → each → Package settings → Change visibility).
-2. `.sops.yaml` lists the VM's age public key and `prod.enc.env` has a real value for every key under "Stored in prod.enc.env" in `infra/compose/prod.env.example`, including `CLOUDFLARE_TUNNEL_TOKEN` and `GITHUB_RUNNER_TOKEN`. `make secrets-check` on the laptop reports `secrets look ready`.
+2. `.sops.yaml` lists the VM's age public key and `prod.enc.env` has a real value for every key under "Stored in prod.enc.env" in `infra/compose/prod.env.example`, including `CLOUDFLARE_TUNNEL_TOKEN`, plus `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` for the runner (docs/setup.md, Runner GitHub App). `make secrets-check` on the laptop reports `secrets look ready`.
 3. `sudo /opt/portfolio/scripts/sync-repo.sh` (checks out `main` and keeps the checkout owned by the runner uid 1001)
 4. `sudo IMAGE_TAG=latest INCLUDE_RUNNER=1 SMOKE_PUBLIC_URL=https://christopherguzman.me /opt/portfolio/scripts/deploy.sh`
 5. GitHub → Settings → Actions → Runners shows `portfolio-vm` (Idle).
@@ -258,7 +258,7 @@ Use this when the VM or its disk is lost, or the databases are damaged. It repla
 - **`DIRECTUS_WEB_TOKEN` or `REVALIDATE_SECRET`:** generate a value with `openssl rand -hex 32`, `make secrets-edit`, `make secrets-check`, commit, merge. The deploy recreates `web` with the new value and the CMS bootstrap updates the `web-reader` user's token and the revalidation Flow's secret header to match.
 - **`GROQ_API_KEY`, `DIRECTUS_API_TOKEN`, `INTERNAL_API_SECRET`:** change in `make secrets-edit`, push; the next deploy syncs the Directus token and the Flow secret. **`CHAT_HASH_SALT`:** changing it only means existing sessions stop matching their visitors (they get "session ended").
 - **Tunnel token:** Zero Trust → Tunnels → `portfolio` → Refresh token; update `CLOUDFLARE_TUNNEL_TOKEN`; deploy.
-- **Runner PAT (expires yearly):** create a new portfolio-runner token, update GITHUB_RUNNER_TOKEN with make secrets-edit, merge, then run the "Update the runner" commands. Normal deploys never restart the runner, so they do not apply this value.
+- **Runner GitHub App key (does not expire):** to rotate, generate a new private key on the app's page, update GITHUB_APP_PRIVATE_KEY with make secrets-edit, merge, then run the "Update the runner" commands and check `docker logs portfolio-runner-1 2>&1 | grep auth:` shows `auth: github app` before deleting the old key on GitHub. Normal deploys never restart the runner, so they do not apply this value.
 - **Resend API key:** create a new key in Resend, `make secrets-edit` to set `RESEND_API_KEY`, merge, then delete the old key in Resend.
 - **Turnstile keys:** rotate the secret in the Turnstile widget settings, update `TURNSTILE_SECRET_KEY` (and `TURNSTILE_SITE_KEY` if it changed) with `make secrets-edit`, merge.
 - **Backup age key:** `age-keygen -o backup-age.key` on the laptop. Set the new public key as `BACKUP_AGE_RECIPIENT` (`make secrets-edit`, merge), and replace `BACKUP_AGE_KEY` in the GitHub `backup-verify` environment. Keep the old private key in the password manager for 31 days after the switch: backups made before it still need it.
