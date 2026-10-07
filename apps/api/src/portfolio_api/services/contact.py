@@ -1,7 +1,6 @@
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -22,22 +21,18 @@ class ContactForm:
 
 
 def build_email(row: ContactSubmission, *, sender: str, to: str) -> OutgoingEmail:
-    # Collapsing whitespace removes CR/LF, so a name cannot inject extra headers.
-    subject_name = " ".join(row.name.split())
+    # Collapsing whitespace removes CR/LF, so a name cannot inject headers or fake body lines.
+    name = " ".join(row.name.split())
     received = row.created_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
-    text = f"Name: {row.name}\nEmail: {row.email}\nReceived: {received}\n\n{row.message}\n"
+    text = f"Name: {name}\nEmail: {row.email}\nReceived: {received}\n\n{row.message}\n"
     return OutgoingEmail(
         sender=sender,
         to=to,
         reply_to=row.email,
-        subject=f"Portfolio message from {subject_name}",
+        subject=f"Portfolio message from {name}",
         text=text,
         idempotency_key=str(row.id),
     )
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 class ContactService:
@@ -50,13 +45,11 @@ class ContactService:
         *,
         mail_from: str,
         mail_to: str | None,
-        clock: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._sessions = sessions
         self._sender = sender
         self._mail_from = mail_from
         self._mail_to = mail_to
-        self._clock = clock
 
     async def submit(self, form: ContactForm) -> uuid.UUID:
         async with self._sessions.begin() as session:
@@ -96,7 +89,7 @@ class ContactService:
         if self._sender is None or self._mail_to is None:
             return
         async with self._sessions() as session:
-            due = await repo.due_for_retry(session, now=self._clock())
+            due = await repo.due_for_retry(session)
         for submission_id in due:
             try:
                 await self.deliver(submission_id)

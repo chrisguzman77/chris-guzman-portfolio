@@ -1,8 +1,8 @@
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import Text, cast, delete, func, select
+from sqlalchemy.dialects.postgresql import TSQUERY, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from portfolio_api.models import RagChunk, RagDocument
@@ -12,6 +12,8 @@ from portfolio_api.rag.documents import SourceDocument
 @dataclass(frozen=True)
 class StoredDocument:
     id: int
+    title: str
+    url: str
     hashes: frozenset[str]
 
 
@@ -28,7 +30,13 @@ class ChunkHit:
 async def load_index(session: AsyncSession) -> dict[tuple[str, str], StoredDocument]:
     docs = (
         await session.execute(
-            select(RagDocument.id, RagDocument.source_type, RagDocument.source_id)
+            select(
+                RagDocument.id,
+                RagDocument.source_type,
+                RagDocument.source_id,
+                RagDocument.title,
+                RagDocument.url,
+            )
         )
     ).all()
     hashes: dict[int, set[str]] = {}
@@ -37,8 +45,10 @@ async def load_index(session: AsyncSession) -> dict[tuple[str, str], StoredDocum
     ).all():
         hashes.setdefault(document_id, set()).add(h)
     return {
-        (source_type, source_id): StoredDocument(doc_id, frozenset(hashes.get(doc_id, set())))
-        for doc_id, source_type, source_id in docs
+        (source_type, source_id): StoredDocument(
+            doc_id, title, url, frozenset(hashes.get(doc_id, set()))
+        )
+        for doc_id, source_type, source_id, title, url in docs
     }
 
 
@@ -110,7 +120,11 @@ async def vector_search(
 
 
 async def keyword_search(session: AsyncSession, query: str, limit: int) -> list[ChunkHit]:
-    tsquery = func.websearch_to_tsquery("english", query)
+    # Any term may match (OR), ranked by how many do: plainto_tsquery ANDs its lexemes, and
+    # its text form ('a' & 'b') becomes 'a' | 'b'. Lexemes are quoted and never contain spaces.
+    tsquery = cast(
+        func.replace(cast(func.plainto_tsquery("english", query), Text), " & ", " | "), TSQUERY
+    )
     rows = (
         await session.execute(
             select(

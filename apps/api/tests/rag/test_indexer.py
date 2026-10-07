@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Sequence
 from dataclasses import replace
 
 import pytest
@@ -6,6 +7,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import DirectusError
+from portfolio_api.config import Settings
+from portfolio_api.main import create_app
 from portfolio_api.models import RagChunk, RagDocument
 from portfolio_api.rag.documents import SiteContent
 from portfolio_api.services.indexer import IndexService, SyncResult
@@ -127,7 +130,8 @@ async def test_request_reindex_debounces_bursts(db: Sessions) -> None:
     service = IndexService(db, source, FakeEmbedder(), debounce=0.05)
     for _ in range(5):
         service.request_reindex()
-    await asyncio.sleep(0.3)
+    [task] = [t for t in asyncio.all_tasks() if t.get_name() == "rag-reindex"]
+    await asyncio.wait_for(task, timeout=5)  # waits for the sync, not a fixed sleep
     assert source.calls == 1
     assert await counts(db) == (3, 3)
 
@@ -143,3 +147,51 @@ async def test_sync_runs_are_measured(db: Sessions) -> None:
     await service.sync_job()
     assert metric("rag_sync_runs_total", result="error") == error + 1
     assert metric("rag_sync_runs_total", result="ok") == ok + 1
+
+
+async def test_long_title_is_truncated_and_does_not_abort_the_sync(db: Sessions) -> None:
+    content = content_with_projects()
+    projects = [dict(p) for p in content.projects]
+    projects[0]["title"] = "word " * 80  # 400 characters
+    service = IndexService(db, FakeSource(replace(content, projects=projects)), FakeEmbedder())
+    result = await service.sync()
+    assert result.documents == 3
+    async with db() as session:
+        titles = list((await session.scalars(select(RagDocument.title))).all())
+    assert len(titles) == 3
+    assert max(len(t) for t in titles) == 300
+
+
+async def test_unchanged_document_keeps_its_updated_at(db: Sessions) -> None:
+    service = IndexService(db, FakeSource(content_with_projects()), FakeEmbedder())
+    await service.sync()
+    async with db() as session:
+        before = {d.id: d.updated_at for d in (await session.scalars(select(RagDocument))).all()}
+    await service.sync()
+    async with db() as session:
+        after = {d.id: d.updated_at for d in (await session.scalars(select(RagDocument))).all()}
+    assert after == before
+
+
+class ShortEmbedder(FakeEmbedder):
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        return [[1.0, 0.0, 0.0] for _ in texts]
+
+
+async def test_wrong_embedding_dimension_is_a_clear_error(db: Sessions) -> None:
+    service = IndexService(db, FakeSource(content_with_projects()), ShortEmbedder())
+    with pytest.raises(ValueError, match="3 dimensions, expected 384"):
+        await service.sync()
+    assert await counts(db) == (0, 0)
+
+
+async def test_lifespan_exit_cancels_a_pending_reindex(settings: Settings) -> None:
+    configured = settings.model_copy(
+        update={"directus_token": "tok", "directus_url": "http://127.0.0.1:1"}
+    )
+    app = create_app(configured)
+    indexer: IndexService = app.state.indexer
+    async with app.router.lifespan_context(app):
+        indexer.request_reindex()  # debounce is 5 s: still sleeping at shutdown
+        assert [t for t in asyncio.all_tasks() if t.get_name() == "rag-reindex"]
+    assert not [t for t in asyncio.all_tasks() if t.get_name() == "rag-reindex"]

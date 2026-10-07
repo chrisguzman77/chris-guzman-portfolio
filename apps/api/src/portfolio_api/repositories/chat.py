@@ -39,6 +39,28 @@ async def recent_exchanges(
     return [(q, a or "") for q, a in reversed(rows)]
 
 
+async def reserve_question(session: AsyncSession, session_id: uuid.UUID, cap: int) -> int | None:
+    """Count one question if fewer than ``cap`` are used; the new count, or None if at the cap.
+
+    A single conditional UPDATE, so concurrent asks on one session cannot both take the last one.
+    """
+    return await session.scalar(
+        update(ChatSession)
+        .where(ChatSession.id == session_id, ChatSession.question_count < cap)
+        .values(question_count=ChatSession.question_count + 1)
+        .returning(ChatSession.question_count)
+    )
+
+
+async def release_question(session: AsyncSession, session_id: uuid.UUID) -> None:
+    """Give back a reserved question (the ask did not end in a counted answer)."""
+    await session.execute(
+        update(ChatSession)
+        .where(ChatSession.id == session_id, ChatSession.question_count > 0)
+        .values(question_count=ChatSession.question_count - 1)
+    )
+
+
 async def record_message(
     session: AsyncSession,
     *,
@@ -49,7 +71,6 @@ async def record_message(
     sources: Sequence[dict[str, Any]],
     input_tokens: int,
     output_tokens: int,
-    counts: bool,
 ) -> None:
     session.add(
         ChatMessage(
@@ -62,12 +83,6 @@ async def record_message(
             output_tokens=output_tokens,
         )
     )
-    if counts:
-        await session.execute(
-            update(ChatSession)
-            .where(ChatSession.id == session_id)
-            .values(question_count=ChatSession.question_count + 1)
-        )
     await session.flush()
 
 

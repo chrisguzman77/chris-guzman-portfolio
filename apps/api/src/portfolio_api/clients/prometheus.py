@@ -3,7 +3,8 @@ from typing import Protocol
 import httpx
 from pydantic import BaseModel, Field, ValidationError
 
-QUERY_TIMEOUT = 2.0
+# Per phase (connect, read, write, pool), not one total; the status service bounds the whole.
+QUERY_TIMEOUT = httpx.Timeout(2.0, connect=1.0)
 
 
 class PrometheusError(Exception):

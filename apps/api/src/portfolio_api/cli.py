@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 import yaml
 
-from portfolio_api.clients.directus import DirectusContent
+from portfolio_api.clients.directus import DirectusContent, DirectusError
 from portfolio_api.clients.groq import GroqChatModel, ModelBusyError, ModelUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker
@@ -150,6 +150,10 @@ async def _reindex(settings: Settings) -> int:
             directus = DirectusContent(http, settings.directus_url, settings.directus_token)
             embedder = FastEmbedEmbedder(settings.embedding_cache_dir)
             result = await IndexService(make_sessionmaker(engine), directus, embedder).sync()
+        except DirectusError as exc:
+            # Nothing was changed (the fetch comes first); one line, not a traceback.
+            print(f"reindex failed: {exc}", file=sys.stderr)
+            return 1
         finally:
             await engine.dispose()
     print(

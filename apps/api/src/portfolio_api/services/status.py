@@ -21,6 +21,7 @@ MEMO_SECONDS = 60.0
 # memo lock can be held.
 PROMETHEUS_BUDGET = 2.5  # all Prometheus work together
 DB_BUDGET = 1.5
+MAX_CONCURRENT_QUERIES = 8  # a refresh issues ~35 queries; don't fire them all at once
 
 # The PromQL is fixed here. Only numbers this module computes are formatted in; nothing from
 # a request ever reaches Prometheus.
@@ -32,11 +33,12 @@ FIRST_PROBE = 'min(min_over_time(timestamp(probe_success{{job="site"}})[{seconds
 # Successful probes in the `seconds` before the evaluation time. A missing sample adds
 # nothing, so time with no probes (VM or Prometheus down) counts as downtime.
 SUCCESSES = 'sum(sum_over_time(probe_success{{job="site"}}[{seconds}s]))'
+# The status card polls /v1/status itself, so its own requests are left out of both figures.
 P95 = (
     "histogram_quantile(0.95, sum by (le) (rate("
-    'http_request_duration_seconds_bucket{job="api",route!~"/v1/chat/.*"}[24h])))'
+    'http_request_duration_seconds_bucket{job="api",route!~"/v1/chat/.*|/v1/status"}[24h])))'
 )
-REQUESTS_SINCE = 'sum(increase(http_requests_total{{job="api"}}[{seconds}s]))'
+REQUESTS_SINCE = 'sum(increase(http_requests_total{{job="api",route!="/v1/status"}}[{seconds}s]))'
 LAST_BACKUP = "max(backup_last_success_timestamp_seconds)"
 LATEST_PROBE = 'max(probe_success{job="site"})'
 
@@ -118,6 +120,9 @@ class StatusService:
         self._lock = asyncio.Lock()
         self._cached: StatusResponse | None = None
         self._cached_at = 0.0
+        self._slots = asyncio.Semaphore(MAX_CONCURRENT_QUERIES)
+        # The first probe never moves once it exists, so it is looked up until found, then kept.
+        self._first_probe: float | None = None
 
     async def get(self) -> StatusResponse:
         async with self._lock:  # one refresh at a time; waiters get its result
@@ -160,25 +165,32 @@ class StatusService:
             return False
 
     async def _stats(self, now: float, days: list[_Day]) -> _Stats | None:
-        query = self._prometheus.query
         try:
             async with asyncio.timeout(PROMETHEUS_BUDGET):
-                return await self._prometheus_stats(query, now, days)
+                return await self._prometheus_stats(now, days)
         except (PrometheusError, TimeoutError) as exc:
             log.warning("prometheus unavailable; status degraded", error=repr(exc))
             return None
 
-    async def _prometheus_stats(
-        self, query: Callable[[str, float], Awaitable[list[float]]], now: float, days: list[_Day]
-    ) -> _Stats:
-        first, p95, requests, backup, probe = await asyncio.gather(
-            query(FIRST_PROBE.format(seconds=math.ceil(now - days[0].start) + 60), now),
-            query(P95, now),
-            query(REQUESTS_SINCE.format(seconds=max(1, int(now - days[-1].start))), now),
-            query(LAST_BACKUP, now),
-            query(LATEST_PROBE, now),
+    async def _query(self, promql: str, at: float) -> list[float]:
+        async with self._slots:
+            return await self._prometheus.query(promql, at)
+
+    async def _first_probe_at(self, now: float, days: list[_Day]) -> float | None:
+        if self._first_probe is None:
+            seconds = math.ceil(now - days[0].start) + 60
+            first = await self._query(FIRST_PROBE.format(seconds=seconds), now)
+            self._first_probe = first[0] if first else None
+        return self._first_probe
+
+    async def _prometheus_stats(self, now: float, days: list[_Day]) -> _Stats:
+        first_probe, p95, requests, backup, probe = await asyncio.gather(
+            self._first_probe_at(now, days),
+            self._query(P95, now),
+            self._query(REQUESTS_SINCE.format(seconds=max(1, int(now - days[-1].start))), now),
+            self._query(LAST_BACKUP, now),
+            self._query(LATEST_PROBE, now),
         )
-        first_probe = first[0] if first else None
         windows = [covered(day, first_probe, now) for day in days]
         successes = await asyncio.gather(*(self._successes(w) for w in windows))
         daily: list[float | None] = []
@@ -208,4 +220,4 @@ class StatusService:
         if window is None:
             return None
         at, seconds = window
-        return sum(await self._prometheus.query(SUCCESSES.format(seconds=seconds), at))
+        return sum(await self._query(SUCCESSES.format(seconds=seconds), at))

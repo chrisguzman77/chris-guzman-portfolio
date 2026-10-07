@@ -4,13 +4,17 @@ from typing import Any
 
 import httpx
 import pytest
+import structlog
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from portfolio_api.clients.github import GitHubError, GitHubGraphQL
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
+from portfolio_api.models import GitHubActivityCache
 from portfolio_api.schemas.github import Activity, ActivityDay, ActivityWeek
+from portfolio_api.services import github as github_service
 from portfolio_api.services.github import GitHubActivityService
 
 Sessions = async_sessionmaker[AsyncSession]
@@ -185,3 +189,54 @@ async def test_endpoint_serves_the_cache_with_max_age(settings: Settings, db: Se
     assert body["total"] == 3
     assert body["weeks"][0]["days"][1] == {"date": "2026-09-14", "count": 3, "level": 4}
     assert "fetched_at" in body
+
+
+async def test_endpoint_never_calls_github(settings: Settings, db: Sessions) -> None:
+    clock = Clock()
+    source = FakeSource()
+    app = create_app(settings)
+    app.state.github_activity = GitHubActivityService(db, source, login="x", clock=clock)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        empty = await c.get("/v1/github/activity")  # nothing cached: still no fetch
+        await GitHubActivityService(db, FakeSource(), login="x", clock=clock).refresh()
+        clock.now += timedelta(days=1)  # stale: the endpoint still serves the copy
+        full = await c.get("/v1/github/activity")
+    assert (empty.status_code, full.status_code) == (503, 200)
+    assert source.calls == 0
+
+
+@pytest.mark.parametrize(("token", "registered"), [("gh_tok", True), (None, False)])
+def test_refresh_job_is_registered_only_with_a_token(
+    settings: Settings, token: str | None, registered: bool
+) -> None:
+    app = create_app(settings.model_copy(update={"github_token": token}))
+    assert ("github-refresh" in app.state.job_names) is registered
+
+
+@pytest.mark.parametrize("error", [RuntimeError("bug"), ValueError("bad shape")])
+async def test_refresh_if_stale_never_raises(
+    db: Sessions, error: Exception, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = GitHubActivityService(db, FakeSource(error), login="x", clock=Clock())
+    with capture_logs() as logs:
+        # The module logger is cached on first use; a fresh one binds to capture_logs.
+        monkeypatch.setattr(github_service, "log", structlog.get_logger())
+        await service.refresh_if_stale()
+    assert any(e["log_level"] == "error" for e in logs)
+    assert await service.get() is None
+
+
+@pytest.mark.parametrize("payload", [{"total": "lots", "weeks": 3}, [1, 2, 3]])
+async def test_corrupt_cache_is_served_like_a_missing_one(
+    settings: Settings, db: Sessions, payload: Any
+) -> None:
+    async with db.begin() as session:
+        session.add(
+            GitHubActivityCache(key="contributions", payload=payload, fetched_at=Clock().now)
+        )
+    app = create_app(settings)
+    app.state.github_activity = GitHubActivityService(db, FakeSource(), login="x")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        res = await c.get("/v1/github/activity")
+    assert res.status_code == 503
+    assert res.json()["error"]["code"] == "activity_unavailable"

@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from typing import Any
 
@@ -12,6 +13,7 @@ from portfolio_api.clients.turnstile import TurnstileUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
 from portfolio_api.models import ContactSubmission, EmailStatus
+from portfolio_api.repositories import contact as repo
 from portfolio_api.services.contact import ContactForm, ContactService, build_email
 from tests.fakes import FakeSender, FakeTurnstile, metric
 
@@ -249,3 +251,102 @@ async def test_deliveries_are_measured(db: Sessions) -> None:
     await service.deliver(submission_id)
     assert metric("contact_submissions_total", result="sent") == sent + 1
     assert metric("contact_submissions_total", result="failed") == failed + 1
+
+
+async def post_raw(app: FastAPI, content: bytes, ip: str = "203.0.113.7") -> Response:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        return await c.post(
+            "/v1/contact",
+            content=content,
+            headers={"CF-Connecting-IP": ip, "Content-Type": "application/json"},
+        )
+
+
+async def test_malformed_json_counts_against_the_rate_limit(contact_settings: Settings) -> None:
+    app = make_app(contact_settings, None, FakeTurnstile(), None)
+    for _ in range(5):
+        res = await post_raw(app, b"{not json")
+        assert res.status_code == 400
+        assert res.json()["error"]["code"] == "invalid_request"
+    limited = await post_raw(app, b"{not json")
+    assert limited.status_code == 429
+
+
+async def test_malformed_json_on_unconfigured_contact_is_503(settings: Settings) -> None:
+    res = await post_raw(make_app(settings, None, None, None), b"{not json")
+    assert res.status_code == 503
+    assert res.json()["error"]["code"] == "contact_unavailable"
+
+
+async def test_contact_body_is_documented_in_openapi(contact_settings: Settings) -> None:
+    app = make_app(contact_settings, None, FakeTurnstile(), None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        spec = (await c.get("/openapi.json")).json()
+    body = spec["paths"]["/v1/contact"]["post"]["requestBody"]
+    schema = body["content"]["application/json"]["schema"]
+    if "$ref" in schema:
+        schema = spec["components"]["schemas"][schema["$ref"].rsplit("/", 1)[-1]]
+    assert set(schema["required"]) == {"name", "email", "message", "turnstile_token"}
+
+
+async def test_email_body_strips_line_breaks_from_the_name(db: Sessions) -> None:
+    service = ContactService(db, None, mail_from="f", mail_to="t@example.com")
+    submission_id = await service.submit(
+        ContactForm("Ada\r\nReceived: forged", "ada@example.com", "Hello there!")
+    )
+    async with db() as session:
+        row = await session.get(ContactSubmission, submission_id)
+    assert row is not None
+    email = build_email(row, sender="f", to="t@example.com")
+    assert email.text.startswith("Name: Ada Received: forged\nEmail: ada@example.com\n")
+
+
+async def test_retry_query_uses_the_database_clock(db: Sessions) -> None:
+    service = ContactService(db, None, mail_from="f", mail_to="t@example.com")
+    due_id = await service.submit(ContactForm("Ada", "ada@example.com", "Hello there!"))
+    await backdate(db)
+    fresh_id = await service.submit(ContactForm("Bob", "bob@example.com", "Hello there!"))
+    async with db() as session:
+        due = await repo.due_for_retry(session)
+    assert due == [due_id] and fresh_id not in due
+
+
+async def test_missing_fields_are_listed(contact_settings: Settings) -> None:
+    res = await post(make_app(contact_settings, None, FakeTurnstile(), None), {})
+    assert res.status_code == 400
+    error = res.json()["error"]
+    assert error["code"] == "invalid_request"
+    assert set(error["fields"]) == {"name", "email", "message", "turnstile_token"}
+
+
+async def test_get_contact_is_405(contact_settings: Settings) -> None:
+    app = make_app(contact_settings, None, FakeTurnstile(), None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        res = await c.get("/v1/contact")
+    assert res.status_code == 405
+    assert res.json()["error"]["code"] == "method_not_allowed"
+
+
+async def post_typed(app: FastAPI, body: dict[str, Any], content_type: str | None) -> Response:
+    headers = {"CF-Connecting-IP": "203.0.113.7"}
+    if content_type is not None:
+        headers["Content-Type"] = content_type
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        return await c.post("/v1/contact", content=json.dumps(body), headers=headers)
+
+
+@pytest.mark.parametrize("content_type", ["text/plain", None, "application/x-www-form-urlencoded"])
+async def test_non_json_content_type_is_400(
+    contact_settings: Settings, content_type: str | None
+) -> None:
+    turnstile = FakeTurnstile()
+    res = await post_typed(make_app(contact_settings, None, turnstile, None), VALID, content_type)
+    assert res.status_code == 400
+    assert res.json()["error"]["code"] == "invalid_request"
+    assert turnstile.calls == []
+
+
+async def test_json_with_charset_is_accepted(contact_settings: Settings, db: Sessions) -> None:
+    app = make_app(contact_settings, db, FakeTurnstile(), FakeSender())
+    res = await post_typed(app, VALID, "application/json; charset=utf-8")
+    assert res.status_code == 202

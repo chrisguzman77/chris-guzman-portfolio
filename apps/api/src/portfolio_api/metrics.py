@@ -5,16 +5,31 @@ Every metric lives on one module-level registry, so building several apps in one
 """
 
 import time
+from collections.abc import Iterator
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, disable_created_metrics
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+from prometheus_client.metrics_core import Metric
 from starlette.routing import Route
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from portfolio_api.models import ChatOutcome
 
-disable_created_metrics()  # no *_created series: half the series for nothing we query
 
-REGISTRY = CollectorRegistry()
+class _Registry(CollectorRegistry):
+    """Our metrics without their *_created series: half the series, for nothing we query.
+
+    Filtered here rather than with disable_created_metrics(), which flips a process-wide
+    switch for every registry; importing this module changes no global state.
+    """
+
+    def collect(self) -> Iterator[Metric]:
+        for metric in super().collect():
+            created = metric.name + "_created"
+            metric.samples = [s for s in metric.samples if s.name != created]
+            yield metric
+
+
+REGISTRY = _Registry()
 
 HTTP_REQUESTS = Counter(
     "http_requests_total",
@@ -47,9 +62,12 @@ RAG_SYNC_RUNS = Counter(
     "rag_sync_runs_total", "RAG index sync runs by result.", ["result"], registry=REGISTRY
 )
 
+# A question turned away before an answer is composed: rate-limited, session limit or budget.
+CHAT_REJECTED = "rejected"
+
 # Children for every known label value exist from startup, so increase() sees the first event.
-for _outcome in ChatOutcome:
-    CHAT_QUESTIONS.labels(outcome=_outcome.value)
+for _outcome in (*(o.value for o in ChatOutcome), CHAT_REJECTED):
+    CHAT_QUESTIONS.labels(outcome=_outcome)
 for _kind in ("input", "output"):
     CHAT_TOKENS.labels(kind=_kind)
 for _result in ("sent", "failed"):

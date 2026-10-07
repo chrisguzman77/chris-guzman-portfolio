@@ -1,5 +1,6 @@
 import asyncio
-from dataclasses import dataclass
+import contextlib
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 import structlog
@@ -8,10 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from portfolio_api.metrics import RAG_SYNC_RUNS
 from portfolio_api.rag.chunking import chunk_markdown, content_hash
 from portfolio_api.rag.documents import SiteContent, build_documents
-from portfolio_api.rag.embedder import Embedder
+from portfolio_api.rag.embedder import Embedder, check_dimensions
 from portfolio_api.repositories import rag as repo
 
 log = structlog.get_logger()
+
+TITLE_MAX = 300  # rag_documents.title is String(300)
 
 
 class ContentSource(Protocol):
@@ -47,7 +50,10 @@ class IndexService:
     async def sync(self) -> SyncResult:
         async with self._lock:
             # Fetch first: a Directus failure raises here, before anything is deleted.
-            docs = build_documents(await self._source.fetch_site_content())
+            docs = [
+                replace(d, title=d.title[:TITLE_MAX])
+                for d in build_documents(await self._source.fetch_site_content())
+            ]
             model = self._embedder.model_name
             async with self._sessions() as session:
                 stored = await repo.load_index(session)
@@ -63,8 +69,16 @@ class IndexService:
                 old: frozenset[str] = existing.hashes if existing else frozenset()
                 new = [h for h in by_hash if h not in old]
                 gone: frozenset[str] = old - by_hash.keys()
+                if (
+                    existing is not None
+                    and not new
+                    and not gone
+                    and (existing.title, existing.url) == (doc.title, doc.url)
+                ):
+                    continue  # unchanged: leave the row (and its updated_at) alone
                 # Embed outside the transaction; it is the slow part.
                 vectors = await self._embedder.embed_documents([by_hash[h] for h in new])
+                check_dimensions(vectors)
                 async with self._sessions.begin() as session:
                     document_id = await repo.upsert_document(session, doc)
                     await repo.delete_chunks(session, document_id, gone)
@@ -100,6 +114,13 @@ class IndexService:
         self._pending = True
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._debounced(), name="rag-reindex")
+
+    async def aclose(self) -> None:
+        """Cancel a scheduled reindex (lifespan shutdown)."""
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
 
     async def _debounced(self) -> None:
         while self._pending:

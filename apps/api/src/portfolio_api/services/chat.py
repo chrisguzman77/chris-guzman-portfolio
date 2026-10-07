@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import time
@@ -12,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import ChatSettings, DirectusError
 from portfolio_api.clients.groq import ChatModel, ModelBusyError, ModelUnavailableError
-from portfolio_api.metrics import CHAT_BUDGET_USED_RATIO, CHAT_QUESTIONS, CHAT_TOKENS
+from portfolio_api.metrics import (
+    CHAT_BUDGET_USED_RATIO,
+    CHAT_QUESTIONS,
+    CHAT_REJECTED,
+    CHAT_TOKENS,
+)
 from portfolio_api.models import ChatOutcome
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as repo
@@ -168,7 +174,10 @@ class ChatService:
 
     async def ask(self, session_id: uuid.UUID, ip: str, question: str) -> ChatAnswer:
         now = self._clock()
-        async with self._sessions() as session:
+        # Validate, reserve a question and check the budget in one short transaction. The
+        # reservation is a conditional UPDATE, so concurrent asks cannot overspend the cap; a
+        # question that does not end in a counted answer is given back below.
+        async with self._sessions.begin() as session:
             row = await repo.get_session(session, session_id)
             if (
                 row is None
@@ -176,56 +185,86 @@ class ChatService:
                 or now - row.created_at > SESSION_MAX_AGE
             ):
                 raise SessionNotFoundError
-            if row.question_count >= MAX_QUESTIONS:
+            count = await repo.reserve_question(session, session_id, MAX_QUESTIONS)
+            if count is None:
+                CHAT_QUESTIONS.labels(outcome=CHAT_REJECTED).inc()
                 raise SessionLimitError
-            used = await repo.tokens_used(session, now.date())
+            if await repo.tokens_used(session, now.date()) >= self._daily_budget:
+                CHAT_QUESTIONS.labels(outcome=CHAT_REJECTED).inc()
+                raise BudgetExhaustedError  # rolls the reservation back
             pairs = await repo.recent_exchanges(session, session_id, HISTORY_PAIRS)
-        if used >= self._daily_budget:
-            raise BudgetExhaustedError
+        settled = False  # True once the question is either kept for an answer or given back
         try:
-            composed = await self.compose(question, [Exchange(q, a) for q, a in pairs])
-        except (ModelBusyError, ModelUnavailableError) as exc:
-            log.warning("chat model failed", error=str(exc))
-            async with self._sessions.begin() as session:
-                await repo.record_message(
-                    session,
-                    session_id=session_id,
-                    question=question,
-                    answer=None,
-                    outcome=ChatOutcome.error,
-                    sources=[],
-                    input_tokens=0,
-                    output_tokens=0,
-                    counts=False,
-                )
-            CHAT_QUESTIONS.labels(outcome=ChatOutcome.error.value).inc()
-            raise
-        counts = composed.outcome == ChatOutcome.answered
-        used_today: int | None = None
-        async with self._sessions.begin() as session:
-            await repo.record_message(
-                session,
-                session_id=session_id,
-                question=question,
-                answer=composed.raw if composed.outcome == ChatOutcome.uncited else composed.answer,
-                outcome=composed.outcome,
-                sources=[asdict(s) for s in composed.sources],
-                input_tokens=composed.input_tokens,
-                output_tokens=composed.output_tokens,
-                counts=counts,
-            )
-            if composed.raw is not None:  # the model was called
-                await repo.add_usage(
-                    session, now.date(), composed.input_tokens + composed.output_tokens
-                )
-                used_today = await repo.tokens_used(session, now.date())
+            try:
+                composed = await self.compose(question, [Exchange(q, a) for q, a in pairs])
+            except (ModelBusyError, ModelUnavailableError) as exc:
+                log.warning("chat model failed", error=str(exc))
+                try:
+                    async with self._sessions() as session:
+                        async with session.begin():
+                            await repo.record_message(
+                                session,
+                                session_id=session_id,
+                                question=question,
+                                answer=None,
+                                outcome=ChatOutcome.error,
+                                sources=[],
+                                input_tokens=0,
+                                output_tokens=0,
+                            )
+                            await repo.release_question(session, session_id)
+                        # Committed; set before the session closes (no double release).
+                        settled = True
+                except Exception:
+                    # Report the model's failure to the visitor, not this one.
+                    log.exception("could not record chat error", session_id=str(session_id))
+                CHAT_QUESTIONS.labels(outcome=ChatOutcome.error.value).inc()
+                raise
+            counts = composed.outcome == ChatOutcome.answered
+            used_today: int | None = None
+            async with self._sessions() as session:
+                async with session.begin():
+                    await repo.record_message(
+                        session,
+                        session_id=session_id,
+                        question=question,
+                        answer=composed.raw
+                        if composed.outcome == ChatOutcome.uncited
+                        else composed.answer,
+                        outcome=composed.outcome,
+                        sources=[asdict(s) for s in composed.sources],
+                        input_tokens=composed.input_tokens,
+                        output_tokens=composed.output_tokens,
+                    )
+                    if not counts:
+                        await repo.release_question(session, session_id)
+                    if composed.raw is not None:  # the model was called
+                        await repo.add_usage(
+                            session, now.date(), composed.input_tokens + composed.output_tokens
+                        )
+                        used_today = await repo.tokens_used(session, now.date())
+                # Committed; set before the session closes so a cancel there cannot double-release.
+                settled = True
+        finally:
+            # Any other exit (a bug, a cancelled request, a failed commit) gives the question back.
+            if not settled:
+                # Shielded: a second cancel cannot abort the refund half way.
+                await asyncio.shield(self._release(session_id))
         CHAT_QUESTIONS.labels(outcome=composed.outcome.value).inc()
         if used_today is not None:
             CHAT_TOKENS.labels(kind="input").inc(composed.input_tokens)
             CHAT_TOKENS.labels(kind="output").inc(composed.output_tokens)
             CHAT_BUDGET_USED_RATIO.set(used_today / self._daily_budget)
-        left = MAX_QUESTIONS - row.question_count - (1 if counts else 0)
+        left = MAX_QUESTIONS - count + (0 if counts else 1)
         return ChatAnswer(composed.answer, composed.sources, composed.outcome, left)
+
+    async def _release(self, session_id: uuid.UUID) -> None:
+        """Best effort, in its own transaction; never masks the error that got us here."""
+        try:
+            async with self._sessions.begin() as session:
+                await repo.release_question(session, session_id)
+        except Exception:
+            log.exception("could not give back a chat question", session_id=str(session_id))
 
     async def refresh_budget_gauge(self) -> None:
         """Set chat_budget_used_ratio from today's stored usage (startup and every 5 minutes)."""
@@ -234,10 +273,20 @@ class ChatService:
         CHAT_BUDGET_USED_RATIO.set(used / self._daily_budget)
 
     async def purge_expired(self) -> None:
-        now = self._clock()
-        async with self._sessions.begin() as session:
-            await repo.purge(
-                session,
-                sessions_before=now - RETENTION,
-                usage_before=(now - USAGE_RETENTION).date(),
-            )
+        await purge_expired_chats(self._sessions, self._clock())
+
+
+async def purge_expired_chats(
+    sessions: async_sessionmaker[AsyncSession], now: datetime | None = None
+) -> None:
+    """Delete chats older than RETENTION and usage older than USAGE_RETENTION.
+
+    Needs only the database, so the retention job runs even when Groq is not configured.
+    """
+    now = now or _utcnow()
+    async with sessions.begin() as session:
+        await repo.purge(
+            session,
+            sessions_before=now - RETENTION,
+            usage_before=(now - USAGE_RETENTION).date(),
+        )

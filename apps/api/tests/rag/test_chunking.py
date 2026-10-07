@@ -1,6 +1,14 @@
 import hashlib
 
-from portfolio_api.rag.chunking import MAX_WORDS, OVERLAP_WORDS, chunk_markdown, content_hash
+import pytest
+
+from portfolio_api.rag.chunking import (
+    MAX_WORDS,
+    OVERLAP_WORDS,
+    _windows,  # pyright: ignore[reportPrivateUsage]
+    chunk_markdown,
+    content_hash,
+)
 
 
 def words(n: int, prefix: str = "w") -> str:
@@ -42,3 +50,8 @@ def test_long_paragraph_splits_into_overlapping_windows() -> None:
     assert first[-OVERLAP_WORDS:] == second[:OVERLAP_WORDS]
     assert all(len(c.split()) <= MAX_WORDS for c in chunks)
     assert chunks[-1].split()[-1] == "w599"
+
+
+def test_window_size_must_exceed_the_overlap() -> None:
+    with pytest.raises(ValueError, match="overlap"):
+        _windows(words(10).split(), OVERLAP_WORDS)
