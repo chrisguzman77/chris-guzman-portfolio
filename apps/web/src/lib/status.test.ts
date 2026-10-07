@@ -120,6 +120,16 @@ describe("getStatus", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("shares one request between concurrent callers", async () => {
+    let resolve!: (res: Response) => void;
+    fetchMock.mockReturnValue(new Promise<Response>((r) => (resolve = r)));
+    const calls = [mod.getStatus(), mod.getStatus()];
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    resolve(Response.json(OK_BODY));
+    expect(await Promise.all(calls)).toEqual([OK_BODY, OK_BODY]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("memoises a failed result too", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-03T12:00:00Z"));
@@ -130,6 +140,17 @@ describe("getStatus", () => {
     fetchMock.mockResolvedValueOnce(Response.json(OK_BODY));
     await expect(mod.getStatus()).resolves.toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("isGreen", () => {
+  it.each([
+    [0.99495, true], // displays 99.50%
+    [0.995, true],
+    [0.99494, false], // displays 99.49%
+    [1, true],
+  ])("%d -> %s", (ratio, green) => {
+    expect(mod.isGreen(ratio)).toBe(green);
   });
 });
 

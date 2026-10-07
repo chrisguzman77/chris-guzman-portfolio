@@ -39,6 +39,17 @@ afterEach(() => {
 });
 
 describe("StatusCard", () => {
+  it("colours a bar by the rounded value it displays", async () => {
+    vi.mocked(getStatus).mockResolvedValue(
+      status({ daily: DATES.map((date, i) => ({ date, uptime: i === 0 ? 0.99495 : 0.9949 })) }),
+    );
+    const { container } = render(await StatusCard());
+    const bars = container.querySelectorAll("[title]");
+    expect(bars[0].getAttribute("title")).toBe("Sep 4: 99.50%");
+    expect(bars[0].className).toContain("bg-live");
+    expect(bars[1].className).toContain("bg-warn");
+  });
+
   it("shows the operational header, every stat, and 30 labelled bars", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-03T12:00:00Z"));

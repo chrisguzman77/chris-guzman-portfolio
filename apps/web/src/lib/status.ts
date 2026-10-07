@@ -25,7 +25,8 @@ export type SiteStatus = z.infer<typeof SiteStatusSchema>;
 
 // Last observed result (including a failure), reused for 60s so every homepage view does not
 // hit the API. Not the Next data cache: that would keep serving stale numbers while the API is down.
-let memo: { value: SiteStatus | null; at: number } | undefined;
+// The promise is memoized, not the value, so concurrent homepage renders share one request.
+let memo: { promise: Promise<SiteStatus | null>; at: number } | undefined;
 
 async function fetchStatus(apiInternalUrl: string): Promise<SiteStatus | null> {
   try {
@@ -46,10 +47,14 @@ export async function getStatus(): Promise<SiteStatus | null> {
   await connection();
   const { apiInternalUrl } = serverEnv();
   if (!apiInternalUrl) return null;
-  if (memo && Date.now() - memo.at < MEMO_MS) return memo.value;
-  const value = await fetchStatus(apiInternalUrl);
-  memo = { value, at: Date.now() };
-  return value;
+  if (memo && Date.now() - memo.at < MEMO_MS) return memo.promise;
+  memo = { promise: fetchStatus(apiInternalUrl), at: Date.now() };
+  return memo.promise;
+}
+
+/** Green is judged on the rounded value the card displays, so "99.50%" is never amber. */
+export function isGreen(uptime: number): boolean {
+  return Number.parseFloat(formatPercent(uptime)) >= GREEN_AT * 100;
 }
 
 export function formatPercent(value: number): string {

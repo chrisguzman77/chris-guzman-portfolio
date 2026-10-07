@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 import {
-  GREEN_AT,
   dayLabel,
   formatAgo,
   formatPercent,
   getStatus,
+  isGreen,
   uptimeSummary,
 } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ function show<T>(value: T | null | undefined, format: (value: T) => string): str
 
 function barClass(uptime: number | null): string {
   if (uptime === null) return MUTED_BAR;
-  return uptime >= GREEN_AT ? "bg-live" : "bg-warn";
+  return isGreen(uptime) ? "bg-live" : "bg-warn";
 }
 
 function Frame({
