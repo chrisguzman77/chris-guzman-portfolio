@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   Suspense,
   lazy,
@@ -25,7 +26,10 @@ const serverLabel = () => null; // no label in server HTML, so hydration never m
 
 // How far the site footer reaches up into the viewport, so the pill can rest above it
 // instead of covering the footer's links. 0 while the footer is off screen.
+// The launcher outlives client-side navigation, so layout changes (a new route, content
+// loading) re-measure too, not just scroll and resize: a short page may never scroll.
 function useFooterOverlap(): number {
+  const pathname = usePathname();
   const [overlap, setOverlap] = useState(0);
   useEffect(() => {
     let frame = 0;
@@ -41,12 +45,15 @@ function useFooterOverlap(): number {
     measure();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    observer?.observe(document.body);
     return () => {
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
+      observer?.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [pathname]); // re-measures on every route change
   return overlap;
 }
 

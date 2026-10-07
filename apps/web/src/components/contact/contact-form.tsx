@@ -19,7 +19,7 @@ import { Turnstile } from "./turnstile";
 type Banner = "rateLimited" | "turnstile" | "pendingToken" | "unavailable";
 
 const inputClass =
-  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand aria-[invalid=true]:border-destructive";
+  "w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground md:text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand aria-[invalid=true]:border-destructive";
 const submitClass =
   "inline-flex items-center gap-2 rounded-md bg-accent-brand px-3.5 py-2 text-[13px] font-semibold text-accent-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 
