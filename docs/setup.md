@@ -19,7 +19,7 @@ Ordered checklist of every external account and machine this project needs. Each
 
 ## GitHub (Phase 2)
 - Settings → Actions → General: require approval for all external contributors; default token permissions read-only.
-- Fine-grained PAT `portfolio-runner`: this repository only, Administration read and write, 1-year expiry → `GITHUB_RUNNER_TOKEN` in `prod.enc.env`.
+- Runner credential: the GitHub App in "Runner GitHub App (Phase 7)" below. (Phases 2–6 used a fine-grained PAT, `GITHUB_RUNNER_TOKEN`; it is now only a fallback and was retired on 2026-10-07.)
 - GHCR packages `web`, `api`, `runner` set to public so the VM pulls without credentials.
 - First deploy and turning on automatic deploys: [`docs/runbook.md`](runbook.md).
 
