@@ -92,7 +92,7 @@ Optional. Until both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, the r
    DEPLOYED=$(docker inspect -f '{{.Config.Image}}' portfolio-api-1 | cut -d: -f2)
    sudo IMAGE_TAG="$DEPLOYED" SERVICES=runner scripts/deploy.sh
    ```
-   Then `docker logs portfolio-runner-1 2>&1 | grep auth:` must show `auth: github app` (it showed `auth: pat` before), and the runner is listed as Idle under the repo's Settings → Actions → Runners. **Do not go on to step 6 until both checks pass**: revoking the PAT while the runner still uses it stops every deploy, including the one that would fix it.
+   Then `docker logs portfolio-runner-1 2>&1 | grep auth:` must show `auth: github app` (it showed `auth: pat` before), and the runner is listed as Idle under the repo's Settings → Actions → Runners. **Do not go on to step 6 until both checks pass**: revoking the PAT while the runner still uses it stops every deploy, including the one that would fix it. The runner-offline alert cannot detect a crash-looping runner (it restarts and stays visible to cAdvisor), so this check is the real proof.
 6. **Retire the PAT.** Settings → Developer settings → Fine-grained tokens → `portfolio-runner` → Revoke. Then `make secrets-edit` to delete `GITHUB_RUNNER_TOKEN`, and in the same commit move `GITHUB_RUNNER_TOKEN` in `infra/compose/prod.env.example` from the "Stored in prod.enc.env" block to the "Optional" block so `make secrets-check` stops requiring it; commit and merge.
 
 To rotate the key, generate a new one on the app's page, repeat step 4, recreate the runner and check its log as in step 5, and only then delete the old key there (the running container keeps the old key until it is recreated).
