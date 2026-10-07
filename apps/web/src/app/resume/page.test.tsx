@@ -38,7 +38,9 @@ describe("/resume", () => {
     expect(download.hasAttribute("download")).toBe(true);
 
     // The embed is server-rendered at every width (phones included).
-    expect(container.querySelector("object")?.getAttribute("data")).toBe("/cms-assets/abc-123");
+    expect(container.querySelector("object")?.getAttribute("data")).toBe(
+      "/cms-assets/abc-123#toolbar=0&view=Fit",
+    );
   });
 
   it("omits missing parts of the version line", async () => {
