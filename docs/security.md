@@ -26,7 +26,7 @@ A short threat model for a single-owner portfolio on one VM. It says what is wor
 | Script injection (XSS) | Nonce-based CSP built per request, `object-src`, `base-uri 'none'`, `frame-ancestors 'none'`. React escapes output. |
 | Browser-side leaks and downgrades | HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP on the site. A locked-down CSP and CORP on the API. |
 | Form spam and chat abuse | Turnstile on the contact form, in-process rate limits ([ADR 0007](adr/0007-in-process-rate-limits-and-jobs.md)), a daily token budget on chat, an optional Cloudflare rate-limit rule ([setup](setup.md#cloudflare-waf-rules-phase-7)). |
-| Forged cache revalidation | `/api/revalidate` needs a secret header, and the public path is blocked at Cloudflare. The Directus Flow calls it over the Docker network. |
+| Forged cache revalidation | `/api/revalidate` needs a secret header, and the public path can be blocked at Cloudflare with the WAF rule in [setup.md](setup.md#cloudflare-waf-rules-phase-7). The Directus Flow calls it over the Docker network. |
 | Leaked secrets | Secrets live in the repo only as SOPS/age ciphertext ([ADR 0004](adr/0004-sops-age-secrets.md)). `make secrets-check` rejects placeholders. |
 | Stolen token | Least privilege: a read-only Directus token for web and for the API, a public-repos read-only GitHub token, a runner credential scoped to this repo. Rotation steps are in the [runbook](runbook.md#rotate-secrets). |
 | Malicious or vulnerable dependency | Dependabot for npm, PyPI, Docker and Actions. Trivy scans images in CI. `pnpm audit` on production dependencies. |
