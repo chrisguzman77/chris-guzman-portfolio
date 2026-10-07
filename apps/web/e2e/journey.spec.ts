@@ -82,6 +82,51 @@ test("chat: ask a question, get a cited answer", async ({ page, isMobile }) => {
   await expect(terminal).toBeHidden();
 });
 
+test("chat on a phone: a floating card that the backdrop closes", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "phone layout only");
+  await page.goto("/");
+  const terminal = page.getByRole("region", { name: "Ask about Chris" });
+  await expect(async () => {
+    await pressChatShortcut(page);
+    await expect(terminal).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+
+  const viewport = page.viewportSize()!;
+  const box = (await terminal.boundingBox())!;
+  expect(box.height).toBeLessThan(viewport.height * 0.85);
+  expect(box.x).toBeGreaterThan(0);
+  expect(box.x + box.width).toBeLessThan(viewport.width);
+  await expectNoAxeViolations(page);
+
+  await page.touchscreen.tap(viewport.width / 2, 20); // above the card, on the backdrop
+  await expect(terminal).toBeHidden();
+  await expect(page.getByRole("button", { name: /Ask about Chris/ })).toBeVisible();
+});
+
+test("chat pill clears the footer after client-side navigation", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the header nav links are desktop only");
+  await page.goto("/");
+  const pill = page.getByRole("button", { name: /Ask about Chris/ });
+  // The shortcut label renders only once hydrated, so the click below is a client navigation.
+  await expect(pill.locator("kbd")).toBeVisible();
+  await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
+  await page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("link", { name: "education" })
+    .click();
+  await expect(page).toHaveURL(/\/education$/);
+  expect(await page.evaluate(() => "__sameDocument" in window)).toBe(true);
+
+  const footer = page.locator("footer");
+  await expect
+    .poll(async () => {
+      const p = (await pill.boundingBox())!;
+      const f = (await footer.boundingBox())!;
+      return p.y + p.height <= f.y || p.y >= f.y + f.height;
+    })
+    .toBe(true);
+});
+
 test.describe("404", () => {
   test.use({ allowedDocumentStatus: [404] });
 
