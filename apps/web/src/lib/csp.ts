@@ -1,7 +1,8 @@
 // Enforced CSP. Scripts need this request's nonce; 'strict-dynamic' lets nonced scripts load
 // others (Turnstile), and makes browsers ignore 'self' and host sources for scripts.
 // style-src keeps 'unsafe-inline' because Next and next-themes set style attributes (see
-// docs/security.md).
+// docs/security.md). frame-src needs 'self': Chromium shows an <object> PDF (the resume) in
+// an internal frame that frame-src governs, so without it Chrome and Brave show the fallback.
 export function buildCsp({
   nonce,
   apiOrigin,
@@ -20,7 +21,7 @@ export function buildCsp({
     "img-src 'self' data: blob:",
     "font-src 'self'",
     `connect-src 'self' ${apiOrigin} https://challenges.cloudflare.com`,
-    "frame-src https://challenges.cloudflare.com",
+    "frame-src 'self' https://challenges.cloudflare.com",
     "object-src 'self'",
     "base-uri 'none'",
     "form-action 'self'",

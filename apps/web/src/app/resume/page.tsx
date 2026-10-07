@@ -71,7 +71,7 @@ function ResumeViewer({
           Download PDF
         </ResumeLink>
       </div>
-      <div className="hidden rounded-[10px] border border-border bg-card p-4 md:block md:min-h-[calc(80vh+2rem+2px)]">
+      <div className="rounded-[10px] border border-border bg-card p-2 md:p-4">
         <PdfEmbed src={src} />
       </div>
     </>

@@ -19,7 +19,7 @@ describe("buildCsp", () => {
         "img-src 'self' data: blob:",
         "font-src 'self'",
         "connect-src 'self' https://api.christopherguzman.me https://challenges.cloudflare.com",
-        "frame-src https://challenges.cloudflare.com",
+        "frame-src 'self' https://challenges.cloudflare.com",
         "object-src 'self'",
         "base-uri 'none'",
         "form-action 'self'",

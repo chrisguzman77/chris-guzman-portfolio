@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getResume } from "@/lib/directus/queries";
 import type { Resume } from "@/lib/directus/schemas";
@@ -10,18 +10,6 @@ import ResumePage from "./page";
 vi.mock("@/lib/directus/queries", () => ({ getResume: vi.fn() }));
 
 const full: Resume = { file: "abc-123", version_label: "fall-2026", updated_at: "2026-10-01" };
-
-// jsdom has no matchMedia. Pretend to be a wide screen so the PDF embed renders.
-beforeEach(() => {
-  vi.stubGlobal(
-    "matchMedia",
-    vi.fn().mockImplementation(() => ({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })),
-  );
-});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -49,12 +37,8 @@ describe("/resume", () => {
     expect(download.getAttribute("href")).toBe("/cms-assets/abc-123");
     expect(download.hasAttribute("download")).toBe(true);
 
-    // The embed itself is client-gated (see pdf-embed.test.tsx); the frame is desktop-only.
-    const frame = container.querySelector(".md\\:block");
-    expect(frame?.className).toContain("hidden");
-    // Reserves the embed's height (80vh plus the frame's padding and border) so the footer
-    // does not jump when the <object> mounts after hydration.
-    expect(frame?.className).toContain("md:min-h-[calc(80vh+2rem+2px)]");
+    // The embed is server-rendered at every width (phones included).
+    expect(container.querySelector("object")?.getAttribute("data")).toBe("/cms-assets/abc-123");
   });
 
   it("omits missing parts of the version line", async () => {
