@@ -36,13 +36,31 @@ describe("proxy", () => {
     for (const path of [
       "_next/static",
       "_next/image",
-      "favicon.ico",
-      "cms-assets",
-      "stats",
-      "api",
-      "\\.well-known",
+      "favicon\\.ico",
+      "cms-assets(?:/|$)",
+      "stats(?:/|$)",
+      "api(?:/|$)",
+      "\\.well-known(?:/|$)",
     ]) {
       expect(source).toContain(path);
+    }
+  });
+
+  it("anchors excluded prefixes so look-alike pages still get the CSP", () => {
+    const pattern = new RegExp("^" + config.matcher[0].source + "$");
+    for (const path of ["/", "/apis", "/statsboard", "/cms-assetsx", "/projects/api"]) {
+      expect(pattern.test(path), path).toBe(true);
+    }
+    for (const path of [
+      "/api",
+      "/api/healthz",
+      "/stats/script.js",
+      "/cms-assets/a.png",
+      "/.well-known/security.txt",
+      "/_next/static/chunk.js",
+      "/favicon.ico",
+    ]) {
+      expect(pattern.test(path), path).toBe(false);
     }
   });
 });
