@@ -14,6 +14,12 @@ from portfolio_api.models.chat import (  # noqa: E402
 )
 from portfolio_api.models.contact import ContactSubmission, EmailStatus  # noqa: E402
 from portfolio_api.models.github import GitHubActivityCache  # noqa: E402
+from portfolio_api.models.newsletter import (  # noqa: E402
+    NewsletterDelivery,
+    NewsletterSend,
+    NewsletterSubscriber,
+    SubscriberStatus,
+)
 from portfolio_api.models.rag import RagChunk, RagDocument  # noqa: E402
 
 __all__ = [
@@ -25,6 +31,10 @@ __all__ = [
     "ContactSubmission",
     "EmailStatus",
     "GitHubActivityCache",
+    "NewsletterDelivery",
+    "NewsletterSend",
+    "NewsletterSubscriber",
     "RagChunk",
     "RagDocument",
+    "SubscriberStatus",
 ]

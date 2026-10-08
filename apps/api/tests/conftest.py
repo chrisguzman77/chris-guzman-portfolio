@@ -38,7 +38,8 @@ async def db() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     engine = make_engine(url)
     truncate = text(
         "TRUNCATE contact_submissions, github_activity_cache, rag_documents, rag_chunks,"
-        " chat_sessions, chat_messages, chat_usage_daily"
+        " chat_sessions, chat_messages, chat_usage_daily,"
+        " newsletter_deliveries, newsletter_sends, newsletter_subscribers"
     )
     async with engine.begin() as conn:
         await conn.execute(truncate)
