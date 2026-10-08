@@ -43,7 +43,8 @@ class SendRequest(BaseModel):
         # An unreadable flag must not silently become a real send to every subscriber.
         if value is True or value == "true":
             return True
-        if value is False or value is None or value in ("false", ""):
+        # "undefined" is how Directus renders an untouched checkbox.
+        if value is False or value is None or value in ("false", "", "undefined", "null"):
             return False
         raise ValueError("test must be true or false")
 

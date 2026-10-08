@@ -158,7 +158,7 @@ async def test_test_send_goes_only_to_chris_and_records_nothing(
         assert await s.scalar(select(func.count()).select_from(NewsletterSend)) == 0
 
 
-@pytest.mark.parametrize("flag", [False, "false", ""])
+@pytest.mark.parametrize("flag", [False, "false", "", "undefined", "null"])
 async def test_non_true_test_flags_mean_a_real_send(
     settings: Settings, db: Sessions, flag: Any
 ) -> None:
@@ -289,7 +289,7 @@ async def test_post_emails_are_plain(db: Sessions) -> None:
     assert hrefs[1].startswith("https://christopherguzman.me/newsletter/unsubscribe?token=")
 
 
-@pytest.mark.parametrize("flag", ["undefined", "1", 1, "True"])
+@pytest.mark.parametrize("flag", ["1", 1, "True"])
 async def test_ambiguous_test_flags_are_rejected_and_send_nothing(
     settings: Settings, db: Sessions, flag: Any
 ) -> None:
