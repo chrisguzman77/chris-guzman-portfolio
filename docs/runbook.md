@@ -119,6 +119,26 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
   The next retry run (within 5 minutes) sends it.
 - Until `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set, `/contact` shows "Contact form coming soon" and the API answers `503 contact_unavailable`. Without `RESEND_API_KEY` or `CONTACT_TO`, messages are saved and wait as `pending`.
 
+## Newsletter
+
+- **Send a post.** Open a published post in Directus, then Email to subscribers. Send a test first (tick "Send a test to me only"); it goes to `CONTACT_TO`. Then send for real (box unticked).
+- **After a real send** `emailed_at` and `emailed_count` fill in. If they stay empty, the send was partial: either the daily budget below stopped it (no alert), or Resend refused a batch (its free plan allows 100 emails a day and 3,000 a month), which also emails you the "Newsletter send failed" alert. Click the button again later; it only emails subscribers who have not got the post. The API refuses a post that was already sent (`already_sent`).
+- **Daily budget.** A post send emails at most 80 subscribers in any rolling 24 hours (`API_NEWSLETTER_DAILY_BUDGET`). Resend's free 100 a day is shared with Grafana alerts, contact messages and confirmation emails, and the other 20 stay free for those, including the alert about a failed send. A larger list finishes on later clicks: the first click answers partial (`emailed_at` stays empty), and clicking again once the quota frees up sends only to those who have not got the post. Hitting the budget is not a failure, so no alert fires.
+- **No subscribers yet.** A real send with no confirmed subscribers is refused (`no_subscribers`) and records nothing, so the post can be sent later.
+- **Undo a real send** (so a post can be emailed again, and everyone gets it again). Delete the send record; its deliveries go with it:
+
+  ```bash
+  docker exec -it portfolio-postgres-1 psql -U postgres -d portfolio -c "delete from newsletter_sends where post_id = <id>;"
+  ```
+
+  Then clear `emailed_at` and `emailed_count` on the post in Directus. Use `<id>` from the post's URL in Directus.
+- **Directus shows the Flow as run even when the API refused.** Check the result instead: after a real send, `emailed_at` and `emailed_count` fill in on the post; after a test send, the email arrives at `CONTACT_TO`. If neither happens, open Settings → Flows → Email to subscribers → Logs (the sidebar's run history) and open the latest run: the Send step shows the API's status and error code (`already_sent`, `no_subscribers`, `not_published`, `send_failed`, `newsletter_unavailable`).
+- **Retrying after an edit.** If you retry a partial send after editing the post's title or excerpt, Resend may refuse the retried batch for up to 24 hours (same idempotency key, different content). Send the rest after 24 hours, or avoid edits between retries.
+- **Remove a subscriber.** `https://christopherguzman.me/admin/subscribers` (Cloudflare Access).
+- **Secret rotation.** Rotating `INTERNAL_API_SECRET` breaks unsubscribe links in emails already sent. Those readers can still unsubscribe from any newer email, or ask Chris to remove them.
+- **Umami upgrades.** After a major Umami upgrade, check the "Newsletter visits per post" panel; Umami may rename `website_event` columns.
+- **Grafana history.** Subscriber trend history goes back as far as Prometheus retention (35 days). The admin page shows every sign-up date.
+
 ## GitHub activity
 
 The API refreshes the contribution calendar when it is an hour old (checked every 10 minutes). If GitHub fails, the last copy keeps showing. Without `GITHUB_ACTIVITY_TOKEN` the home page hides the section only if nothing was ever cached: once a calendar has been fetched, removing or revoking the token keeps serving that last copy indefinitely. To hide the section after removing the token, delete the cached row:

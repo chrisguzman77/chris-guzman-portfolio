@@ -2,11 +2,10 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
-from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
 
 from portfolio_api.clients.turnstile import TurnstileUnavailableError, TurnstileVerifier
 from portfolio_api.errors import ApiError
+from portfolio_api.json_body import parse_json_body
 from portfolio_api.ratelimit import SlidingWindowLimiter, client_ip, client_key
 from portfolio_api.schemas.contact import ContactAccepted, ContactRequest
 from portfolio_api.services.contact import ContactForm, ContactService
@@ -49,23 +48,8 @@ async def require_turnstile(
 
 
 async def contact_body(request: Request) -> ContactRequest:
-    """Parse the body ourselves: FastAPI decodes a body parameter's JSON before any dependency,
-    so malformed JSON would skip the rate limit and the configuration check."""
-    # JSON only: a text/plain or form POST is a CORS "simple request" that skips the preflight.
-    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-    if media_type != "application/json":
-        raise ApiError(
-            400,
-            "invalid_request",
-            "Some fields are invalid.",
-            fields={"body": "Content-Type must be application/json."},
-        )
-    try:
-        return ContactRequest.model_validate_json(await request.body())
-    except ValidationError as exc:
-        raise RequestValidationError(
-            [{**err, "loc": ("body", *err["loc"])} for err in exc.errors(include_url=False)]
-        ) from exc
+    """JSON-only body, parsed after the rate limit and configuration checks."""
+    return await parse_json_body(request, ContactRequest)
 
 
 # Dependencies resolve in order: rate limit, then configuration, then the body.

@@ -9,8 +9,10 @@ import { SectionHeading } from "@/components/content/section-heading";
 import { StatusCard, StatusCardSkeleton } from "@/components/content/status-card";
 import { GitHubActivity } from "@/components/content/github-activity";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
+import { SubscribeForm } from "@/components/newsletter/subscribe-form";
 import { outboundProps } from "@/lib/analytics";
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
+import { serverEnv } from "@/lib/env";
 import { lastPathSegment, sectionNumbers } from "@/lib/format";
 import { getGithubActivity } from "@/lib/github-activity";
 import { personJsonLd, serializeJsonLd } from "@/lib/seo";
@@ -23,6 +25,7 @@ const primaryButton = `inline-flex items-center gap-2 rounded-md bg-accent-brand
 const ghostLink = `inline-flex items-center gap-2 rounded-md py-2 pr-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground ${focusRing}`;
 
 export default async function HomePage() {
+  const { turnstileSiteKey, publicApiUrl } = serverEnv();
   const [profile, projects, experience, posts, activity] = await Promise.all([
     getProfile(),
     getProjects(),
@@ -178,6 +181,11 @@ export default async function HomePage() {
               </li>
             ))}
           </ol>
+          {turnstileSiteKey ? (
+            <div className="mt-6">
+              <SubscribeForm apiUrl={publicApiUrl} siteKey={turnstileSiteKey} />
+            </div>
+          ) : null}
         </section>
       ) : null}
     </div>

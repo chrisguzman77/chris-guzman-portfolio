@@ -20,6 +20,8 @@ Service names resolve on the Compose network because `cloudflared` runs in the s
 
 Application `Directus admin` protects `cms.christopherguzman.me`. Policy `Chris only`: Allow, include Emails = owner's address. Login method: One-time PIN only, instant authentication on.
 
+Application `Admin` protects the path `christopherguzman.me/admin` (the subscriber page) with the same `Chris only` policy and one-time-PIN login as `cms.`. The web app re-checks the Access JWT (`CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`) and answers 404 without it.
+
 Applications `Grafana` (`grafana.christopherguzman.me`) and `Umami` (`analytics.christopherguzman.me`) use the same `Chris only` policy and one-time-PIN login. Both apps also have their own login behind Access.
 
 ## Deploy the fallback Worker

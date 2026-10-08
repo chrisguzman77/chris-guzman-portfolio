@@ -108,6 +108,86 @@ export function bootstrapTokenFailure(status) {
   return `DIRECTUS_BOOTSTRAP_TOKEN was rejected (HTTP ${status}); regenerate it for an admin user (docs/setup.md, "Directus bootstrap token")`;
 }
 
+const NEWSLETTER_SEND_URL = "http://api:8000/internal/newsletter/send";
+
+/**
+ * The manual "Email to subscribers" Flow on posts. "send" POSTs the post id and the
+ * checkbox to the API; "check" passes only a completed real send (not a test or a
+ * partial send); "record" copies the API's sent_at and recipients onto the post.
+ * Directus fills {{...}} in a body as text, so both values are quoted strings and the
+ * API accepts "12" and "true". chain maps each operation key to the one it resolves to.
+ */
+export function newsletterFlow(internalSecret) {
+  return {
+    flow: {
+      name: "Email to subscribers",
+      icon: "mail",
+      status: "active",
+      trigger: "manual",
+      accountability: "all",
+      options: {
+        collections: ["posts"],
+        location: "item",
+        requireConfirmation: true,
+        confirmationDescription:
+          "Email this post to every confirmed subscriber. Tick the box to send only a test to yourself.",
+        fields: [
+          {
+            field: "test_only",
+            type: "boolean",
+            name: "Send a test to me only",
+            meta: { interface: "boolean", width: "full" },
+          },
+        ],
+      },
+    },
+    operations: [
+      {
+        key: "send",
+        name: "Send",
+        type: "request",
+        position_x: 19,
+        position_y: 1,
+        options: {
+          method: "POST",
+          url: NEWSLETTER_SEND_URL,
+          headers: [
+            { header: "X-Internal-Secret", value: internalSecret },
+            { header: "Content-Type", value: "application/json" },
+          ],
+          body: '{"post_id":"{{$trigger.body.keys[0]}}","test":"{{$trigger.body.test_only}}"}',
+        },
+      },
+      {
+        key: "check",
+        name: "Completed?",
+        type: "condition",
+        position_x: 37,
+        position_y: 1,
+        options: { filter: { send: { data: { status: { _eq: "complete" } } } } },
+      },
+      {
+        key: "record",
+        name: "Record on post",
+        type: "item-update",
+        position_x: 55,
+        position_y: 1,
+        options: {
+          collection: "posts",
+          key: ["{{$trigger.body.keys[0]}}"],
+          payload: {
+            emailed_at: "{{send.data.sent_at}}",
+            emailed_count: "{{send.data.recipients}}",
+          },
+          permissions: "$full",
+          emitEvents: false,
+        },
+      },
+    ],
+    chain: { send: "check", check: "record" },
+  };
+}
+
 export class DirectusClient {
   constructor(baseUrl, fetchImpl = globalThis.fetch) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");

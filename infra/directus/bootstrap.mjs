@@ -2,7 +2,7 @@
 //   node /directus/bootstrap/bootstrap.mjs
 // Creates missing schema, the read-only web-reader policy/role/user (token from
 // DIRECTUS_WEB_TOKEN), the optional api-reader user (token from DIRECTUS_API_TOKEN),
-// the revalidation Flow, the optional reindex step (secret from INTERNAL_API_SECRET),
+// the revalidation Flow, the optional reindex step and the newsletter Flow (secret from INTERNAL_API_SECRET),
 // and seed content (each collection at most once, and only while it is empty; the
 // hidden bootstrap_state singleton records which ones are done). Never deletes
 // anything and never overwrites content Chris edited in the CMS.
@@ -10,7 +10,7 @@
 // an ADMIN_EMAIL/ADMIN_PASSWORD login.
 import { readFile } from "node:fs/promises";
 
-import { DirectusClient, planSchema, planSeedOnce, sameJson } from "./lib.mjs";
+import { DirectusClient, newsletterFlow, planSchema, planSeedOnce, sameJson } from "./lib.mjs";
 import { BOOTSTRAP_STATE, CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const BASE_URL = "http://127.0.0.1:8055";
@@ -253,6 +253,42 @@ async function ensureReindex(api, flow, revalidateOp, internalSecret) {
   }
 }
 
+async function ensureNewsletterFlow(api, internalSecret) {
+  const spec = newsletterFlow(internalSecret);
+  const changes = [];
+  let flow = await findOne(api, "/flows", { name: { _eq: spec.flow.name } });
+  if (!flow) {
+    flow = await api.post("/flows", spec.flow);
+    changes.push("created");
+  } else if (!sameJson(flow.options, spec.flow.options)) {
+    await api.patch(`/flows/${flow.id}`, { options: spec.flow.options });
+    changes.push("trigger synced");
+  }
+  const ops = {};
+  for (const op of spec.operations) {
+    let row = await findOne(api, "/operations", { flow: { _eq: flow.id }, key: { _eq: op.key } });
+    if (!row) {
+      row = await api.post("/operations", { ...op, flow: flow.id });
+      changes.push(`${op.key} created`);
+    } else if (!sameJson(row.options, op.options)) {
+      row = await api.patch(`/operations/${row.id}`, { options: op.options });
+      changes.push(`${op.key} synced`);
+    }
+    ops[op.key] = row;
+  }
+  for (const [from, to] of Object.entries(spec.chain)) {
+    if (ops[from].resolve !== ops[to].id) {
+      await api.patch(`/operations/${ops[from].id}`, { resolve: ops[to].id });
+      changes.push(`${from} -> ${to}`);
+    }
+  }
+  if (flow.operation !== ops.send.id) {
+    await api.patch(`/flows/${flow.id}`, { operation: ops.send.id });
+    changes.push("entry set");
+  }
+  console.log(`newsletter flow: ${changes.length ? changes.join(", ") : "exists"}`);
+}
+
 async function loadSeed(name) {
   const url = new URL(`./seed/${name}.json`, import.meta.url);
   return JSON.parse(await readFile(url, "utf8"));
@@ -320,8 +356,9 @@ async function main() {
   const { flow, op } = await ensureFlow(api, revalidateSecret);
   if (internalSecret) {
     await ensureReindex(api, flow, op, internalSecret);
+    await ensureNewsletterFlow(api, internalSecret);
   } else {
-    console.log("flow: reindex step skipped (INTERNAL_API_SECRET not set)");
+    console.log("flow: reindex step and newsletter flow skipped (INTERNAL_API_SECRET not set)");
   }
   await ensureSeed(api);
   console.log("bootstrap: done");

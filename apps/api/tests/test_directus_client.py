@@ -153,3 +153,36 @@ def test_pdf_text_wraps_any_pypdf_error(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(directus_module, "PdfReader", broken)
     with pytest.raises(DirectusError, match="ParseError"):
         pdf_text(b"%PDF-1.7")
+
+
+async def test_fetch_post_reads_one_post_by_id() -> None:
+    content, recorder = client(
+        {
+            "/items/posts/7": {
+                "id": 7,
+                "slug": "hello",
+                "title": "Hello",
+                "excerpt": "Hi.",
+                "status": "draft",
+            }
+        }
+    )
+    post = await content.fetch_post(7)
+    assert post is not None and (post.id, post.slug, post.published) == (7, "hello", False)
+    assert recorder.requests[0].url.params["fields"] == "id,slug,title,excerpt,status"
+
+
+@pytest.mark.parametrize("status", [403, 404])
+async def test_fetch_post_missing_is_none(status: int) -> None:
+    content, _ = client({"/items/posts/7": httpx.Response(status, json={"errors": []})})
+    assert await content.fetch_post(7) is None
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [httpx.Response(500), {"id": 7, "slug": "x"}, ["not", "a", "dict"]],
+)
+async def test_fetch_post_errors_raise(reply: Any) -> None:
+    content, _ = client({"/items/posts/7": reply})
+    with pytest.raises(DirectusError):
+        await content.fetch_post(7)

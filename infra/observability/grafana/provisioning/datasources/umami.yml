@@ -1,0 +1,21 @@
+apiVersion: 1
+
+# Read-only view of Umami's events for the Newsletter dashboard's visits panel. Logs in
+# as grafana_umami_ro (SELECT on website_event only; infra/postgres/init/02-grafana-umami-ro.sh).
+# Until GRAFANA_UMAMI_DB_PASSWORD is set the login fails and only that panel shows an error.
+datasources:
+  - name: umami-readonly
+    uid: umami-readonly
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: grafana_umami_ro
+    editable: false
+    jsonData:
+      database: umami
+      sslmode: disable
+      postgresVersion: 1700
+      maxOpenConns: 2
+      timescaledb: false
+    secureJsonData:
+      password: ${GRAFANA_UMAMI_DB_PASSWORD}

@@ -15,9 +15,9 @@ vi.mock("@/lib/env", () => ({
 }));
 
 describe("robots", () => {
-  it("allows everything except /api/ and points at the sitemap", async () => {
+  it("allows everything except /api/ and /admin and points at the sitemap", async () => {
     await expect(robots()).resolves.toEqual({
-      rules: { userAgent: "*", allow: "/", disallow: "/api/" },
+      rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/admin"] },
       sitemap: "https://example.test/sitemap.xml",
     });
   });

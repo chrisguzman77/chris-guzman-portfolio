@@ -123,3 +123,13 @@ Two rules on the `christopherguzman.me` zone. Both are optional second layers: t
    ```
 4. Action: Block. Deploy.
 5. Check: `curl -s -o /dev/null -w '%{http_code}\n' -X POST https://christopherguzman.me/api/revalidate` prints `403`. Then save a change in Directus and confirm the site updates (the Flow still works).
+
+## Newsletter (blog subscriptions)
+
+All three keys below are optional. Without `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` the `/admin/subscribers` page answers 404 (it never opens unprotected). Without `GRAFANA_UMAMI_DB_PASSWORD` the read-only database role is not created and only the "Newsletter visits per post" panel shows an error.
+
+1. **Protect `/admin` with Cloudflare Access.** Zero Trust → Access → Applications → Add an application → Self-hosted. Domain `christopherguzman.me`, path `admin`. Use the same policy as the `cms.` application (only your identity). Save, then copy the application's **AUD tag** (Overview tab) and your **team domain** (`<team>.cloudflareaccess.com`).
+2. **Store the keys.** `make secrets-edit` and add `CF_ACCESS_TEAM_DOMAIN=<team>.cloudflareaccess.com`, `CF_ACCESS_AUD=<aud tag>` and `GRAFANA_UMAMI_DB_PASSWORD=<output of openssl rand -hex 24>`. Save, then `make secrets-check`.
+3. **Ship it.** Commit, open the PR and merge. The deploy creates the `grafana_umami_ro` role and Grafana picks up the Newsletter dashboard. The deploy that adds these keys recreates the postgres and grafana containers once (a few seconds of downtime), because a new env key changes their config even while it is empty.
+4. **Rate-limit the sign-up routes.** In the rate-limit rule above (`api contact and chat`), edit the expression and add `or starts_with(http.request.uri.path, "/v1/newsletter/")` inside the inner parentheses, after the `/v1/chat/` term, so the whole expression reads `(http.host eq "api.christopherguzman.me" and (starts_with(http.request.uri.path, "/v1/contact") or starts_with(http.request.uri.path, "/v1/chat/") or starts_with(http.request.uri.path, "/v1/newsletter/")))`. Deploy.
+5. **Test.** Subscribe with your own address on the blog, confirm from the email, then open `https://christopherguzman.me/admin/subscribers` (you should pass through Access and see yourself). In Directus open a published post and run Email to subscribers with "Send a test to me only" ticked. Directus reports the run as done even if the API refused it, so confirm the test email arrives at `CONTACT_TO`; if it does not, see the Newsletter section of the runbook for the Flow logs.

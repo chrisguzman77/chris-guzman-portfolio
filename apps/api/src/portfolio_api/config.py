@@ -36,6 +36,13 @@ class Settings(BaseSettings):
 
     # Phase 6: GET /v1/status reads fixed queries from the compose-network Prometheus.
     prometheus_url: str = "http://prometheus:9090"
+    # Blog subscriptions: on when the Resend key, Turnstile secret and internal secret are set.
+    newsletter_from: str = "Christopher Guzman <posts@christopherguzman.me>"
+    # Resend's free tier is 100 a day, shared with alerts, contact and confirmations; a post
+    # send stops at this many in a rolling 24 hours so the rest stays free for those.
+    newsletter_daily_budget: int = Field(default=80, gt=0)
+    site_url: str = "https://christopherguzman.me"
+    public_api_url: str = "https://api.christopherguzman.me"
 
     @field_validator(
         "turnstile_secret",

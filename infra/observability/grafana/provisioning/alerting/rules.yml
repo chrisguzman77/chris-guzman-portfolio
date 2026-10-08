@@ -1,4 +1,4 @@
-# The eight Phase 6/7 alerts. Each rule is an instant PromQL query (A) and a
+# The nine alerts (Phase 6/7 and the newsletter). Each rule is an instant PromQL query (A) and a
 # threshold (C) on it. Grafana expands environment variables in provisioning
 # files, so no expression or template here may contain a dollar sign (CI checks).
 #
@@ -240,5 +240,32 @@ groups:
         for: 5m
         annotations:
           summary: The deploy runner container has not been seen for 15 minutes; deploys will queue. See the runbook.
+        labels:
+          severity: warning
+
+      - uid: newsletter-send-failed
+        title: Newsletter send failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(increase(newsletter_emails_total{kind="post", result="failed"}[15m]))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: Some newsletter emails were not sent (often Resend's daily limit of 100). Open the post in Directus and click Email to subscribers again, today or tomorrow; it only emails people who have not got it.
         labels:
           severity: warning

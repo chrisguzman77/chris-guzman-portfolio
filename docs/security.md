@@ -33,6 +33,7 @@ A short threat model for a single-owner portfolio on one VM. It says what is wor
 | Compromised CI or runner | Ephemeral self-hosted runner, deploys only from `main`, fork pull requests need approval, default token read-only ([ADR 0005](adr/0005-self-hosted-runner-deploys.md), [ADR 0006](adr/0006-runner-in-compose.md)). |
 | Data loss or ransomware | Nightly backups encrypted to a key the VM does not hold, uploaded to R2 with a 30-day object lock ([ADR 0010](adr/0010-backup-encryption-and-bucket-lock.md)). A weekly job restores and verifies the latest one. |
 | Silent failure | Grafana alerts by email (on Prometheus metrics), Better Stack heartbeat for backups and uptime, per-container memory limits. |
+| Blog subscriptions | Double opt-in with sha256-stored confirm tokens (7-day expiry). Stateless HMAC unsubscribe tokens (key derived from `INTERNAL_API_SECRET`). The same response for every address (no list enumeration), and confirmation emails sent after the response (no timing signal). Turnstile plus per-client and per-address limits. Link pages POST from the browser, so mail scanners' GETs do nothing. `/admin/subscribers` sits behind a Cloudflare Access path app, with the JWT re-verified server-side (404 otherwise), also inside the server action. Internal endpoints refuse tunnel traffic. `grafana_umami_ro` can read only `website_event`. No open pixels or click tracking. |
 | Host access | Proxmox root SSH is key-only once the runbook step is applied ([runbook](runbook.md#proxmox-ssh-keys-only)). |
 
 ## Accepted trade-offs
@@ -43,6 +44,9 @@ A short threat model for a single-owner portfolio on one VM. It says what is wor
 - **Grafana and Umami admin behind Access plus their own logins.** Two layers, but both are managed by one person and one identity provider setup.
 - **API docs pages allow jsDelivr scripts and `'unsafe-inline'`.** Swagger UI and ReDoc load from `cdn.jsdelivr.net` and run an inline init script, so `/docs`, `/docs/oauth2-redirect` and `/redoc` get a looser CSP. It is scoped to those three static paths, which take no user input; every other path keeps `default-src 'none'`.
 - **Public API docs.** `/docs` and `/openapi.json` are open on purpose; the contract is part of the showcase.
+- **Newsletter link tokens in page URLs.** Confirm and unsubscribe tokens appear in those pages' URLs, so Umami (private, behind Access) may record them in page-view URLs. A leaked unsubscribe token can only unsubscribe that one reader.
+- **Unsubscribe tokens in API access logs.** The one-click unsubscribe puts the token in the query string (`/v1/newsletter/unsubscribe?token=...`), so it can appear in API access logs. The same reader-only reach applies.
+- **Directus Flow revisions hold the internal secret.** The Email to subscribers Flow stores its rendered options, including the internal-secret header, in `directus_revisions` on each run, alongside the secret already stored on the operation. Both are readable only by Directus admins (behind Access).
 
 ## Headers
 

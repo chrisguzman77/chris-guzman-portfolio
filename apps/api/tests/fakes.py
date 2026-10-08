@@ -38,6 +38,24 @@ class FakeSender:
         self.sent.append(email)
 
 
+class FakeBatchSender(FakeSender):
+    """FakeSender plus send_batch; batch numbers in ``fail_batches`` (0-based) raise."""
+
+    def __init__(self, fail_times: int = 0, fail_batches: set[int] | None = None) -> None:
+        super().__init__(fail_times)
+        self.fail_batches = fail_batches or set()
+        self.batches: list[tuple[str, list[OutgoingEmail]]] = []
+        self.batch_attempts = 0
+
+    async def send_batch(self, emails: Sequence[OutgoingEmail], idempotency_key: str) -> None:
+        attempt = self.batch_attempts
+        self.batch_attempts += 1
+        if attempt in self.fail_batches:
+            raise EmailSendError("resend 429: daily_quota_exceeded")
+        self.batches.append((idempotency_key, list(emails)))
+        self.sent.extend(emails)
+
+
 class FakeEmbedder:
     """Deterministic bag-of-words vectors: texts sharing words point the same way."""
 

@@ -100,6 +100,16 @@ function file(field, iface) {
   };
 }
 
+/** Set only by the "Email to subscribers" Flow; shown on the post, never editable. */
+function emailed(field, type, iface) {
+  return {
+    field,
+    type,
+    meta: { interface: iface, readonly: true, width: "half", note: "Set by Email to subscribers." },
+    schema: { is_nullable: true },
+  };
+}
+
 const degrees = {
   field: "degrees",
   type: "json",
@@ -253,6 +263,8 @@ export const collections = [
       text("body", { required: true, markdown: true }),
       tags("tags"),
       file("cover", "file-image"),
+      emailed("emailed_at", "timestamp", "datetime"),
+      emailed("emailed_count", "integer", "input"),
     ],
   },
   {
