@@ -49,6 +49,19 @@ def _payload(email: OutgoingEmail) -> dict[str, Any]:
     return body
 
 
+def _describe(res: httpx.Response) -> str:
+    """Status plus Resend's error name; the body can echo recipient addresses, so it is dropped."""
+    try:
+        name = res.json().get("name")
+    except (ValueError, AttributeError):
+        name = None
+    return (
+        f"resend {res.status_code}: {name}"
+        if isinstance(name, str)
+        else f"resend {res.status_code}"
+    )
+
+
 class ResendSender:
     def __init__(self, http: httpx.AsyncClient, api_key: str) -> None:
         self._http = http
@@ -65,7 +78,7 @@ class ResendSender:
         except httpx.HTTPError as exc:
             raise EmailSendError(f"resend request failed: {type(exc).__name__}") from exc
         if not res.is_success:
-            raise EmailSendError(f"resend {res.status_code}: {res.text[:200]}")
+            raise EmailSendError(_describe(res))
 
     async def send(self, email: OutgoingEmail) -> None:
         await self._post(RESEND_URL, email.idempotency_key, _payload(email), 10.0)

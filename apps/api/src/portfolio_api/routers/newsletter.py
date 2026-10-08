@@ -1,7 +1,9 @@
 from typing import Annotated
+from urllib.parse import quote
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi.responses import RedirectResponse
 
 from portfolio_api.clients.turnstile import TurnstileUnavailableError, TurnstileVerifier
 from portfolio_api.errors import ApiError
@@ -107,6 +109,16 @@ async def confirm(
     if not await service.confirm(body.token):
         raise _invalid_token()
     return Confirmed()
+
+
+@router.get("/unsubscribe", include_in_schema=False)
+async def unsubscribe_link(request: Request, token: str | None = None) -> RedirectResponse:
+    """The List-Unsubscribe URL opened in a browser. Never unsubscribes: mail scanners
+    prefetch links, so the site's page asks for a click and POSTs."""
+    page = f"{request.app.state.settings.site_url.rstrip('/')}/newsletter/unsubscribe"
+    if token:
+        page += f"?token={quote(token[:200], safe='')}"
+    return RedirectResponse(page, status_code=303)
 
 
 @router.post("/unsubscribe", response_model=Unsubscribed)

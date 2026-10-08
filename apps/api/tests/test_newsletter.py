@@ -1,6 +1,7 @@
 import re
 from datetime import timedelta
 from typing import Any
+from urllib.parse import quote
 
 import pytest
 from fastapi import FastAPI
@@ -270,3 +271,34 @@ async def test_purge_and_gauge(db: Sessions) -> None:
     assert [r.email for r in await rows(db)] == ["new@example.com"]
     assert metric("newsletter_subscribers", status="pending") == 1
     assert metric("newsletter_subscribers", status="confirmed") == 0
+
+
+async def test_get_on_the_list_unsubscribe_url_redirects_and_never_unsubscribes(
+    nl_settings: Settings, db: Sessions
+) -> None:
+    """Clients without one-click open the header URL; scanners prefetch it. Only POST deletes."""
+    app = make_app(nl_settings, db)
+    await call(app, "/subscribe", sub())
+    [row] = await rows(db)
+    token = unsubscribe_token(KEY, row.id) + "&x=1 "
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        res = await c.get(f"{BASE}/unsubscribe", params={"token": token}, follow_redirects=False)
+        bare = await c.get(f"{BASE}/unsubscribe", follow_redirects=False)
+    assert res.status_code == 303
+    assert res.headers["location"] == (
+        f"https://christopherguzman.me/newsletter/unsubscribe?token={quote(token, safe='')}"
+    )
+    assert (bare.status_code, bare.headers["location"]) == (
+        303,
+        "https://christopherguzman.me/newsletter/unsubscribe",
+    )
+    assert len(await rows(db)) == 1
+
+
+async def test_get_unsubscribe_redirects_even_when_newsletter_is_off(
+    nl_settings: Settings,
+) -> None:
+    app = make_app(nl_settings, None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        res = await c.get(f"{BASE}/unsubscribe?token=abc", follow_redirects=False)
+    assert res.status_code == 303

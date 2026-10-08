@@ -143,3 +143,19 @@ async def test_resend_batch_failure_raises_without_the_key() -> None:
     with pytest.raises(EmailSendError) as info:
         await ResendSender(client(transport), "re_key").send_batch([EMAIL], "b")
     assert "429" in str(info.value) and "re_key" not in str(info.value)
+
+
+async def test_resend_errors_name_the_error_but_never_echo_addresses() -> None:
+    body = {"name": "validation_error", "message": "Invalid `to` field: victim@example.com"}
+    transport = httpx.MockTransport(lambda _: httpx.Response(422, json=body))
+    with pytest.raises(EmailSendError) as info:
+        await ResendSender(client(transport), "re_key").send(EMAIL)
+    assert str(info.value) == "resend 422: validation_error"
+    assert "victim@example.com" not in str(info.value)
+
+
+async def test_resend_error_without_a_name_is_just_the_status() -> None:
+    transport = httpx.MockTransport(lambda _: httpx.Response(502, text="bad gateway a@b.co"))
+    with pytest.raises(EmailSendError) as info:
+        await ResendSender(client(transport), "re_key").send(EMAIL)
+    assert str(info.value) == "resend 502"

@@ -81,6 +81,7 @@ class NewsletterService:
         unsubscribe_key: bytes,
         posts: PostSource | None = None,
         test_to: str | None = None,
+        daily_budget: int = 80,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._sessions = sessions
@@ -91,6 +92,7 @@ class NewsletterService:
         self._key = unsubscribe_key
         self._posts = posts
         self._test_to = test_to
+        self._budget = daily_budget
         self._sleep = sleep
         self._lock = asyncio.Lock()
 
@@ -204,11 +206,22 @@ class NewsletterService:
                     "already_sent",
                     f"Already emailed on {existing.completed_at.isoformat()}.",
                 )
+            if existing is None and (await repo.counts(session))[SubscriberStatus.confirmed] == 0:
+                raise SendRefusedError(
+                    409, "no_subscribers", "There are no confirmed subscribers yet."
+                )
             await repo.start_send(session, post.id)
         sent = 0
         while True:
             async with self._sessions() as session:
-                batch = await repo.undelivered(session, post.id, limit=BATCH_SIZE)
+                room = self._budget - await repo.count_recent_deliveries(session)
+                if room <= 0:
+                    remaining = await repo.count_undelivered(session, post.id)
+                    if remaining == 0:
+                        break  # the budget ran out exactly as the list did
+                    log.info("newsletter daily budget reached", post_id=post.id)
+                    return SendResult("partial", sent=sent, remaining=remaining)
+                batch = await repo.undelivered(session, post.id, limit=min(BATCH_SIZE, room))
             if not batch:
                 break
             if sent:

@@ -1,18 +1,19 @@
 import asyncio
 import uuid
+from datetime import timedelta
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import DirectusError, NewsletterPost
 from portfolio_api.clients.email import OutgoingEmail
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
-from portfolio_api.models import NewsletterSend, NewsletterSubscriber
+from portfolio_api.models import NewsletterDelivery, NewsletterSend, NewsletterSubscriber
 from portfolio_api.newsletter_tokens import read_unsubscribe_token, unsubscribe_key
 from portfolio_api.services import newsletter as newsletter_module
 from portfolio_api.services.newsletter import NewsletterService
@@ -51,6 +52,7 @@ def make_service(
     sender: FakeBatchSender,
     posts: FakePosts | None = None,
     sleep: Sleeps | None = None,
+    budget: int = 80,
 ) -> NewsletterService:
     return NewsletterService(
         db,
@@ -62,6 +64,7 @@ def make_service(
         posts=posts or FakePosts(POST, DRAFT),
         test_to="chris@example.com",
         sleep=sleep or Sleeps(),
+        daily_budget=budget,
     )
 
 
@@ -199,9 +202,66 @@ async def test_partial_send_resumes_without_duplicates(
     assert sleeps.calls and all(s > 0 for s in sleeps.calls)
 
 
-async def test_no_subscribers_completes_with_zero(settings: Settings, db: Sessions) -> None:
-    res = await send(make_app(settings, make_service(db, FakeBatchSender())), {"post_id": POST.id})
+async def test_real_send_to_nobody_is_refused_and_does_not_lock_the_post(
+    settings: Settings, db: Sessions
+) -> None:
+    sender = FakeBatchSender()
+    svc = make_service(db, sender)
+    app = make_app(settings, svc)
+    res = await send(app, {"post_id": POST.id})
+    assert (res.status_code, res.json()["error"]["code"]) == (409, "no_subscribers")
+    async with db() as s:
+        assert await s.scalar(select(func.count()).select_from(NewsletterSend)) == 0
+    await confirmed(db, svc, 1)
+    later = await send(app, {"post_id": POST.id})
+    assert (later.status_code, later.json()["status"]) == (200, "complete")
+
+
+async def test_a_started_send_completes_when_nobody_is_left(
+    settings: Settings, db: Sessions
+) -> None:
+    sender = FakeBatchSender(fail_batches={0})
+    svc = make_service(db, sender)
+    await confirmed(db, svc, 1)
+    app = make_app(settings, svc)
+    assert (await send(app, {"post_id": POST.id})).status_code == 207
+    async with db() as s:
+        await s.execute(delete(NewsletterSubscriber))
+        await s.commit()
+    res = await send(app, {"post_id": POST.id})
     assert (res.json()["status"], res.json()["recipients"]) == ("complete", 0)
+
+
+async def test_daily_budget_caps_a_send_and_the_next_day_finishes_it(
+    settings: Settings, db: Sessions
+) -> None:
+    sender = FakeBatchSender()
+    svc = make_service(db, sender, budget=3)
+    emails = await confirmed(db, svc, 5)
+    sender.sent.clear()
+    app = make_app(settings, svc)
+    failed_before = metric("newsletter_emails_total", kind="post", result="failed")
+
+    first = await send(app, {"post_id": POST.id})
+    assert first.status_code == 207
+    assert (first.json()["status"], first.json()["sent"], first.json()["remaining"]) == (
+        "partial",
+        3,
+        2,
+    )
+    assert metric("newsletter_emails_total", kind="post", result="failed") == failed_before
+    calls = sender.batch_attempts
+
+    again = await send(app, {"post_id": POST.id})  # still inside the 24 hours
+    assert (again.json()["sent"], again.json()["remaining"]) == (0, 2)
+    assert sender.batch_attempts == calls  # no extra Resend call
+
+    async with db() as s:
+        await s.execute(update(NewsletterDelivery).values(sent_at=func.now() - timedelta(hours=25)))
+        await s.commit()
+    last = await send(app, {"post_id": POST.id})
+    assert (last.status_code, last.json()["sent"], last.json()["recipients"]) == (200, 2, 5)
+    assert sorted(recipients(sender)) == sorted(emails)  # each exactly once
 
 
 async def test_a_second_click_during_a_send_is_refused(settings: Settings, db: Sessions) -> None:

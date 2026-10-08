@@ -126,6 +126,16 @@ async def count_undelivered(session: AsyncSession, post_id: int) -> int:
     return (await session.scalar(select(func.count()).where(_undelivered(post_id)))) or 0
 
 
+async def count_recent_deliveries(session: AsyncSession) -> int:
+    """Post emails accepted by Resend in the rolling last 24 hours, across all posts."""
+    stmt = (
+        select(func.count())
+        .select_from(NewsletterDelivery)
+        .where(NewsletterDelivery.sent_at > func.now() - timedelta(hours=24))
+    )
+    return (await session.scalar(stmt)) or 0
+
+
 async def record_deliveries(
     session: AsyncSession, post_id: int, subscriber_ids: Sequence[uuid.UUID]
 ) -> None:
