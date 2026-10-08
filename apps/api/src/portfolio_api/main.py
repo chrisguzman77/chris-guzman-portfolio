@@ -19,17 +19,28 @@ from portfolio_api.db import make_engine, make_sessionmaker, ping
 from portfolio_api.errors import install_error_handlers
 from portfolio_api.jobs import Job, run_forever
 from portfolio_api.metrics import RequestMetrics
+from portfolio_api.newsletter_tokens import unsubscribe_key
 from portfolio_api.observability import configure_logging
 from portfolio_api.rag.embedder import FastEmbedEmbedder
 from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.request_id import install_request_id
-from portfolio_api.routers import chat, contact, github, health, internal, metrics, status
+from portfolio_api.routers import (
+    chat,
+    contact,
+    github,
+    health,
+    internal,
+    metrics,
+    newsletter,
+    status,
+)
 from portfolio_api.security_headers import SecurityHeaders
 from portfolio_api.services.chat import ChatService, ChatSwitch, purge_expired_chats
 from portfolio_api.services.contact import ContactService
 from portfolio_api.services.github import GitHubActivityService
 from portfolio_api.services.indexer import IndexService
+from portfolio_api.services.newsletter import NewsletterService
 from portfolio_api.services.status import StatusService
 
 
@@ -94,6 +105,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # self-heals a missed Flow call or an api started before the Directus bootstrap.
         jobs.append(Job("rag-sync", 900, indexer.sync_job))
     app.state.chat_switch = ChatSwitch(directus) if directus is not None else None
+    # Blog subscriptions: double opt-in mail needs Resend, Turnstile and the unsubscribe key.
+    app.state.newsletter_limiter = SlidingWindowLimiter([(5, 60), (20, 86_400)])
+    newsletter_service: NewsletterService | None = None
+    if sender is not None and settings.turnstile_secret and settings.internal_secret:
+        newsletter_service = NewsletterService(
+            sessions,
+            sender,
+            mail_from=settings.newsletter_from,
+            site_url=settings.site_url,
+            api_url=settings.public_api_url,
+            unsubscribe_key=unsubscribe_key(settings.internal_secret),
+        )
+        jobs.append(Job("newsletter-purge", 86_400, newsletter_service.purge_pending))
+        jobs.append(Job("newsletter-gauge", 300, newsletter_service.refresh_gauge))
+    app.state.newsletter_service = newsletter_service
     app.state.chat_session_limiter = SlidingWindowLimiter([(10, 3_600)])
     app.state.chat_message_limiter = SlidingWindowLimiter([(5, 60), (30, 86_400)])
     if settings.chat_hash_salt:
@@ -138,6 +164,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(health.router)
     app.include_router(contact.router)
+    app.include_router(newsletter.router)
     app.include_router(github.router)
     app.include_router(chat.router)
     app.include_router(internal.router)

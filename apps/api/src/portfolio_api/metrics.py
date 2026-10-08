@@ -61,6 +61,27 @@ CONTACT_SUBMISSIONS = Counter(
 RAG_SYNC_RUNS = Counter(
     "rag_sync_runs_total", "RAG index sync runs by result.", ["result"], registry=REGISTRY
 )
+NEWSLETTER_SUBSCRIBERS = Gauge(
+    "newsletter_subscribers", "Newsletter subscribers by status.", ["status"], registry=REGISTRY
+)
+NEWSLETTER_SUBSCRIBE_REQUESTS = Counter(
+    "newsletter_subscribe_requests_total",
+    "Newsletter subscribe requests by result.",
+    ["result"],
+    registry=REGISTRY,
+)
+NEWSLETTER_CONFIRMATIONS = Counter(
+    "newsletter_confirmations_total", "Newsletter subscriptions confirmed.", registry=REGISTRY
+)
+NEWSLETTER_UNSUBSCRIBES = Counter(
+    "newsletter_unsubscribes_total", "Newsletter unsubscribes.", registry=REGISTRY
+)
+NEWSLETTER_EMAILS = Counter(
+    "newsletter_emails_total",
+    "Newsletter emails by kind (confirm, post, test) and result.",
+    ["kind", "result"],
+    registry=REGISTRY,
+)
 
 # A question turned away before an answer is composed: rate-limited, session limit or budget.
 CHAT_REJECTED = "rejected"
@@ -74,6 +95,11 @@ for _result in ("sent", "failed"):
     CONTACT_SUBMISSIONS.labels(result=_result)
 for _result in ("ok", "error"):
     RAG_SYNC_RUNS.labels(result=_result)
+for _result in ("accepted", "rejected"):
+    NEWSLETTER_SUBSCRIBE_REQUESTS.labels(result=_result)
+for _kind in ("confirm", "post", "test"):
+    for _result in ("sent", "failed"):
+        NEWSLETTER_EMAILS.labels(kind=_kind, result=_result)
 
 UNMATCHED = "unmatched"
 EXCLUDED_PATHS = frozenset({"/metrics", "/health"})

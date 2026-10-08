@@ -16,6 +16,11 @@ METRIC_NAMES = (
     "chat_budget_used_ratio",
     "contact_submissions_total",
     "rag_sync_runs_total",
+    "newsletter_subscribers",
+    "newsletter_subscribe_requests_total",
+    "newsletter_confirmations_total",
+    "newsletter_unsubscribes_total",
+    "newsletter_emails_total",
 )
 
 

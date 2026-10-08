@@ -36,6 +36,10 @@ class Settings(BaseSettings):
 
     # Phase 6: GET /v1/status reads fixed queries from the compose-network Prometheus.
     prometheus_url: str = "http://prometheus:9090"
+    # Blog subscriptions: on when the Resend key, Turnstile secret and internal secret are set.
+    newsletter_from: str = "Christopher Guzman <posts@christopherguzman.me>"
+    site_url: str = "https://christopherguzman.me"
+    public_api_url: str = "https://api.christopherguzman.me"
 
     @field_validator(
         "turnstile_secret",
