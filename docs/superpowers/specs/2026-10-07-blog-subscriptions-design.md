@@ -15,8 +15,8 @@ Visitors can subscribe by email. When Chris chooses to, he sends a new post to c
 | Consent | Double opt-in. A visitor is subscribed only after clicking the confirmation email. |
 | Placement | Top of `/blog`, and on the homepage under the Blog section's latest posts. Not at the end of posts, not in the footer. |
 | Copy | The box is titled "Subscribe". Button "Subscribe". Note "No spam. Unsubscribe anytime." |
-| Measurement | No open pixels and no click rewriting. Post links carry `utm_source=newsletter&utm_medium=email&utm_campaign=<slug>`. Umami's UTM report shows visits per newsletter, not who clicked. |
-| Dashboard | A Grafana "Newsletter" dashboard (counts and trends), plus a private `/admin/subscribers` page (list and remove). |
+| Measurement | No open pixels and no click rewriting. Post links carry `utm_source=newsletter&utm_medium=email&utm_campaign=<slug>`. Visits per newsletter are counted, not who clicked: they appear on the Grafana Newsletter dashboard (read from Umami's data) and in Umami's UTM report. |
+| Dashboard | A Grafana "Newsletter" dashboard (counts, trends, and newsletter visits per post), plus a private `/admin/subscribers` page (list and remove). |
 
 ## Visitor experience
 
@@ -109,13 +109,20 @@ Visitors can subscribe by email. When Chris chooses to, he sends a new post to c
   - subscribers over time
   - subscribes, confirmations and unsubscribes per week
   - post emails sent, and failures, per send
+- **Newsletter visits per post (bar gauge).** It reads Umami's `website_event` table through a new Grafana PostgreSQL data source named `umami-readonly`. The query counts distinct sessions where `utm_source = 'newsletter'`, grouped by `utm_campaign` (the post slug), over the dashboard's time range. Before writing the query, confirm the column names against the pinned Umami version's schema.
+  - **Read-only role.** The data source logs in as a `grafana_umami_ro` role with `CONNECT` on the `umami` database and `SELECT` on `website_event` only, and nothing else.
+    - Its password is `GRAFANA_UMAMI_DB_PASSWORD`, optional in `prod.enc.env` and passed to the Grafana and postgres containers.
+    - Fresh installs create the role in `infra/postgres/init`. The existing production database gets it from an idempotent deploy step (`scripts/deploy.sh`, `psql` in the postgres container: create the role if missing, set its password, grant). The step is skipped while the variable is empty.
+  - **Unset variable.** While `GRAFANA_UMAMI_DB_PASSWORD` is unset, the panel shows "No data" and nothing else is affected.
+  - **CI `$` guard.** The data source file interpolates `${GRAFANA_UMAMI_DB_PASSWORD}`, so the guard gets an explicit exemption for that one variable, like the existing `${CONTACT_TO}` one.
+  - **Runbook note.** After a major Umami upgrade, check the "Newsletter visits per post" panel; Umami may change `website_event` columns. Dependabot already skips Umami majors, so they happen only by hand.
 - **Grafana alert "Newsletter send failed":** `increase(newsletter_emails_total{kind="post",result="failed"}[15m]) > 0`, emailed to Chris.
-- **Umami UTM report:** newsletter visits are read there, filtered on `utm_source=newsletter`.
+- **Umami UTM report:** the same newsletter visits, with per-post drill-down (countries, devices), filtered on `utm_source=newsletter`.
 
 ## Chris's setup (after merge)
 
 1. **Cloudflare Access app** for `christopherguzman.me/admin` (path-based), with the same policy as `cms.`. Copy its **Application Audience (AUD) tag** and the team domain (`<team>.cloudflareaccess.com`). Neither value is secret.
-2. **Secrets.** `make secrets-edit`: add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`, both optional, so the admin page stays 404 until they are set. Then commit and merge.
+2. **Secrets.** `make secrets-edit`: add `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` and `GRAFANA_UMAMI_DB_PASSWORD` (generate it with `openssl rand -hex 24`; it does not need to go in the password manager). All three are optional: the admin page stays 404 and the visits panel shows "No data" until they are set. Then commit and merge.
 3. **Test.** In Directus, open any published post → Email to subscribers → tick "Send a test to me only" → Send. The email arrives at `CONTACT_TO`.
 
 ## Testing
@@ -137,6 +144,7 @@ Visitors can subscribe by email. When Chris chooses to, he sends a new post to c
   - metrics
 - **Web (vitest):** `SubscribeForm` states (lazy Turnstile, success, errors); confirm and unsubscribe page states; admin page 404 without or with an invalid JWT, and the list and remove flow with a mocked JWT verifier and API.
 - **Directus:** a `lib.mjs` unit test for the Flow and field plan; a dev-stack run of the bootstrap twice (idempotent).
+- **Infra:** the deploy step that creates `grafana_umami_ro` is idempotent and skipped when the password is unset (shellcheck, plus a dev-stack run twice). The Grafana provisioning parse and the `$` guard pass with the new data source. The visits query runs against the dev Umami database.
 - **Playwright:** subscribe on `/blog` shows "Check your inbox to confirm". The confirm and unsubscribe pages render with fixture tokens. The existing CSP, console and axe gates apply.
 - **Performance:** the `/` mobile Lighthouse score stays ≥ 95 (Turnstile is not loaded until focus).
 
