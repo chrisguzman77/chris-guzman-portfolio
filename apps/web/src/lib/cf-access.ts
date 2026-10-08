@@ -28,6 +28,7 @@ export async function verifyAccessJwt(
       issuer: `https://${team}`,
       audience: aud,
       algorithms: ["RS256"],
+      requiredClaims: ["exp"],
     });
     return true;
   } catch {
