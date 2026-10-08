@@ -39,8 +39,13 @@ class SendRequest(BaseModel):
 
     @field_validator("test", mode="before")
     @classmethod
-    def _lenient_bool(cls, value: object) -> bool:
-        return value is True or value == "true"
+    def _strict_bool(cls, value: object) -> bool:
+        # An unreadable flag must not silently become a real send to every subscriber.
+        if value is True or value == "true":
+            return True
+        if value is False or value is None or value in ("false", ""):
+            return False
+        raise ValueError("test must be true or false")
 
 
 class SendResponse(BaseModel):

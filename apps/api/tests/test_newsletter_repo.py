@@ -3,7 +3,12 @@ from datetime import timedelta
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from portfolio_api.models import NewsletterSend, NewsletterSubscriber, SubscriberStatus
+from portfolio_api.models import (
+    NewsletterDelivery,
+    NewsletterSend,
+    NewsletterSubscriber,
+    SubscriberStatus,
+)
 from portfolio_api.repositories import newsletter as repo
 from portfolio_api.repositories.newsletter import ConfirmResult
 
@@ -120,3 +125,18 @@ async def test_send_bookkeeping(db: Sessions) -> None:
         done = await repo.complete_send(s, 42)
     assert isinstance(done, NewsletterSend)
     assert done.completed_at is not None and done.recipients == 3
+
+
+async def test_record_deliveries_skips_subscribers_deleted_meanwhile(db: Sessions) -> None:
+    await add_confirmed(db, "a@example.com", "b@example.com", "c@example.com")
+    ids = [
+        (await subscriber(db, e)).id for e in ("a@example.com", "b@example.com", "c@example.com")
+    ]
+    async with db.begin() as s:
+        await repo.start_send(s, 3)
+        await repo.delete(s, ids[1])
+    async with db.begin() as s:
+        await repo.record_deliveries(s, 3, ids)
+    async with db() as s:
+        rows = (await s.scalars(select(NewsletterDelivery.subscriber_id))).all()
+    assert sorted(rows) == sorted([ids[0], ids[2]])

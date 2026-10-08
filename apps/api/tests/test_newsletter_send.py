@@ -158,7 +158,7 @@ async def test_test_send_goes_only_to_chris_and_records_nothing(
         assert await s.scalar(select(func.count()).select_from(NewsletterSend)) == 0
 
 
-@pytest.mark.parametrize("flag", [False, "false", "", "undefined"])
+@pytest.mark.parametrize("flag", [False, "false", ""])
 async def test_non_true_test_flags_mean_a_real_send(
     settings: Settings, db: Sessions, flag: Any
 ) -> None:
@@ -287,3 +287,72 @@ async def test_post_emails_are_plain(db: Sessions) -> None:
     assert len(hrefs) == 2
     assert hrefs[0].startswith("https://christopherguzman.me/blog/hello-world?")
     assert hrefs[1].startswith("https://christopherguzman.me/newsletter/unsubscribe?token=")
+
+
+@pytest.mark.parametrize("flag", ["undefined", "1", 1, "True"])
+async def test_ambiguous_test_flags_are_rejected_and_send_nothing(
+    settings: Settings, db: Sessions, flag: Any
+) -> None:
+    sender = FakeBatchSender()
+    svc = make_service(db, sender)
+    await confirmed(db, svc, 1)
+    sender.sent.clear()
+    res = await send(make_app(settings, svc), {"post_id": "3", "test": flag})
+    assert (res.status_code, res.json()["error"]["code"]) == (400, "invalid_request")
+    assert sender.sent == []
+
+
+async def test_unsubscribe_during_a_send_does_not_resend(settings: Settings, db: Sessions) -> None:
+    class UnsubscribingSender(FakeBatchSender):
+        victim: str | None = None
+
+        async def send_batch(self, emails: Any, idempotency_key: str) -> None:
+            if self.victim is None:
+                self.victim = emails[-1].to
+                async with db() as s:
+                    sub_id = await s.scalar(
+                        select(NewsletterSubscriber.id).where(
+                            NewsletterSubscriber.email == self.victim
+                        )
+                    )
+                assert sub_id is not None
+                await svc.remove(sub_id)
+            await super().send_batch(emails, idempotency_key)
+
+    sender = UnsubscribingSender()
+    svc = make_service(db, sender)
+    await confirmed(db, svc, 4)
+    sender.sent.clear()
+    res = await send(make_app(settings, svc), {"post_id": POST.id, "test": False})
+    assert res.status_code == 200
+    assert (res.json()["status"], res.json()["recipients"]) == ("complete", 3)
+    assert len(recipients(sender)) == len(set(recipients(sender)))
+
+
+async def test_posts_unavailable_is_503(settings: Settings, db: Sessions) -> None:
+    svc = NewsletterService(
+        db,
+        FakeBatchSender(),
+        mail_from="Christopher Guzman <posts@christopherguzman.me>",
+        site_url="https://christopherguzman.me",
+        api_url="https://api.christopherguzman.me",
+        unsubscribe_key=KEY,
+        posts=None,
+        test_to="chris@example.com",
+        sleep=Sleeps(),
+    )
+    res = await send(make_app(settings, svc), {"post_id": POST.id})
+    assert (res.status_code, res.json()["error"]["code"]) == (503, "posts_unavailable")
+
+
+async def test_test_send_without_contact_to_is_503(settings: Settings, db: Sessions) -> None:
+    svc = make_service(db, FakeBatchSender())
+    svc._test_to = None  # pyright: ignore[reportPrivateUsage]
+    res = await send(make_app(settings, svc), {"post_id": POST.id, "test": True})
+    assert (res.status_code, res.json()["error"]["code"]) == (503, "test_unavailable")
+
+
+async def test_failed_test_send_is_502(settings: Settings, db: Sessions) -> None:
+    svc = make_service(db, FakeBatchSender(fail_times=1))
+    res = await send(make_app(settings, svc), {"post_id": POST.id, "test": True})
+    assert (res.status_code, res.json()["error"]["code"]) == (502, "send_failed")

@@ -3,7 +3,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import timedelta
 
-from sqlalchemy import ColumnElement, func, or_, select, update
+from sqlalchemy import ColumnElement, func, literal, or_, select, update
 from sqlalchemy import delete as sql_delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -133,7 +133,10 @@ async def record_deliveries(
         return
     await session.execute(
         insert(NewsletterDelivery)
-        .values([{"post_id": post_id, "subscriber_id": sid} for sid in subscriber_ids])
+        .from_select(
+            ["post_id", "subscriber_id"],
+            select(literal(post_id), Sub.id).where(Sub.id.in_(subscriber_ids)),
+        )
         .on_conflict_do_nothing()
     )
 

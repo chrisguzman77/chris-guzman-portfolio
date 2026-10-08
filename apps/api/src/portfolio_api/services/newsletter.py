@@ -170,7 +170,11 @@ class NewsletterService:
         if test:
             return await self._send_test(post)
         if self._lock.locked():
-            raise SendRefusedError(409, "send_in_progress", "This post is already being sent.")
+            raise SendRefusedError(
+                409,
+                "send_in_progress",
+                "Another newsletter send is in progress. Try again in a minute.",
+            )
         async with self._lock:
             return await self._send_all(post)
 
