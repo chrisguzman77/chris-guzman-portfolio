@@ -159,3 +159,12 @@ test("headers: nonce CSP and static security headers", async ({ request }) => {
   expect(headers["cross-origin-opener-policy"]).toBeTruthy();
   expect(headers["x-powered-by"]).toBeUndefined();
 });
+
+test("blog: subscribe", async ({ page }) => {
+  await page.goto("/blog");
+  const box = page.getByRole("region", { name: "Subscribe" });
+  await box.getByRole("textbox", { name: "Email" }).fill("ada@example.com");
+  await box.getByRole("button", { name: "Subscribe" }).click();
+  await expect(box.getByText("Check your inbox to confirm.")).toBeVisible();
+  await expectNoAxeViolations(page);
+});

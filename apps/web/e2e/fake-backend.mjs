@@ -64,6 +64,8 @@ const server = createServer((req, res) => {
       return send(res, 201, fixture("api", "chat-session"));
     case "POST /v1/chat/sessions/s1/messages":
       return send(res, 200, fixture("api", "chat-message"));
+    case "POST /v1/newsletter/subscribe":
+      return send(res, 202, { status: "check_inbox" });
     default:
       return send(res, 404, { error: { code: "not_found", message: "not found" } });
   }

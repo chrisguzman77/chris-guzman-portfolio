@@ -7,6 +7,7 @@ type EventData = {
   "chat-open": undefined;
   "chat-question": undefined;
   "contact-sent": undefined;
+  "newsletter-subscribe": undefined;
   "outbound-click": { to: OutboundTarget };
 };
 

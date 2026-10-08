@@ -18,6 +18,12 @@ vi.mock("@/lib/directus/queries", () => ({
 
 vi.mock("@/lib/github-activity", () => ({ getGithubActivity: vi.fn() }));
 
+vi.mock("@/components/newsletter/subscribe-form", () => ({
+  SubscribeForm: (p: { apiUrl: string; siteKey: string }) => (
+    <div data-testid="subscribe">{JSON.stringify(p)}</div>
+  ),
+}));
+
 vi.mock("@/components/content/status-card", () => ({
   StatusCard: () => <p>status card stub</p>,
   StatusCardSkeleton: () => <p>checking</p>,
@@ -123,6 +129,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("HomePage hero", () => {
@@ -278,6 +285,35 @@ describe("HomePage sections", () => {
       expect.stringMatching(/^02Blog/),
     ]);
     expect(screen.queryByRole("link", { name: /all projects/ })).toBeNull();
+  });
+});
+
+describe("HomePage subscribe box", () => {
+  it("renders after the Blog list when Turnstile is configured", async () => {
+    vi.stubEnv("TURNSTILE_SITE_KEY", "k");
+    vi.stubEnv("PUBLIC_API_URL", "https://api.x");
+    render(await HomePage());
+
+    const box = screen.getByTestId("subscribe");
+    expect(box.textContent).toBe('{"apiUrl":"https://api.x","siteKey":"k"}');
+    const blogList = screen.getByText("Post One").closest("ol")!;
+    expect(blogList.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(box.closest("section")).toBe(blogList.closest("section"));
+  });
+
+  it("is absent without a site key, and with no posts", async () => {
+    vi.stubEnv("TURNSTILE_SITE_KEY", "");
+    render(await HomePage());
+    expect(screen.queryByTestId("subscribe")).toBeNull();
+    cleanup();
+
+    vi.stubEnv("TURNSTILE_SITE_KEY", "k");
+    vi.mocked(getPosts).mockResolvedValue([]);
+    render(await HomePage());
+    expect(numberedHeadings().some((h) => h.includes("Blog"))).toBe(false);
+    expect(screen.queryByTestId("subscribe")).toBeNull();
   });
 });
 

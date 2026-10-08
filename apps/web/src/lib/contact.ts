@@ -24,7 +24,7 @@ export type SubmitResult =
 export const CONTACT_FIELDS: ContactField[] = ["name", "email", "message"];
 
 // Same limits as the API (apps/api/src/portfolio_api/schemas/contact.py); the API stays the authority.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateContact(values: ContactValues): ContactErrors {
   const errors: ContactErrors = {};

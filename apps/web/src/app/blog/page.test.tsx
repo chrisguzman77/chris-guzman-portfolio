@@ -8,6 +8,11 @@ import type { Post } from "@/lib/directus/schemas";
 import BlogPage, { metadata } from "./page";
 
 vi.mock("@/lib/directus/queries", () => ({ getPosts: vi.fn() }));
+vi.mock("@/components/newsletter/subscribe-form", () => ({
+  SubscribeForm: (p: { apiUrl: string; siteKey: string }) => (
+    <div data-testid="subscribe">{JSON.stringify(p)}</div>
+  ),
+}));
 
 function post(over: Partial<Post> & Pick<Post, "id" | "slug" | "title">): Post {
   return {
@@ -23,6 +28,7 @@ function post(over: Partial<Post> & Pick<Post, "id" | "slug" | "title">): Post {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("/blog", () => {
@@ -57,5 +63,27 @@ describe("/blog", () => {
 
     expect(screen.getByText("$ ls posts/ → nothing yet. First post coming soon.")).toBeTruthy();
     expect(container.querySelector("ol")).toBeNull();
+  });
+
+  it("shows the subscribe box above the post list when Turnstile is configured", async () => {
+    vi.stubEnv("TURNSTILE_SITE_KEY", "k");
+    vi.stubEnv("PUBLIC_API_URL", "https://api.x");
+    vi.mocked(getPosts).mockResolvedValue([post({ id: 1, slug: "a", title: "A post" })]);
+    const { container } = render(await BlogPage());
+
+    const box = screen.getByTestId("subscribe");
+    expect(box.textContent).toBe('{"apiUrl":"https://api.x","siteKey":"k"}');
+    const list = container.querySelector("ol")!;
+    expect(box.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("omits the subscribe box without a Turnstile site key", async () => {
+    vi.stubEnv("TURNSTILE_SITE_KEY", "");
+    vi.mocked(getPosts).mockResolvedValue([]);
+    render(await BlogPage());
+
+    expect(screen.queryByTestId("subscribe")).toBeNull();
   });
 });
