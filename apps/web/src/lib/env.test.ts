@@ -14,6 +14,9 @@ describe("serverEnv", () => {
     vi.stubEnv("TURNSTILE_SITE_KEY", "site-key");
     vi.stubEnv("PUBLIC_API_URL", "http://localhost:8000/");
     vi.stubEnv("UMAMI_WEBSITE_ID", "site-id");
+    vi.stubEnv("INTERNAL_API_SECRET", "internal");
+    vi.stubEnv("CF_ACCESS_TEAM_DOMAIN", "chris.cloudflareaccess.com");
+    vi.stubEnv("CF_ACCESS_AUD", "aud-1");
     expect(serverEnv()).toEqual({
       directusUrl: "http://directus:8055",
       directusToken: "tok",
@@ -23,6 +26,9 @@ describe("serverEnv", () => {
       turnstileSiteKey: "site-key",
       publicApiUrl: "http://localhost:8000",
       umamiWebsiteId: "site-id",
+      internalApiSecret: "internal",
+      cfAccessTeamDomain: "chris.cloudflareaccess.com",
+      cfAccessAud: "aud-1",
     });
   });
 
@@ -36,6 +42,9 @@ describe("serverEnv", () => {
       "TURNSTILE_SITE_KEY",
       "PUBLIC_API_URL",
       "UMAMI_WEBSITE_ID",
+      "INTERNAL_API_SECRET",
+      "CF_ACCESS_TEAM_DOMAIN",
+      "CF_ACCESS_AUD",
     ]) {
       vi.stubEnv(name, "");
     }
@@ -48,6 +57,9 @@ describe("serverEnv", () => {
       turnstileSiteKey: undefined,
       publicApiUrl: "https://api.christopherguzman.me",
       umamiWebsiteId: undefined,
+      internalApiSecret: undefined,
+      cfAccessTeamDomain: undefined,
+      cfAccessAud: undefined,
     });
   });
 
