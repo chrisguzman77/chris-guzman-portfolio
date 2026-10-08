@@ -45,6 +45,8 @@ A short threat model for a single-owner portfolio on one VM. It says what is wor
 - **API docs pages allow jsDelivr scripts and `'unsafe-inline'`.** Swagger UI and ReDoc load from `cdn.jsdelivr.net` and run an inline init script, so `/docs`, `/docs/oauth2-redirect` and `/redoc` get a looser CSP. It is scoped to those three static paths, which take no user input; every other path keeps `default-src 'none'`.
 - **Public API docs.** `/docs` and `/openapi.json` are open on purpose; the contract is part of the showcase.
 - **Newsletter link tokens in page URLs.** Confirm and unsubscribe tokens appear in those pages' URLs, so Umami (private, behind Access) may record them in page-view URLs. A leaked unsubscribe token can only unsubscribe that one reader.
+- **Unsubscribe tokens in API access logs.** The one-click unsubscribe puts the token in the query string (`/v1/newsletter/unsubscribe?token=...`), so it can appear in API access logs. The same reader-only reach applies.
+- **Directus Flow revisions hold the internal secret.** The Email to subscribers Flow stores its rendered options, including the internal-secret header, in `directus_revisions` on each run, alongside the secret already stored on the operation. Both are readable only by Directus admins (behind Access).
 
 ## Headers
 
