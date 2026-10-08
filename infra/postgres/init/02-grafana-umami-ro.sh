@@ -20,6 +20,9 @@ CREATE ROLE grafana_umami_ro;
 \endif
 ALTER ROLE grafana_umami_ro WITH LOGIN CONNECTION LIMIT 3 PASSWORD :'pw';
 GRANT CONNECT ON DATABASE umami TO grafana_umami_ro;
+-- Owners keep access; only roles without an explicit grant (this one) lose connect.
+REVOKE CONNECT ON DATABASE portfolio FROM PUBLIC;
+REVOKE CONNECT ON DATABASE directus FROM PUBLIC;
 SELECT to_regclass('public.website_event') IS NOT NULL AS has_events \gset
 \if :has_events
 GRANT SELECT ON public.website_event TO grafana_umami_ro;
