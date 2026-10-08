@@ -119,6 +119,16 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
   The next retry run (within 5 minutes) sends it.
 - Until `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` are set, `/contact` shows "Contact form coming soon" and the API answers `503 contact_unavailable`. Without `RESEND_API_KEY` or `CONTACT_TO`, messages are saved and wait as `pending`.
 
+## Newsletter
+
+- **Send a post.** Open a published post in Directus, then Email to subscribers. Send a test first (tick "Send a test to me only"); it goes to `CONTACT_TO`. Then send for real (box unticked).
+- **After a real send** `emailed_at` and `emailed_count` fill in. If they stay empty, the send was partial (Resend's free plan allows 100 emails a day and 3,000 a month), and the "Newsletter send failed" alert emails you. Click the button again later; it only emails subscribers who have not got the post. A post already sent answers `already_sent`.
+- **Retrying after an edit.** If you retry a partial send after editing the post's title or excerpt, Resend may refuse the retried batch for up to 24 hours (same idempotency key, different content). Send the rest after 24 hours, or avoid edits between retries.
+- **Remove a subscriber.** `https://christopherguzman.me/admin/subscribers` (Cloudflare Access).
+- **Secret rotation.** Rotating `INTERNAL_API_SECRET` breaks unsubscribe links in emails already sent. Those readers can still unsubscribe from any newer email, or ask Chris to remove them.
+- **Umami upgrades.** After a major Umami upgrade, check the "Newsletter visits per post" panel; Umami may rename `website_event` columns.
+- **Grafana history.** Subscriber trend history goes back as far as Prometheus retention (35 days). The admin page shows every sign-up date.
+
 ## GitHub activity
 
 The API refreshes the contribution calendar when it is an hour old (checked every 10 minutes). If GitHub fails, the last copy keeps showing. Without `GITHUB_ACTIVITY_TOKEN` the home page hides the section only if nothing was ever cached: once a calendar has been fetched, removing or revoking the token keeps serving that last copy indefinitely. To hide the section after removing the token, delete the cached row:
