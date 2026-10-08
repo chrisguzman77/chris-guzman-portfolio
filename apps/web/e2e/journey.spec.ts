@@ -168,3 +168,25 @@ test("blog: subscribe", async ({ page }) => {
   await expect(box.getByText("Check your inbox to confirm.")).toBeVisible();
   await expectNoAxeViolations(page);
 });
+
+test("newsletter: confirm and unsubscribe links", async ({ page }) => {
+  await page.goto("/newsletter/confirm?token=good");
+  await expect(
+    page.getByText("You're subscribed. You'll get an email when there's a new post."),
+  ).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await page.goto("/newsletter/unsubscribe?token=good");
+  await expect(page.getByText("You're unsubscribed.")).toBeVisible();
+  await expectNoAxeViolations(page);
+});
+
+test.describe("newsletter: expired link", () => {
+  test.use({ allowedFetchStatus: [400] });
+
+  test("confirm explains and links to the blog", async ({ page }) => {
+    await page.goto("/newsletter/confirm?token=old");
+    await expect(page.getByText(/This link has expired/)).toBeVisible();
+    await expect(page.getByRole("link", { name: "the blog" })).toHaveAttribute("href", "/blog");
+  });
+});

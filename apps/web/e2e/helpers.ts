@@ -15,22 +15,25 @@ type Gates = {
   // Document statuses a test expects (the 404 test sets [404]); Chrome's "Failed to load
   // resource" for such a document is then not a console error. Empty everywhere else.
   allowedDocumentStatus: number[];
+  // Same, for fetch/XHR responses a test provokes on purpose (an expired newsletter link's 400).
+  allowedFetchStatus: number[];
   gates: void;
 };
 
 // Every test gets hermetic Turnstile and fails on any console error, page error or CSP violation.
 export const test = base.extend<Gates>({
   allowedDocumentStatus: [[], { option: true }],
+  allowedFetchStatus: [[], { option: true }],
   gates: [
-    async ({ page, allowedDocumentStatus }, use) => {
+    async ({ page, allowedDocumentStatus, allowedFetchStatus }, use) => {
       const errors: string[] = [];
       const csp: string[] = [];
       const allowedDocuments = new Set<string>();
       page.on("response", (response) => {
-        if (
-          response.request().isNavigationRequest() &&
-          allowedDocumentStatus.includes(response.status())
-        ) {
+        const allowedStatus = response.request().isNavigationRequest()
+          ? allowedDocumentStatus
+          : allowedFetchStatus;
+        if (allowedStatus.includes(response.status())) {
           allowedDocuments.add(response.url());
         }
       });

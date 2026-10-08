@@ -36,6 +36,17 @@ function directusItems(res, collection, query) {
   send(res, 200, { data });
 }
 
+// The newsletter link pages POST {token}; "good" succeeds, anything else is an expired link.
+function linkToken(req, res, status) {
+  let raw = "";
+  req.on("data", (chunk) => (raw += chunk));
+  req.on("end", () => {
+    const token = JSON.parse(raw || "{}").token;
+    if (token === "good") return send(res, 200, { status });
+    send(res, 400, { error: { code: "invalid_token", message: "expired" } });
+  });
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const route = `${req.method} ${url.pathname}`;
@@ -66,6 +77,9 @@ const server = createServer((req, res) => {
       return send(res, 200, fixture("api", "chat-message"));
     case "POST /v1/newsletter/subscribe":
       return send(res, 202, { status: "check_inbox" });
+    case "POST /v1/newsletter/confirm":
+    case "POST /v1/newsletter/unsubscribe":
+      return linkToken(req, res, route.endsWith("confirm") ? "confirmed" : "unsubscribed");
     default:
       return send(res, 404, { error: { code: "not_found", message: "not found" } });
   }
