@@ -31,7 +31,7 @@ def upgrade() -> None:
         "newsletter_subscribers",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("email", sa.String(length=254), nullable=False),
-        sa.Column("status", SUBSCRIBER_STATUS, server_default="pending", nullable=False),
+        sa.Column("status", SUBSCRIBER_STATUS, server_default="pending", nullable=False),  # pyright: ignore[reportUnknownArgumentType]
         sa.Column("confirm_token_hash", sa.String(length=64), nullable=True),
         sa.Column("confirm_sent_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
