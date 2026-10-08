@@ -114,7 +114,7 @@ async def confirm(
 @router.get("/unsubscribe", include_in_schema=False)
 async def unsubscribe_link(request: Request, token: str | None = None) -> RedirectResponse:
     """The List-Unsubscribe URL opened in a browser. Never unsubscribes: mail scanners
-    prefetch links, so the site's page asks for a click and POSTs."""
+    prefetch links, so it redirects to the site's page, whose script POSTs the token."""
     page = f"{request.app.state.settings.site_url.rstrip('/')}/newsletter/unsubscribe"
     if token:
         page += f"?token={quote(token[:200], safe='')}"
