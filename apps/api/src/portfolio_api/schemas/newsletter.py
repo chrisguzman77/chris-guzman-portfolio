@@ -1,6 +1,8 @@
+import uuid
+from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, StringConstraints
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator
 
 from portfolio_api.schemas.contact import Token
 
@@ -27,3 +29,41 @@ class Confirmed(BaseModel):
 
 class Unsubscribed(BaseModel):
     status: Literal["unsubscribed"] = "unsubscribed"
+
+
+class SendRequest(BaseModel):
+    # Directus renders Flow templates as strings ("12", "true", "false", or "" when the
+    # checkbox was left alone), so both fields accept their string forms.
+    post_id: int = Field(gt=0)
+    test: bool = False
+
+    @field_validator("test", mode="before")
+    @classmethod
+    def _lenient_bool(cls, value: object) -> bool:
+        return value is True or value == "true"
+
+
+class SendResponse(BaseModel):
+    status: Literal["complete", "partial", "test"]
+    sent: int
+    remaining: int
+    sent_at: datetime | None
+    recipients: int | None
+
+
+class SubscriberOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    status: Literal["pending", "confirmed"]
+    created_at: datetime
+    confirmed_at: datetime | None
+
+
+class SubscriberTotals(BaseModel):
+    confirmed: int
+    pending: int
+
+
+class SubscriberList(BaseModel):
+    subscribers: list[SubscriberOut]
+    totals: SubscriberTotals

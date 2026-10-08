@@ -116,6 +116,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             site_url=settings.site_url,
             api_url=settings.public_api_url,
             unsubscribe_key=unsubscribe_key(settings.internal_secret),
+            posts=directus,
+            test_to=settings.contact_to,
         )
         jobs.append(Job("newsletter-purge", 86_400, newsletter_service.purge_pending))
         jobs.append(Job("newsletter-gauge", 300, newsletter_service.refresh_gauge))

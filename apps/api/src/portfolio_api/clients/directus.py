@@ -27,6 +27,15 @@ class ChatSettings:
     suggested_questions: list[str]
 
 
+@dataclass(frozen=True)
+class NewsletterPost:
+    id: int
+    slug: str
+    title: str
+    excerpt: str
+    published: bool
+
+
 def pdf_text(data: bytes) -> str:
     try:
         reader = PdfReader(io.BytesIO(data))
@@ -100,3 +109,32 @@ class DirectusContent:
             if isinstance(questions, list)
             else [],
         )
+
+    async def fetch_post(self, post_id: int) -> NewsletterPost | None:
+        """One post by id, drafts included. None when Directus has no such item: it answers
+        403 for a missing id to tokens without admin rights, and 404 otherwise."""
+        path = f"/items/posts/{post_id}"
+        try:
+            res = await self._http.get(
+                f"{self._base}{path}",
+                params={"fields": "id,slug,title,excerpt,status"},
+                headers=self._headers,
+                timeout=10.0,
+            )
+        except httpx.HTTPError as exc:
+            raise DirectusError(f"{path}: {type(exc).__name__}") from exc
+        if res.status_code in (403, 404):
+            return None
+        if res.status_code != 200:
+            raise DirectusError(f"{path}: directus {res.status_code}")
+        try:
+            data: Any = res.json()["data"]
+            return NewsletterPost(
+                id=int(data["id"]),
+                slug=str(data["slug"]),
+                title=str(data["title"]),
+                excerpt=str(data["excerpt"]),
+                published=data["status"] == "published",
+            )
+        except (ValueError, KeyError, TypeError) as exc:
+            raise DirectusError(f"{path}: unexpected body") from exc
