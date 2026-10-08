@@ -6,6 +6,7 @@ import {
   DirectusClient,
   adminLoginFailure,
   bootstrapTokenFailure,
+  newsletterFlow,
   planSchema,
   planSeedOnce,
   sameJson,
@@ -283,4 +284,80 @@ test("DirectusClient.useStaticToken keeps the raw error for other failures", asy
   const { impl } = fakeFetch([{ status: 503, body: { errors: [{ message: "Unavailable" }] } }]);
   const api = new DirectusClient("http://directus:8055", impl);
   await assert.rejects(api.useStaticToken("t"), /GET \/users\/me -> 503/);
+});
+
+test("posts declares read-only emailed_at and emailed_count", () => {
+  const posts = collections.find((c) => c.collection === "posts");
+  for (const [field, type] of [
+    ["emailed_at", "timestamp"],
+    ["emailed_count", "integer"],
+  ]) {
+    const f = posts.fields.find((x) => x.field === field);
+    assert.ok(f, field);
+    assert.equal(f.type, type);
+    assert.equal(f.meta.readonly, true);
+    assert.equal(f.schema.is_nullable, true);
+  }
+});
+
+test("planSchema adds only the two newsletter fields to an existing instance", () => {
+  const before = collections.map((c) =>
+    c.collection === "posts"
+      ? { ...c, fields: c.fields.filter((f) => !f.field.startsWith("emailed_")) }
+      : c,
+  );
+  const existing = apply(EMPTY, planSchema(EMPTY, before));
+  const ops = planSchema(existing, collections);
+  assert.deepEqual(
+    ops.map((o) => [o.type, o.collection, o.field]),
+    [
+      ["field", "posts", "emailed_at"],
+      ["field", "posts", "emailed_count"],
+    ],
+  );
+});
+
+test("newsletterFlow: manual Flow on posts, send -> check -> record", () => {
+  const spec = newsletterFlow("sek");
+  assert.equal(spec.flow.name, "Email to subscribers");
+  assert.equal(spec.flow.trigger, "manual");
+  assert.deepEqual(spec.flow.options.collections, ["posts"]);
+  assert.equal(spec.flow.options.location, "item");
+  assert.equal(spec.flow.options.requireConfirmation, true);
+  assert.deepEqual(
+    spec.flow.options.fields.map((f) => [f.field, f.type, f.name]),
+    [["test_only", "boolean", "Send a test to me only"]],
+  );
+  assert.deepEqual(
+    spec.operations.map((o) => [o.key, o.type]),
+    [
+      ["send", "request"],
+      ["check", "condition"],
+      ["record", "item-update"],
+    ],
+  );
+  const [send, check, record] = spec.operations;
+  assert.equal(send.options.method, "POST");
+  assert.equal(send.options.url, "http://api:8000/internal/newsletter/send");
+  assert.deepEqual(send.options.headers, [
+    { header: "X-Internal-Secret", value: "sek" },
+    { header: "Content-Type", value: "application/json" },
+  ]);
+  // Valid JSON whatever Directus fills in, including an untouched checkbox ("").
+  for (const testOnly of ["true", "false", ""]) {
+    const body = send.options.body
+      .replace("{{$trigger.body.keys[0]}}", "12")
+      .replace("{{$trigger.body.test_only}}", testOnly);
+    assert.deepEqual(JSON.parse(body), { post_id: "12", test: testOnly });
+  }
+  assert.deepEqual(check.options.filter, { send: { data: { status: { _eq: "complete" } } } });
+  assert.equal(record.options.collection, "posts");
+  assert.deepEqual(record.options.key, ["{{$trigger.body.keys[0]}}"]);
+  assert.deepEqual(record.options.payload, {
+    emailed_at: "{{send.data.sent_at}}",
+    emailed_count: "{{send.data.recipients}}",
+  });
+  assert.equal(record.options.permissions, "$full");
+  assert.equal(record.options.emitEvents, false);
+  assert.deepEqual(spec.chain, { send: "check", check: "record" });
 });
