@@ -170,13 +170,22 @@ test("blog: subscribe", async ({ page }) => {
 });
 
 test("newsletter: confirm and unsubscribe links", async ({ page }) => {
+  // A mail scanner opens the link and runs its scripts: the page must not call the API.
+  const calls: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/v1/newsletter/")) calls.push(request.url());
+  });
   await page.goto("/newsletter/confirm?token=good");
+  await page.waitForLoadState("networkidle");
+  expect(calls).toEqual([]);
+  await page.getByRole("button", { name: "Confirm subscription" }).click();
   await expect(
     page.getByText("You're subscribed. You'll get an email when there's a new post."),
   ).toBeVisible();
   await expectNoAxeViolations(page);
 
   await page.goto("/newsletter/unsubscribe?token=good");
+  await page.getByRole("button", { name: "Unsubscribe" }).click();
   await expect(page.getByText("You're unsubscribed.")).toBeVisible();
   await expectNoAxeViolations(page);
 });
@@ -186,6 +195,7 @@ test.describe("newsletter: expired link", () => {
 
   test("confirm explains and links to the blog", async ({ page }) => {
     await page.goto("/newsletter/confirm?token=old");
+    await page.getByRole("button", { name: "Confirm subscription" }).click();
     await expect(page.getByText(/This link has expired/)).toBeVisible();
     await expect(page.getByRole("link", { name: "the blog" })).toHaveAttribute("href", "/blog");
   });
