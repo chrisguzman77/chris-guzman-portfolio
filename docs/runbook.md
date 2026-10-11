@@ -134,7 +134,7 @@ Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Di
   Then clear `emailed_at` and `emailed_count` on the post in Directus. Use `<id>` from the post's URL in Directus.
 - **Directus shows the Flow as run even when the API refused.** Check the result instead: after a real send, `emailed_at` and `emailed_count` fill in on the post; after a test send, the email arrives at `CONTACT_TO`. If neither happens, open Settings → Flows → Email to subscribers → Logs (the sidebar's run history) and open the latest run: the Send step shows the API's status and error code (`already_sent`, `no_subscribers`, `not_published`, `send_failed`, `newsletter_unavailable`).
 - **Retrying after an edit.** If you retry a partial send after editing the post's title or excerpt, Resend may refuse the retried batch for up to 24 hours (same idempotency key, different content). Send the rest after 24 hours, or avoid edits between retries.
-- **Remove a subscriber.** `https://christopherguzman.me/admin/subscribers` (Cloudflare Access).
+- **Remove a subscriber.** `https://christopherguzman.me/admin/subscribers` (Cloudflare Access). `https://christopherguzman.me/admin` links to every admin tool (Subscribers, Directus, Grafana, Umami).
 - **Secret rotation.** Rotating `INTERNAL_API_SECRET` breaks unsubscribe links in emails already sent. Those readers can still unsubscribe from any newer email, or ask Chris to remove them.
 - **Umami upgrades.** After a major Umami upgrade, check the "Newsletter visits per post" panel; Umami may rename `website_event` columns.
 - **Grafana history.** Subscriber trend history goes back as far as Prometheus retention (35 days). The admin page shows every sign-up date.
