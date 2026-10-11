@@ -1,5 +1,4 @@
-import { EMAIL_PATTERN } from "@/lib/contact";
-import { z } from "@/lib/zod-client";
+import { EMAIL_PATTERN } from "@/lib/email";
 
 export const NEWSLETTER_MESSAGES = {
   checkInbox: "Check your inbox to confirm.",
@@ -20,11 +19,11 @@ export function isValidEmail(value: string): boolean {
   return email.length <= 254 && EMAIL_PATTERN.test(email);
 }
 
-const ErrorBody = z.object({ error: z.object({ code: z.string() }) });
-
+// A hand check instead of zod: this module ships on the home page, and zod is about 90 KB.
 async function errorCode(res: Response): Promise<string | null> {
-  const parsed = ErrorBody.safeParse(await res.json().catch(() => null));
-  return parsed.success ? parsed.data.error.code : null;
+  const body: unknown = await res.json().catch(() => null);
+  const error = (body as { error?: { code?: unknown } } | null)?.error;
+  return typeof error?.code === "string" ? error.code : null;
 }
 
 async function postJson(url: string, body: unknown): Promise<Response | null> {
