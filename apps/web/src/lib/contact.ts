@@ -1,3 +1,4 @@
+import { EMAIL_PATTERN } from "@/lib/email";
 import { z } from "@/lib/zod-client";
 
 export const CONTACT_LIMITS = { name: 100, email: 254, messageMin: 10, messageMax: 5000 } as const;
@@ -24,8 +25,6 @@ export type SubmitResult =
 export const CONTACT_FIELDS: ContactField[] = ["name", "email", "message"];
 
 // Same limits as the API (apps/api/src/portfolio_api/schemas/contact.py); the API stays the authority.
-export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export function validateContact(values: ContactValues): ContactErrors {
   const errors: ContactErrors = {};
   const name = values.name.trim();
