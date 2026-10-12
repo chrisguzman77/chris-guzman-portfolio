@@ -493,6 +493,7 @@ describe("ChatTerminal feedback", () => {
     feedbackResponds(saved);
     await renderTerminal();
     await ask("FastAPI?");
+    notHelpful().focus();
     await act(async () => {
       fireEvent.click(notHelpful());
     });
@@ -504,12 +505,31 @@ describe("ChatTerminal feedback", () => {
     expect((notHelpful() as HTMLButtonElement).disabled).toBe(true);
     expect(notHelpful().getAttribute("aria-pressed")).toBe("true");
     expect(helpful().getAttribute("aria-pressed")).toBe("false");
+    expect(document.activeElement).toBe(screen.getByLabelText("Ask a question about Chris"));
+  });
+
+  it("holds both buttons while the rating is in flight", async () => {
+    let finish!: (response: Response) => void;
+    feedbackResponds(() => new Promise<Response>((resolve) => (finish = resolve)));
+    await renderTerminal();
+    await ask("FastAPI?");
+    await act(async () => {
+      fireEvent.click(helpful());
+    });
+    expect((helpful() as HTMLButtonElement).disabled).toBe(true);
+    expect((notHelpful() as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText(CHAT_MESSAGES.feedbackSaved)).toBeNull();
+    await act(async () => {
+      finish(new Response(null, { status: 204 }));
+    });
+    expect(screen.getByText(CHAT_MESSAGES.feedbackSaved)).toBeTruthy();
   });
 
   it("says so and re-enables the buttons when the rating can't be saved", async () => {
     feedbackResponds(() => json(503, { error: { code: "chat_disabled", message: "x" } }));
     await renderTerminal();
     await ask("FastAPI?");
+    helpful().focus();
     await act(async () => {
       fireEvent.click(helpful());
     });
@@ -518,6 +538,7 @@ describe("ChatTerminal feedback", () => {
     expect((helpful() as HTMLButtonElement).disabled).toBe(false);
     expect((notHelpful() as HTMLButtonElement).disabled).toBe(false);
     expect(helpful().getAttribute("aria-pressed")).toBe("false");
+    expect(document.activeElement).toBe(helpful());
   });
 
   it("rating does not use up a question or block the next one", async () => {

@@ -130,18 +130,29 @@ function AnswerFeedback({
   apiUrl,
   sessionId,
   messageId,
+  focusInput,
 }: {
   apiUrl: string;
   sessionId: string;
   messageId: number;
+  focusInput: () => void;
 }) {
   const [state, setState] = useState<FeedbackState>("idle");
   const [chosen, setChosen] = useState<ChatRating | null>(null);
+  const clicked = useRef<HTMLButtonElement | null>(null);
 
-  async function rate(rating: ChatRating) {
+  // A disabled button drops focus to <body>. On failure the button is back once this renders.
+  useEffect(() => {
+    if (state === "failed") clicked.current?.focus();
+  }, [state]);
+
+  async function rate(rating: ChatRating, button: HTMLButtonElement) {
+    clicked.current = button;
     setChosen(rating);
     setState("sending"); // both buttons wait, so a double click sends one rating
-    setState((await sendFeedback(apiUrl, sessionId, messageId, rating)) ? "saved" : "failed");
+    const ok = await sendFeedback(apiUrl, sessionId, messageId, rating);
+    setState(ok ? "saved" : "failed");
+    if (ok) focusInput(); // both buttons stay disabled, so keep focus in the terminal
   }
 
   function button(rating: ChatRating, key: string, label: string) {
@@ -155,7 +166,7 @@ function AnswerFeedback({
     return (
       <button
         type="button"
-        onClick={() => void rate(rating)}
+        onClick={(event) => void rate(rating, event.currentTarget)}
         disabled={state === "sending" || state === "saved"}
         aria-label={label}
         aria-pressed={pressed}
@@ -307,6 +318,10 @@ export function ChatTerminal({
     setSession({ status: "connecting" });
     opening.current = false;
     setResetSignal((n) => n + 1); // a fresh Turnstile token opens the next session
+    inputRef.current?.focus();
+  }
+
+  function focusInput() {
     inputRef.current?.focus();
   }
 
@@ -507,6 +522,7 @@ export function ChatTerminal({
                   apiUrl={apiUrl}
                   sessionId={line.sessionId}
                   messageId={line.messageId}
+                  focusInput={focusInput}
                 />
               </div>
             ) : (
