@@ -179,6 +179,22 @@ test("blog: subscribe", async ({ page }) => {
   await expectNoAxeViolations(page);
 });
 
+test("blog: a mermaid block renders as a diagram that follows the theme", async ({ page }) => {
+  await page.goto("/blog/hello-world");
+  const diagram = page.locator("[data-mermaid-rendered] svg");
+  await expect(diagram).toBeVisible();
+  await expect(page.locator("pre[data-mermaid]")).toBeHidden();
+  await expectNoAxeViolations(page);
+
+  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect(page.locator("html")).toHaveClass(/\blight\b/);
+  // Re-rendered with the light tokens: the node border is the light --accent-brand.
+  await expect(page.locator("[data-mermaid-rendered] style")).toContainText(/#0d7a57/i);
+  await expect(diagram).toBeVisible();
+  await expect(page.locator("[data-mermaid-rendered]")).toHaveCount(1);
+  await expectNoAxeViolations(page);
+});
+
 test("newsletter: confirm and unsubscribe links", async ({ page }) => {
   // A mail scanner opens the link and runs its scripts: the page must not call the API.
   const calls: string[] = [];

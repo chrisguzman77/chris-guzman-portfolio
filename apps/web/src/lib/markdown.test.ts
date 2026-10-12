@@ -76,6 +76,33 @@ describe("renderMarkdown", () => {
     expect(html).toContain("--shiki-light:");
   }, 20000);
 
+  it("turns a mermaid block into an unhighlighted pre[data-mermaid] holding the source", async () => {
+    const source = "flowchart LR\n  A --> B\n  B --> C";
+    const { html } = await renderMarkdown("```mermaid\n" + source + "\n```\n");
+    expect(html).toBe(
+      '<pre class="mermaid-source" data-mermaid="">flowchart LR\n  A --> B\n  B --> C\n</pre>',
+    );
+    expect(html).not.toContain("<code");
+    expect(html).not.toContain("data-rehype-pretty-code");
+  });
+
+  it("keeps markup inside a mermaid block as escaped text", async () => {
+    const { html } = await renderMarkdown(
+      "```mermaid\nflowchart LR\n  A[<script>alert(1)</script>] --> B\n```\n",
+    );
+    expect(html).not.toContain("<script");
+    expect(html).toContain("&#x3C;script>alert(1)&#x3C;/script>");
+  });
+
+  it("still highlights other code blocks next to a mermaid block", async () => {
+    const { html } = await renderMarkdown(
+      "```mermaid\ngraph TD\n```\n\n```ts\nconst x = 1;\n```\n",
+    );
+    expect(html).toContain("data-mermaid");
+    expect(html).toContain("data-rehype-pretty-code-figure");
+    expect(html).toContain("--shiki-dark:");
+  }, 20000);
+
   it("keeps inline code as plain code", async () => {
     const { html } = await renderMarkdown("run `make deploy` now");
     expect(html).toContain("<code>make deploy</code>");
