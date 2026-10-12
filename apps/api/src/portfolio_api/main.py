@@ -125,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.newsletter_service = newsletter_service
     app.state.chat_session_limiter = SlidingWindowLimiter([(10, 3_600)])
     app.state.chat_message_limiter = SlidingWindowLimiter([(5, 60), (30, 86_400)])
+    app.state.chat_feedback_limiter = SlidingWindowLimiter([(20, 60), (200, 86_400)])
     if settings.chat_hash_salt:
         # Purges stored chats even when Groq (and so answering) is off.
         jobs.append(Job("chat-retention", 86_400, partial(purge_expired_chats, sessions)))

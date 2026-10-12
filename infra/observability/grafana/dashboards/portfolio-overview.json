@@ -166,6 +166,16 @@
       "targets": [{ "refId": "A", "expr": "sum by (result) (increase(rag_sync_runs_total[1h]))", "legendFormat": "{{result}}" }],
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars" } }, "overrides": [] },
       "options": { "legend": { "showLegend": true, "displayMode": "list" } }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Chat feedback by rating (range)",
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 42 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (rating) (increase(chat_feedback_total[$__range]))", "legendFormat": "{{rating}}", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "options": { "colorMode": "none", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
     }
   ]
 }
