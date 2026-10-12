@@ -198,6 +198,26 @@ The full list and the reasoning are in [security.md](security.md).
 - **Yearly:** bump `Expires` in `apps/web/public/.well-known/security.txt`. A web test fails when fewer than 30 days remain, so CI will remind you.
 - **Weekly proof routine:** confirm the latest `backup-verify` run is green, and during the first month check the Grafana memory watch above.
 
+## Performance budget
+
+Two checks in the `web` CI job guard page weight and speed.
+
+- **What fails a PR:**
+  - **JS size (hard gate).** `apps/web/e2e/budget.spec.ts` loads `/`, `/projects`, `/blog`, the fixture post `/blog/hello-world` and `/contact` on the mobile project. It adds up the uncompressed bytes of every script each page loads until the network goes idle, including lazy chunks such as mermaid on the post. It fails when a page goes over its budget in `apps/web/e2e/budgets.json`. It also fails when a measured page has no budget, or a budget has no page.
+  - **Lighthouse (soft gate).** `pnpm perf:lighthouse --serve` scores `/`, `/blog` and the fixture post on mobile, 3 runs each. It fails only when a page's median score is below 85, because runner speed varies.
+- **Read the step summary:** open the run's Summary tab.
+  - The JS table shows each page's measured size, its budget and the headroom left. Negative headroom means the page is over budget.
+  - The Lighthouse table shows each page's median score, the 3 runs behind it, and the median LCP and TBT (for information only).
+  - The same tables are in the step logs.
+- **Raise a budget deliberately:**
+  1. Run `pnpm build`.
+  2. Run `BUDGET_PRINT_ONLY=1 pnpm exec playwright test budget --project=mobile`. It prints the new measurements and doesn't fail.
+  3. In `budgets.json`, set `baseline` to the new measurement and `scriptBytes` to the baseline plus 10%, rounded up to a multiple of 1024.
+  4. Say in the PR why the page needs more JS. A failure message for a missing page suggests the entry to add.
+- **Run locally:**
+  - Stop stale servers first: `pkill -f next-server; pkill -f "e2e/fake-backend.mjs"`.
+  - `pnpm perf:lighthouse --serve` runs against a fresh build. Without `--serve`, it scores a server you already have on `127.0.0.1:3100`.
+
 ## Proxmox SSH: keys only
 
 The Proxmox host's root login accepted a password. Switch it to keys. Keep the first session open until the end, so a mistake cannot lock you out.
