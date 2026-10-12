@@ -306,7 +306,7 @@ Use this when the VM or its disk is lost, or the databases are damaged. It repla
 - **Grafana admin password:** Grafana reads `GRAFANA_ADMIN_PASSWORD` only when its database is first created. Change it in Grafana (avatar → Profile → Change password), then set the same value with `make secrets-edit` so the record matches.
 - **Better Stack heartbeat:** set the new URL as `BACKUP_HEARTBEAT_URL` with `make secrets-edit`, merge.
 - **GitHub activity token (expires yearly):** create a new fine-grained token (public repositories, read-only), set `GITHUB_ACTIVITY_TOKEN` with `make secrets-edit`, merge.
-- **Contact inbox:** change `CONTACT_TO` (e.g. after graduation) with `make secrets-edit`, merge.
+- **Contact inbox:** change `CONTACT_TO` (e.g. after graduation) with `make secrets-edit`, merge, and the banner email in `infra/cloudflare/worker-fallback.mjs`, then re-paste the Worker.
 - **Age keys:** generate a new key, add it to `.sops.yaml`, `sops updatekeys infra/compose/prod.enc.env`, remove the old recipient, `updatekeys` again.
 
 ## Static failover

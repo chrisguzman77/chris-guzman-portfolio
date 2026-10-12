@@ -12,7 +12,7 @@ on:
     types: [completed]
     branches: [main]
   schedule:
-    - cron: "15 8 * * *" # 04:15 Eastern, after the 03:30 backup
+    - cron: "15 8 * * *" # 08:15 UTC (04:15 EDT / 03:15 EST)
   workflow_dispatch:
 
 permissions:

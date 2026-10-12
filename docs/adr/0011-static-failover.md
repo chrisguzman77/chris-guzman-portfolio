@@ -8,7 +8,7 @@ The whole site runs on one VM on a home Proxmox host behind a home internet conn
 ## Decision
 - A GitHub Actions workflow (`snapshot.yml`) crawls the live public site from outside the home network and uploads the result to the R2 bucket `portfolio-snapshot` under `snapshots/<run id>/`. A pointer object, `current.json`, is written last, so a half-finished upload is never served. It runs after each successful release, nightly at 08:15 UTC, and on demand. It keeps the newest 3 snapshots.
 - The existing `portfolio-fallback` Worker reads the snapshot through an R2 binding named `SNAPSHOT` when the origin is unreachable. With no binding, or for a URL not in the snapshot, it still returns the old 503 "Back shortly" page.
-- The Worker hides the live features (chat launcher, contact form, newsletter form, status card, marked `data-live-feature`) with an injected style and appends a bottom-fixed banner before `</body>`. It deletes nothing. The GitHub heatmap stays.
+- The Worker hides the live features (chat launcher, contact form, newsletter form, status card, marked `data-live-feature`) with an injected style and appends a sticky bottom banner before `</body>`. It deletes nothing. The GitHub heatmap stays.
 - `/api/`, `/stats/`, `/newsletter/`, `/admin` and `_rsc` requests are refused by the Worker itself, so `/api/healthz` stays 503 during failover and Better Stack keeps alerting.
 - A failed crawl fails the job and nothing is published, so the previous snapshot stays live.
 

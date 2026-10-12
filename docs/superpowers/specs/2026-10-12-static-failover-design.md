@@ -32,14 +32,15 @@ The whole site runs on one VM in Chris's home. When the VM, the home internet or
    - **Assets:** collects everything each page references: `src`, `href` for stylesheets/icons/manifest/preload, `srcset`, `<object data>`, CSS `url(...)` in fetched stylesheets, and `/_next/static/**` chunks referenced by scripts already fetched.
    - **Static extras:** also fetches `/rss.xml` (or `/blog/rss.xml`), `/robots.txt`, `/sitemap.xml`, `/icon.svg` and the OG images linked from page meta tags.
    - **Scope:** only same-origin URLs are kept. External scripts (Turnstile) aren't copied.
-   - **Output:** writes to `snapshot/<path>` locally. A **manifest** maps each key (pathname plus search string, so `/_next/image?url=…&w=…` keeps its query) to `{ file, status, contentType, csp }`, where `csp` is the response's `Content-Security-Policy`.
+   - **Output:** writes each body to `snapshot/files/<sha256 of key>` locally. A **manifest** maps each key (pathname plus search string, so `/_next/image?url=…&w=…` keeps its query) to `{ file, type, csp, cacheControl }`: `file` is that object name, `type` the response's `Content-Type`, `csp` its `Content-Security-Policy` (pages only) and `cacheControl` its `Cache-Control` (when sent).
 2. **Safety checks (abort without uploading):**
    - Any page that isn't 200.
    - Any response carrying `x-served-from: snapshot`, which means the site is already in failover. The crawl must never copy a copy.
    - The homepage missing `Christopher Guzman`.
    - Fewer than 10 pages.
+   - Any asset that got no response (network error or timeout) or returned 403, 429 or 5xx, and any `/_next/static/` asset that wasn't 200. Other misses (a 404 for a stale CMS or OG reference) are only warnings.
 3. **Upload.** Run `aws s3 cp --recursive` to `s3://portfolio-snapshot/snapshots/<run-id>/` using the R2 S3 endpoint. The AWS CLI is preinstalled on ubuntu-latest.
-4. **Switch.** Write `current.json` with `{ prefix: "snapshots/<run-id>/", createdAt, commit, pages }`.
+4. **Switch.** Write `current.json` with `{ prefix: "snapshots/<run-id>/", createdAt, commit }`.
 5. **Prune.** Delete snapshot prefixes older than the newest 3.
 6. **Summary.** Write a step summary: pages, assets, total bytes, prefix.
 
@@ -63,10 +64,10 @@ The pointer is written last, so a half-finished upload is never served.
      - Set `Content-Security-Policy` to the CSP captured at crawl time. It names the nonce baked into that HTML.
      - Add `x-served-from: snapshot`, `cache-control: no-store` and `x-robots-tag: noindex`.
      - Use `HTMLRewriter` to:
-       - append a `<style>` to `<head>` that hides `[data-live-feature]` (`display: none !important`) and pads the bottom of `<body>` so the banner never covers content;
-       - append a banner `<div id="snapshot-banner" role="status">`, fixed to the bottom of the viewport, as the **last** child of `<body>`. Prepending it as the first child breaks hydration (React error #418, confirmed by the Playwright failover test), while appending it hydrates cleanly. The banner text: "This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at chguzman@augusta.edu".
+       - append a `<style>` to `<head>` that hides `[data-live-feature]` (`display: none !important`);
+       - append a banner `<div id="snapshot-banner" role="status">`, `position: sticky; bottom: 0`, as the **last** child of `<body>` (a flex column, so it pins to the viewport bottom while scrolling and sits below the footer at the end; a fixed banner covered the footer on phones). Prepending it as the first child breaks hydration (React error #418, confirmed by the Playwright failover test), while appending it hydrates cleanly. The banner text: "This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at chguzman@augusta.edu".
      - Nothing is deleted from the HTML. Deleting server-rendered elements would make React's hydration mismatch and re-render them. React 19 skips unexpected tags inserted in `<head>`/`<body>`, so the style and banner don't trigger a mismatch.
-   - **Static assets:** keep their immutable caching.
+   - **Static assets:** add `x-served-from: snapshot` and keep the `cache-control` captured at crawl time (`no-store` if none), so `/_next/static` keeps its immutable caching.
    - **Status:** 200 for found objects.
 4. **Not found** (including `/api/*`, RSC requests with `_rsc` and `/stats/*`): return the existing 503 "Back shortly".
 

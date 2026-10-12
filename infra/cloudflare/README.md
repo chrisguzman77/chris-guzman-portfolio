@@ -29,7 +29,7 @@ Applications `Grafana` (`grafana.christopherguzman.me`) and `Umami` (`analytics.
 1. Workers & Pages → Create → Create Worker → name `portfolio-fallback` → Deploy.
 2. Edit code → replace everything with `worker-fallback.mjs` from this directory → Deploy.
 3. Worker → Settings → Domains & Routes → Add → Route: `christopherguzman.me/*` (zone christopherguzman.me). Add a second route `www.christopherguzman.me/*`.
-4. Check: stop the web container on the VM (`docker compose -f infra/compose/compose.yaml stop web`), load the site, see "Back shortly" with HTTP 503; start it again.
+4. Check: stop the web container on the VM (`docker compose -f infra/compose/compose.yaml stop web`), load the site, see "Back shortly" with HTTP 503; start it again. Once the `SNAPSHOT` binding exists (below), you see the snapshot instead of "Back shortly"; use the [outage drill](#outage-drill) then.
 
 `api.` and `cms.` are deliberately not routed through the Worker: API clients should see real status codes, and the CMS is behind Access.
 
@@ -55,8 +55,8 @@ When the origin is down, the Worker serves a crawled copy of the public site ins
 
 How the Worker behaves during an outage:
 
-- It hides the live features (`data-live-feature`: chat launcher, contact form, newsletter form, status card) with an injected style and appends a bottom-fixed `#snapshot-banner` before `</body>`. It deletes nothing, because deleting or prepending broke React hydration.
-- Snapshot responses carry `x-served-from: snapshot` and `cache-control: no-store`. HTML also gets `x-robots-tag: noindex` and its captured CSP.
+- It hides the live features (`data-live-feature`: chat launcher, contact form, newsletter form, status card) with an injected style and appends a sticky `#snapshot-banner` before `</body>` (pinned to the bottom while scrolling, below the footer at the end). It deletes nothing, because deleting or prepending broke React hydration.
+- Snapshot responses carry `x-served-from: snapshot`. HTML gets `cache-control: no-store`, `x-robots-tag: noindex` and its captured CSP; assets keep the `cache-control` the origin sent when crawled (`no-store` if it sent none).
 - It refuses `/api/`, `/stats/`, `/newsletter/`, `/admin` and `_rsc` itself, so `/api/healthz` is always 503 and Better Stack keeps alerting.
 - With no `SNAPSHOT` binding, or for anything not in the snapshot, it returns the old 503 "Back shortly" page.
 - Its only export is `default`, so it boots under `wrangler dev --local`.
@@ -82,7 +82,7 @@ Troubleshooting: if the first run's crawl gets 403s, check Cloudflare Security �
 1. On the VM, stop the origin: `docker compose -f infra/compose/compose.yaml stop web api`.
 2. `curl -I https://christopherguzman.me/` and a project page: expect 200 with `x-served-from: snapshot`.
 3. `curl -I https://christopherguzman.me/api/healthz`: expect 503.
-4. In a browser, load `/`, a project, a post and `/resume`. Check the banner at the bottom, that live features are hidden, and that the console has no errors after the page loads. Press ⌘K (there must be no chat), click between pages, and open the resume PDF.
+4. In a browser, load `/`, a project, a post and `/resume`. Check the banner at the bottom, that live features are hidden, and that the console has no errors other than 503s for `/stats/` and `?_rsc=` requests (expected). Press ⌘K (there must be no chat), click between pages, and open the resume PDF.
 5. Start them again: `docker compose -f infra/compose/compose.yaml start web api`, and confirm the live site returns.
 
 ### Roll back
