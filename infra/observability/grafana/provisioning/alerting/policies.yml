@@ -7,3 +7,10 @@ policies:
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
+    routes:
+      # The chat-eval rules read a weekly run, so a firing one stays true for days:
+      # remind once a week instead of every 4 hours. Same contact point.
+      - receiver: email-chris
+        object_matchers:
+          - ["component", "=", "chat-eval"]
+        repeat_interval: 168h

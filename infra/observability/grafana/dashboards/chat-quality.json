@@ -1,0 +1,164 @@
+{
+  "uid": "chat-quality",
+  "title": "Chat quality",
+  "tags": ["portfolio", "chat"],
+  "timezone": "America/New_York",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "refresh": "5m",
+  "time": { "from": "now-90d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Answer and refusal pass rate",
+      "description": "Weekly answer eval (chat_eval_runs, kind answer). Alerts below 85% answer, or on any refusal failure.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT started_at AS time, answer_pass_rate AS answer, refusal_pass_rate AS refusal\nFROM chat_eval_runs\nWHERE kind = 'answer' AND $__timeFilter(started_at)\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1, "noValue": "No answer runs yet", "custom": { "showPoints": "always", "pointSize": 6 } },
+        "overrides": []
+      },
+      "options": { "legend": { "showLegend": true, "displayMode": "list" } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Red-team pass rate",
+      "description": "Weekly red-team eval (chat_eval_runs, kind redteam): the share of attack cases handled safely.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT started_at AS time, refusal_pass_rate AS \"red-team\"\nFROM chat_eval_runs\nWHERE kind = 'redteam' AND $__timeFilter(started_at)\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1, "noValue": "No red-team runs yet", "custom": { "showPoints": "always", "pointSize": 6 } },
+        "overrides": []
+      },
+      "options": { "legend": { "showLegend": true, "displayMode": "list" } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Retrieval hit@5 and MRR (live index)",
+      "description": "The golden questions through retrieval only, on the live index, at each answer run.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT started_at AS time, hit_at_5 AS \"hit@5\", mrr AS \"MRR\"\nFROM chat_eval_runs\nWHERE kind = 'answer' AND $__timeFilter(started_at)\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "decimals": 2, "min": 0, "max": 1, "noValue": "No answer runs yet", "custom": { "showPoints": "always", "pointSize": 6 } },
+        "overrides": []
+      },
+      "options": { "legend": { "showLegend": true, "displayMode": "list" } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Eval latency p50 / p95",
+      "description": "Per-case compose time (retrieval, model, citation check) in each eval run, by kind.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT started_at AS time, kind::text AS metric, latency_p50_ms AS p50, latency_p95_ms AS p95\nFROM chat_eval_runs\nWHERE $__timeFilter(started_at)\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "min": 0, "noValue": "No runs yet", "custom": { "showPoints": "always", "pointSize": 6 } },
+        "overrides": []
+      },
+      "options": { "legend": { "showLegend": true, "displayMode": "list" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Tokens per question",
+      "description": "Mean input + output tokens per eval case, by kind (no_match cases count as 0).",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT started_at AS time, kind::text AS metric, tokens_per_question AS tokens\nFROM chat_eval_runs\nWHERE $__timeFilter(started_at)\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0, "min": 0, "noValue": "No runs yet", "custom": { "showPoints": "always", "pointSize": 6 } },
+        "overrides": []
+      },
+      "options": { "legend": { "showLegend": true, "displayMode": "list" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Visitor feedback per day",
+      "description": "helpful? [y] / [n] ratings per UTC day (chat_usage_daily, kept 90 days). Read the thumbs-down with make chat-feedback on the VM.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT (day::timestamp AT TIME ZONE 'UTC') AS time, feedback_up AS up, feedback_down AS down\nFROM chat_usage_daily\nWHERE $__timeFilter(day)\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0, "min": 0, "noValue": "No ratings yet", "custom": { "drawStyle": "bars", "fillOpacity": 60 } },
+        "overrides": []
+      },
+      "options": { "legend": { "showLegend": true, "displayMode": "list" } }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Latest run's failed cases",
+      "description": "Failed cases of the latest run of each kind. Ids, categories and reasons come from the eval files, never from visitors.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r.kind::text AS kind, f->>'id' AS \"case\", f->>'category' AS category, f->>'reason' AS reason, r.started_at AS run\nFROM (SELECT DISTINCT ON (kind) * FROM chat_eval_runs ORDER BY kind, started_at DESC) AS r\nCROSS JOIN LATERAL jsonb_array_elements(r.failures) AS f\nORDER BY 1, 2"
+        }
+      ],
+      "fieldConfig": { "defaults": { "noValue": "No failed cases in the latest runs" }, "overrides": [] },
+      "options": { "showHeader": true }
+    }
+  ]
+}

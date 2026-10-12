@@ -45,6 +45,8 @@ fi
 compose up -d --wait --wait-timeout 180 --remove-orphans ${SERVICES}
 echo "==> Grafana read-only Umami role"
 compose exec -T postgres /docker-entrypoint-initdb.d/02-grafana-umami-ro.sh
+echo "==> Grafana read-only chat role"
+compose exec -T postgres /docker-entrypoint-initdb.d/03-grafana-chat-ro.sh
 echo "==> CMS bootstrap"
 compose exec -T directus node /directus/bootstrap/bootstrap.mjs
 echo "==> Smoke testing"

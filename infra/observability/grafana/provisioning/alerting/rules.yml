@@ -1,12 +1,16 @@
-# The nine alerts (Phase 6/7 and the newsletter). Each rule is an instant PromQL query (A) and a
-# threshold (C) on it. Grafana expands environment variables in provisioning
-# files, so no expression or template here may contain a dollar sign (CI checks).
+# The twelve alerts (Phase 6/7, the newsletter and chat quality). Each Prometheus rule is an
+# instant PromQL query (A) and a threshold (C) on it; the chat-eval rules are a SQL query on
+# the chat-readonly Postgres datasource (A, one numeric column) and a threshold (C). Grafana
+# expands environment variables in provisioning files, so no expression, query or template
+# here may contain a dollar sign (CI checks).
 #
-# noDataState: Alerting for Site down and Backup stale (silence there is itself
-# a problem; Backup stale already maps an absent metric to a huge age), OK for
-# the rest (an empty result means no traffic yet or the condition is not met,
-# and a missing exporter is caught by Container down). execErrState: Error, so a dead
-# Prometheus raises one grouped DatasourceError email.
+# noDataState: Alerting for Site down, Backup stale and Chat eval stale (silence there is
+# itself a problem; Backup stale already maps an absent metric to a huge age, and Chat eval
+# stale's query always returns a row per kind), OK for the rest (an empty result means no
+# traffic yet or the condition is not met, and a missing exporter is caught by Container
+# down). execErrState: Error, so a dead Prometheus or database raises one grouped
+# DatasourceError email. The chat-eval rules carry component: chat-eval, which policies.yml
+# routes to weekly reminders (they read a weekly run).
 apiVersion: 1
 
 groups:
@@ -269,3 +273,96 @@ groups:
           summary: Some newsletter emails were not sent (often Resend's daily limit of 100). Open the post in Directus and click Email to subscribers again, today or tomorrow; it only emails people who have not got it.
         labels:
           severity: warning
+
+      - uid: chat-eval-answer-low
+        title: Chat eval answer low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: chat-readonly
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: SELECT answer_pass_rate FROM chat_eval_runs WHERE kind = 'answer' AND answer_pass_rate IS NOT NULL ORDER BY started_at DESC LIMIT 1
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [0.85] }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: The latest weekly chat answer eval passed fewer than 85% of its answerable cases. See Grafana → Chat quality and the runbook (Chat quality).
+        labels:
+          severity: warning
+          component: chat-eval
+
+      - uid: chat-eval-refusal
+        title: Chat eval refusal
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: chat-readonly
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: SELECT refusal_pass_rate FROM chat_eval_runs WHERE kind = 'answer' AND refusal_pass_rate IS NOT NULL ORDER BY started_at DESC LIMIT 1
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: A refusal case failed in the latest chat answer eval (the chat answered something it should refuse). See Grafana → Chat quality and the runbook (Chat quality).
+        labels:
+          severity: warning
+          component: chat-eval
+
+      - uid: chat-eval-stale
+        title: Chat eval stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: chat-readonly
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              editorMode: code
+              # Hours since the last run of each kind; a kind with no run at all counts as
+              # 1,000,000 hours, so the query always returns one row per kind.
+              rawSql: SELECT k.kind, COALESCE(EXTRACT(EPOCH FROM now() - max(r.started_at)) / 3600, 1000000)::float8 AS hours FROM (VALUES ('answer')) AS k(kind) LEFT JOIN chat_eval_runs AS r ON r.kind::text = k.kind GROUP BY k.kind
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                # 9 days
+                - evaluator: { type: gt, params: [216] }
+        noDataState: Alerting
+        execErrState: Error
+        for: 1h
+        annotations:
+          summary: 'No {{ index .Labels "kind" }} chat eval recorded in 9 days. Check Actions → chat-eval; see the runbook (Chat quality).'
+        labels:
+          severity: warning
+          component: chat-eval
