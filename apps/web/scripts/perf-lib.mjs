@@ -53,7 +53,7 @@ export function median(values) {
 }
 
 /**
- * @param {Record<string, { score: number, lcp: number, tbt: number }[]>} runs per route; score is 0-100
+ * @param {Record<string, { score: number, lcp: number, tbt: number, cpu: number }[]>} runs per route; score is 0-100
  * @param {number} threshold a median below this fails
  */
 export function summarizeLighthouse(runs, threshold) {
@@ -73,6 +73,7 @@ export function summarizeLighthouse(runs, threshold) {
       scores,
       lcp: median(results.map((r) => r.lcp)),
       tbt: median(results.map((r) => r.tbt)),
+      cpu: median(results.map((r) => r.cpu)),
     });
   }
   return { rows, failures };

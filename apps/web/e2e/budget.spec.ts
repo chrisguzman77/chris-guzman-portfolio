@@ -27,6 +27,11 @@ test("JS size budget", async ({ page }, testInfo) => {
     };
     page.on("response", onResponse);
     await page.goto(route, { waitUntil: "networkidle" });
+    // A diagram loads its library in a chained chunk after networkidle; wait for it to render.
+    if (await page.locator("pre[data-mermaid], [data-mermaid-rendered]").count()) {
+      await page.locator("[data-mermaid-rendered]").first().waitFor();
+      await page.waitForLoadState("networkidle");
+    }
     page.off("response", onResponse);
     measured[route] = (await Promise.all(bodies)).reduce((sum, n) => sum + n, 0);
   }

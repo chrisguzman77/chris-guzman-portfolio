@@ -73,18 +73,25 @@ describe("median", () => {
 });
 
 describe("summarizeLighthouse", () => {
-  const run = (score, lcp = 2000, tbt = 100) => ({ score, lcp, tbt });
+  const run = (score, lcp = 2000, tbt = 100, cpu = 1000) => ({ score, lcp, tbt, cpu });
 
   it("passes when every median is at or above the threshold", () => {
     const { rows, failures } = summarizeLighthouse(
       {
-        "/": [run(95, 2800, 50), run(70, 4000, 300), run(96, 2700, 40)],
+        "/": [run(95, 2800, 50, 1200), run(70, 4000, 300, 900), run(96, 2700, 40, 1100)],
         "/blog": [run(85), run(85), run(99)],
       },
       85,
     );
     expect(failures).toEqual([]);
-    expect(rows[0]).toEqual({ route: "/", score: 95, scores: [95, 70, 96], lcp: 2800, tbt: 50 });
+    expect(rows[0]).toEqual({
+      route: "/",
+      score: 95,
+      scores: [95, 70, 96],
+      lcp: 2800,
+      tbt: 50,
+      cpu: 1100,
+    });
     expect(rows[1].score).toBe(85);
   });
 

@@ -20,7 +20,7 @@ const RUNS = 3;
 const THRESHOLD = 85;
 
 async function isUp(url) {
-  return fetch(url).then(
+  return fetch(url, { signal: AbortSignal.timeout(2000) }).then(
     (res) => res.ok,
     () => false,
   );
@@ -77,6 +77,7 @@ async function lighthouse(url) {
     score: Math.round(lhr.categories.performance.score * 100),
     lcp: lhr.audits["largest-contentful-paint"].numericValue,
     tbt: lhr.audits["total-blocking-time"].numericValue,
+    cpu: lhr.environment.benchmarkIndex,
   };
 }
 
@@ -101,13 +102,14 @@ async function main() {
     const { rows, failures } = summarizeLighthouse(runs, THRESHOLD);
     report(
       `Lighthouse mobile performance (median of ${RUNS}; fails below ${THRESHOLD})`,
-      ["route", "score", "runs", "LCP", "TBT"],
+      ["route", "score", "runs", "LCP", "TBT", "CPU benchmark (median)"],
       rows.map((r) => [
         r.route,
         String(r.score),
         r.scores.join(", "),
         `${(r.lcp / 1000).toFixed(2)} s`,
         `${Math.round(r.tbt)} ms`,
+        String(Math.round(r.cpu)),
       ]),
     );
     if (failures.length) {
