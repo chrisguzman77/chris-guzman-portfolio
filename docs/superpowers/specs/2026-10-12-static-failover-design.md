@@ -76,14 +76,12 @@ The pointer is written last, so a half-finished upload is never served.
 ### Web app (small change)
 
 Add `data-live-feature` to the root element of each feature that needs the API, so the Worker can hide it in failover:
-- the chat launcher (and chat terminal entry point);
+- the chat launcher;
 - the contact form section;
 - the newsletter subscribe form;
-- post view counters and reactions, if present;
-- the GitHub activity heatmap;
-- the status card.
+- the status card (a live "all systems up" card would be misleading during an outage).
 
-They already degrade when the API is down; hiding them just makes the copy read cleanly.
+The GitHub activity heatmap stays: it is server-rendered, so the copy shows accurate data as of the snapshot.
 
 ### Tests
 
