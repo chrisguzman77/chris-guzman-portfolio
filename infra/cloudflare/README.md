@@ -48,3 +48,43 @@ A second Better Stack check, a heartbeat named `portfolio backup` (expected dail
 ## Worker routes
 
 Domain → Workers Routes: `christopherguzman.me/*` and `www.christopherguzman.me/*` → `portfolio-fallback`. Verified 2026-10-01: www 301 → apex, and with `web` stopped the apex returns 503 "Back shortly" with `retry-after: 300` and `cache-control: no-store` while `api.` keeps returning 200.
+
+## Static failover (R2 snapshot)
+
+When the origin is down, the Worker serves a crawled copy of the public site instead of "Back shortly". `.github/workflows/snapshot.yml` crawls `https://christopherguzman.me` from a GitHub runner and uploads it to R2 as `snapshots/<run id>/`, then writes the pointer `current.json` last. It runs after each successful release, nightly at 08:15 UTC, and on Run workflow. A crawl failure fails the job and publishes nothing; a re-run of a run that is already live is skipped (use Run workflow for a fresh snapshot). The newest 3 snapshots are kept. Without the R2 secrets the workflow still crawls (to validate) and skips the upload. Design: [ADR 0011](../../docs/adr/0011-static-failover.md).
+
+How the Worker behaves during an outage:
+
+- It hides the live features (`data-live-feature`: chat launcher, contact form, newsletter form, status card) with an injected style and appends a bottom-fixed `#snapshot-banner` before `</body>`. It deletes nothing, because deleting or prepending broke React hydration.
+- Snapshot responses carry `x-served-from: snapshot` and `cache-control: no-store`. HTML also gets `x-robots-tag: noindex` and its captured CSP.
+- It refuses `/api/`, `/stats/`, `/newsletter/`, `/admin` and `_rsc` itself, so `/api/healthz` is always 503 and Better Stack keeps alerting.
+- With no `SNAPSHOT` binding, or for anything not in the snapshot, it returns the old 503 "Back shortly" page.
+- Its only export is `default`, so it boots under `wrangler dev --local`.
+- The snapshot shows content as of the last snapshot (up to a day old for Directus edits). Client-side navigation falls back to full page loads.
+
+### Setup (once)
+
+1. Create the R2 bucket `portfolio-snapshot`.
+2. Create an R2 API token with Object Read & Write, scoped to that bucket only. Copy the Access Key ID and Secret.
+3. Set the GitHub secrets and variable (each `gh secret set` prompts for the value):
+   - `gh secret set R2_SNAPSHOT_ACCESS_KEY_ID`
+   - `gh secret set R2_SNAPSHOT_SECRET_ACCESS_KEY`
+   - `gh variable set CLOUDFLARE_ACCOUNT_ID --body <account id>`
+4. Worker `portfolio-fallback` → Settings → Bindings → Add → R2 bucket: variable `SNAPSHOT`, bucket `portfolio-snapshot`.
+5. Paste the current `worker-fallback.mjs` (Edit code) and Deploy.
+6. Actions → snapshot → Run workflow, then read the step summary (crawl log and the `Prefix:` line).
+7. Run the outage drill below.
+
+Troubleshooting: if the first run's crawl gets 403s, check Cloudflare Security → Events for blocked requests from GitHub runners (bot protection) and allow them, for example with a WAF custom rule with action Skip for requests whose User-Agent contains `portfolio-snapshot`.
+
+### Outage drill
+
+1. On the VM, stop the origin: `docker compose -f infra/compose/compose.yaml stop web api`.
+2. `curl -I https://christopherguzman.me/` and a project page: expect 200 with `x-served-from: snapshot`.
+3. `curl -I https://christopherguzman.me/api/healthz`: expect 503.
+4. In a browser, load `/`, a project, a post and `/resume`. Check the banner at the bottom, that live features are hidden, and that the console has no errors after the page loads. Press ⌘K (there must be no chat), click between pages, and open the resume PDF.
+5. Start them again: `docker compose -f infra/compose/compose.yaml start web api`, and confirm the live site returns.
+
+### Roll back
+
+Remove the `SNAPSHOT` binding from the Worker. It then returns the old 503 "Back shortly" page. The workflow can keep running; it only writes to R2.

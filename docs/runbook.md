@@ -309,9 +309,18 @@ Use this when the VM or its disk is lost, or the databases are damaged. It repla
 - **Contact inbox:** change `CONTACT_TO` (e.g. after graduation) with `make secrets-edit`, merge.
 - **Age keys:** generate a new key, add it to `.sops.yaml`, `sops updatekeys infra/compose/prod.enc.env`, remove the old recipient, `updatekeys` again.
 
+## Static failover
+
+When the origin is unreachable, the `portfolio-fallback` Worker serves a crawled copy of the public site from R2 (banner at the bottom, chat and forms hidden). `/api/healthz` stays 503, so Better Stack still alerts.
+
+- **Status:** Actions → snapshot → latest run → step summary (crawl log and the `Prefix:`). It runs after each successful release and nightly at 08:15 UTC. A failed run means the previous snapshot is still live.
+- **Force a refresh:** Actions → snapshot → Run workflow. A re-run of an already-published run is skipped, so use Run workflow instead.
+- **Content is as of the last snapshot** (up to a day old for Directus edits).
+- **Setup, drill and rollback:** [infra/cloudflare/README.md](../infra/cloudflare/README.md#static-failover-r2-snapshot). Design: [ADR 0011](adr/0011-static-failover.md).
+
 ## Outage checklist
 
-1. Site shows "Back shortly": the fallback Worker is covering. Check the VM is up (Proxmox UI) and `docker ps` on it.
+1. Site shows "Back shortly" (or the backup-copy banner): the fallback Worker is covering. Check the VM is up (Proxmox UI) and `docker ps` on it.
 2. `Error 1033`: cloudflared is not connected. `docker logs portfolio-cloudflared-1`.
 3. After a Proxmox host reboot, VM 400 starts first (`startup order=1`) and every container restarts on its own (`restart: unless-stopped`).
 
