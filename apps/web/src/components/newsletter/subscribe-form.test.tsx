@@ -39,6 +39,16 @@ afterEach(() => {
 });
 
 describe("SubscribeForm", () => {
+  it("is marked as a live feature", () => {
+    renderForm();
+    expect(
+      screen
+        .getByRole("heading", { name: "Subscribe" })
+        .closest("section")
+        ?.getAttribute("data-live-feature"),
+    ).toBe("");
+  });
+
   it("shows the heading and note, and loads Turnstile only after the email field is focused", () => {
     const { email } = renderForm();
     expect(screen.getByRole("heading", { name: "Subscribe" })).toBeTruthy();

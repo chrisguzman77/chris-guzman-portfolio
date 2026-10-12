@@ -146,6 +146,14 @@ describe("StatusCard", () => {
     expect(container.querySelectorAll('[role="img"]')).toHaveLength(1);
   });
 
+  it("is marked as a live feature", async () => {
+    vi.mocked(getStatus).mockResolvedValue(status());
+    render(await StatusCard());
+    expect(
+      screen.getByRole("region", { name: "Site status" }).getAttribute("data-live-feature"),
+    ).toBe("");
+  });
+
   it("is full width on phones and capped at 380px from md up", async () => {
     vi.mocked(getStatus).mockResolvedValue(status());
     render(await StatusCard());
@@ -158,6 +166,11 @@ describe("StatusCard", () => {
 });
 
 describe("StatusCardSkeleton", () => {
+  it("is marked as a live feature", () => {
+    const { container } = render(<StatusCardSkeleton />);
+    expect(container.querySelector("section")?.getAttribute("data-live-feature")).toBe("");
+  });
+
   it("says checking status and claims nothing", () => {
     const { container } = render(<StatusCardSkeleton />);
 

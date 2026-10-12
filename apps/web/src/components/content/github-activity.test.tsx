@@ -34,6 +34,13 @@ describe("contributionTitle", () => {
 });
 
 describe("GitHubActivity", () => {
+  it("is not a live feature, so the failover copy keeps it", () => {
+    const { container } = render(
+      <GitHubActivity activity={makeActivity()} profileUrl="https://github.com/octo" />,
+    );
+    expect(container.querySelector("[data-live-feature]")).toBeNull();
+  });
+
   it("labels the grid for screen readers and links to the profile in a new tab", () => {
     render(<GitHubActivity activity={makeActivity()} profileUrl="https://github.com/octo" />);
     expect(

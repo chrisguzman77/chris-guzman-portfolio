@@ -123,6 +123,7 @@ flowchart LR
 
 ## Notes
 
+- **Static failover:** if the origin is unreachable, the `portfolio-fallback` Worker serves a crawl of the public site from the R2 bucket `portfolio-snapshot` (refreshed after each release and nightly by a GitHub Actions crawl) with live features hidden and a backup-copy banner appended; `/api/healthz` stays 503 so monitoring is honest ([ADR 0011](adr/0011-static-failover.md)).
 - Threat model, controls and the exact headers: [security.md](security.md).
 - FastAPI's `/docs` and `/openapi.json` are intentionally public (the API contract is part of the showcase).
 - `next build` fetches Geist and JetBrains Mono from Google Fonts at build time, so image builds need network access.

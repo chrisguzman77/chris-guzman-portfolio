@@ -52,6 +52,7 @@ export default async function ContactPage() {
       <div className="mt-4 grid items-start gap-4 md:grid-cols-[1.7fr_1fr]">
         <section
           aria-labelledby="contact-form-heading"
+          data-live-feature=""
           className="rounded-[10px] border border-border bg-card p-5"
         >
           <h2 id="contact-form-heading" className="mb-4 text-[15px] font-semibold">

@@ -306,12 +306,21 @@ Use this when the VM or its disk is lost, or the databases are damaged. It repla
 - **Grafana admin password:** Grafana reads `GRAFANA_ADMIN_PASSWORD` only when its database is first created. Change it in Grafana (avatar → Profile → Change password), then set the same value with `make secrets-edit` so the record matches.
 - **Better Stack heartbeat:** set the new URL as `BACKUP_HEARTBEAT_URL` with `make secrets-edit`, merge.
 - **GitHub activity token (expires yearly):** create a new fine-grained token (public repositories, read-only), set `GITHUB_ACTIVITY_TOKEN` with `make secrets-edit`, merge.
-- **Contact inbox:** change `CONTACT_TO` (e.g. after graduation) with `make secrets-edit`, merge.
+- **Contact inbox:** change `CONTACT_TO` (e.g. after graduation) with `make secrets-edit`, merge, and the banner email in `infra/cloudflare/worker-fallback.mjs`, then re-paste the Worker.
 - **Age keys:** generate a new key, add it to `.sops.yaml`, `sops updatekeys infra/compose/prod.enc.env`, remove the old recipient, `updatekeys` again.
+
+## Static failover
+
+When the origin is unreachable, the `portfolio-fallback` Worker serves a crawled copy of the public site from R2 (banner at the bottom, chat and forms hidden). `/api/healthz` stays 503, so Better Stack still alerts.
+
+- **Status:** Actions → snapshot → latest run → step summary (crawl log and the `Prefix:`). It runs after each successful release and nightly at 08:15 UTC. A failed run means the previous snapshot is still live.
+- **Force a refresh:** Actions → snapshot → Run workflow. A re-run of an already-published run is skipped, so use Run workflow instead.
+- **Content is as of the last snapshot** (up to a day old for Directus edits).
+- **Setup, drill and rollback:** [infra/cloudflare/README.md](../infra/cloudflare/README.md#static-failover-r2-snapshot). Design: [ADR 0011](adr/0011-static-failover.md).
 
 ## Outage checklist
 
-1. Site shows "Back shortly": the fallback Worker is covering. Check the VM is up (Proxmox UI) and `docker ps` on it.
+1. Site shows "Back shortly" (or the backup-copy banner): the fallback Worker is covering. Check the VM is up (Proxmox UI) and `docker ps` on it.
 2. `Error 1033`: cloudflared is not connected. `docker logs portfolio-cloudflared-1`.
 3. After a Proxmox host reboot, VM 400 starts first (`startup order=1`) and every container restarts on its own (`restart: unless-stopped`).
 
