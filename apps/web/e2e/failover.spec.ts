@@ -1,13 +1,25 @@
-import worker from "../../../infra/cloudflare/worker-fallback.mjs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { expect, test } from "./helpers";
+
+// The Worker lives outside apps/web, and the Docker build (whose context is apps/web) type-checks
+// this file, so load it at runtime from a computed path instead of a static import.
+const WORKER = path.resolve(__dirname, "../../../infra/cloudflare/worker-fallback.mjs");
+let HIDE_STYLE = "";
+let BANNER_HTML = "";
+test.beforeAll(async () => {
+  const mod = (await import(pathToFileURL(WORKER).href)) as {
+    default: { HIDE_STYLE: string; BANNER_HTML: string };
+  };
+  ({ HIDE_STYLE, BANNER_HTML } = mod.default);
+});
 
 // What the failover Worker does to the snapshot HTML, using the Worker's own strings: append a
 // style that hides live features and add a banner. It deletes nothing, so React must still
 // hydrate cleanly. The banner goes at the END of <body>: a banner prepended as body's first child
 // makes React 19 throw hydration error #418 on every page (verified), so the Worker must not
 // prepend it.
-const { HIDE_STYLE, BANNER_HTML } = worker;
 
 // [route, live features present on it]
 const PAGES: [string, string[]][] = [
