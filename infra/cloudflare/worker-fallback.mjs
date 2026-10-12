@@ -46,8 +46,95 @@ function fallback() {
   });
 }
 
+// Static failover. With an R2 bucket bound as SNAPSHOT, an origin outage serves the latest
+// crawl of the public site (written by .github/workflows/snapshot.yml) instead of PAGE.
+// Without the binding, or for anything not in the snapshot, PAGE is still the answer.
+const CACHE_TTL_MS = 60_000;
+const BANNER_HTML = `<div role="status" style="margin:0;padding:.6rem 1rem;background:#fbbf24;color:#1c1917;font:500 15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center">This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at <a href="mailto:chguzman@augusta.edu" style="color:#1c1917;font-weight:600;text-decoration:underline">chguzman@augusta.edu</a>.</div>`;
+
+// current.json and <prefix>manifest.json, keyed by R2 key: { at, value }.
+const jsonCache = new Map();
+
+export function resetSnapshotCache() {
+  jsonCache.clear();
+}
+
+async function readJson(bucket, key) {
+  const cached = jsonCache.get(key);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value;
+  const object = await bucket.get(key);
+  const value = object ? await object.json() : null;
+  jsonCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+// Manifest keys are pathname + search; pages are also stored under the bare pathname with any
+// trailing slash stripped, so HTML requests fall back to that (e.g. ?utm_source=... still hits).
+export function lookupKeys(request) {
+  const { pathname, search } = new URL(request.url);
+  const keys = [pathname + search];
+  if ((request.headers.get("accept") ?? "").includes("text/html")) {
+    const page = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+    if (page !== keys[0]) keys.push(page);
+  }
+  return keys;
+}
+
+export function snapshotHeaders(entry, isHtml) {
+  const headers = new Headers({ "content-type": entry.type, "x-served-from": "snapshot" });
+  if (isHtml) {
+    // The captured CSP names the nonce baked into that HTML; the copy must never be cached or indexed.
+    headers.set("cache-control", "no-store");
+    headers.set("x-robots-tag", "noindex");
+    if (entry.csp) headers.set("content-security-policy", entry.csp);
+  } else {
+    headers.set("cache-control", entry.cacheControl || "no-store");
+  }
+  return headers;
+}
+
+async function fromSnapshot(request, bucket) {
+  const pointer = await readJson(bucket, "current.json");
+  if (!pointer?.prefix) return null;
+  const entries = (await readJson(bucket, `${pointer.prefix}manifest.json`))?.entries;
+  if (!entries) return null;
+  const key = lookupKeys(request).find((k) => Object.hasOwn(entries, k));
+  if (!key) return null;
+  const entry = entries[key];
+  const object = await bucket.get(pointer.prefix + entry.file);
+  if (!object) return null;
+
+  const isHtml = entry.type.startsWith("text/html");
+  const headers = snapshotHeaders(entry, isHtml);
+  if (request.method === "HEAD") return new Response(null, { status: 200, headers });
+  const response = new Response(object.body, { status: 200, headers });
+  if (!isHtml) return response;
+  return new HTMLRewriter()
+    .on("body", {
+      element(e) {
+        e.prepend(BANNER_HTML, { html: true });
+      },
+    })
+    .on("[data-live-feature]", {
+      element(e) {
+        e.remove();
+      },
+    })
+    .transform(response);
+}
+
+async function outage(request, env) {
+  const bucket = env?.SNAPSHOT;
+  if (!bucket || (request.method !== "GET" && request.method !== "HEAD")) return fallback();
+  try {
+    return (await fromSnapshot(request, bucket)) ?? fallback();
+  } catch {
+    return fallback();
+  }
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     if (url.hostname === `www.${APEX}`) {
       url.hostname = APEX;
@@ -57,8 +144,8 @@ export default {
     try {
       response = await fetch(request);
     } catch {
-      return fallback();
+      return outage(request, env);
     }
-    return ORIGIN_DOWN.has(response.status) ? fallback() : response;
+    return ORIGIN_DOWN.has(response.status) ? outage(request, env) : response;
   },
 };
