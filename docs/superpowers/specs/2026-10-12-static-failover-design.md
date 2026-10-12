@@ -63,8 +63,9 @@ The pointer is written last, so a half-finished upload is never served.
      - Set `Content-Security-Policy` to the CSP captured at crawl time. It names the nonce baked into that HTML.
      - Add `x-served-from: snapshot`, `cache-control: no-store` and `x-robots-tag: noindex`.
      - Use `HTMLRewriter` to:
-       - insert a banner as the first child of `<body>`: "This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at <the profile email, read from the page's mailto link or a constant>";
-       - remove every element with `data-live-feature`.
+       - append a `<style>` to `<head>` that hides `[data-live-feature]` (`display: none !important`);
+       - insert a banner `<div id="snapshot-banner" role="status">` as the first child of `<body>`: "This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at chguzman@augusta.edu".
+     - Nothing is deleted from the HTML. Deleting server-rendered elements would make React's hydration mismatch and re-render them. React 19 skips unexpected tags inserted in `<head>`/`<body>`, so the style and banner don't trigger a mismatch.
    - **Static assets:** keep their immutable caching.
    - **Status:** 200 for found objects.
 4. **Not found** (including `/api/*`, RSC requests with `_rsc` and `/stats/*`): return the existing 503 "Back shortly".
@@ -82,6 +83,13 @@ Add `data-live-feature` to the root element of each feature that needs the API, 
 - the status card (a live "all systems up" card would be misleading during an outage).
 
 The GitHub activity heatmap stays: it is server-rendered, so the copy shows accurate data as of the snapshot.
+
+The chat's ⌘K/Ctrl+K shortcut is behaviour, not markup, so CSS can't hide it. `ChatLauncher` checks for `#snapshot-banner` and, when it is present, neither opens the chat nor reacts to the shortcut.
+
+**Playwright test:** intercept a page's HTML, inject the same style and banner the Worker adds, and assert that:
+- hydration completes with no console errors (the helpers already fail on them);
+- the chat pill, contact form and status card aren't visible;
+- ⌘K doesn't open the chat.
 
 ### Tests
 
