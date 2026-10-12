@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const FALLBACK_FONT = "ui-sans-serif, system-ui, sans-serif";
 
@@ -40,6 +40,7 @@ async function renderDiagrams(blocks: HTMLPreElement[], dark: boolean, isStale: 
   if (isStale()) return;
   mermaid.initialize({
     startOnLoad: false,
+    suppressErrorRendering: true,
     securityLevel: "strict",
     theme: "base",
     fontFamily: getComputedStyle(document.documentElement).fontFamily || FALLBACK_FONT,
@@ -75,13 +76,19 @@ async function renderDiagrams(blocks: HTMLPreElement[], dark: boolean, isStale: 
   }
 }
 
-// Renders every ```mermaid block in the page (see renderMarkdown). Mermaid is only downloaded
-// when one exists; the theme is a dependency so diagrams follow light/dark mode.
+// Renders the ```mermaid blocks (see renderMarkdown) of the Prose container that directly
+// precedes it, so several Prose blocks on one page never render each other's diagrams. Mermaid is
+// only downloaded when one exists; the theme is a dependency so diagrams follow light/dark mode.
 export function MermaidDiagrams() {
   const { resolvedTheme } = useTheme();
+  const marker = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    const blocks = Array.from(document.querySelectorAll<HTMLPreElement>("pre[data-mermaid]"));
+    const blocks = Array.from(
+      marker.current?.previousElementSibling?.querySelectorAll<HTMLPreElement>(
+        "pre[data-mermaid]",
+      ) ?? [],
+    );
     if (blocks.length === 0) return;
     let stale = false;
     void renderDiagrams(blocks, resolvedTheme === "dark", () => stale);
@@ -90,5 +97,5 @@ export function MermaidDiagrams() {
     };
   }, [resolvedTheme]);
 
-  return null;
+  return <span hidden ref={marker} />;
 }

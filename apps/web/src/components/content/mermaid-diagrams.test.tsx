@@ -15,17 +15,26 @@ vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: state.theme })
 
 const SOURCE = "flowchart LR\n  A --> B\n";
 
-function addBlock() {
-  const prose = document.createElement("div");
-  prose.className = "prose-content";
-  prose.innerHTML = `<pre class="mermaid-source" data-mermaid="">${SOURCE}</pre>`;
-  document.body.append(prose);
-  return prose.querySelector("pre")!;
+const BLOCK = `<pre class="mermaid-source" data-mermaid="">${SOURCE}</pre>`;
+
+// Mirrors <Prose>: the prose div, then MermaidDiagrams' marker as its next sibling.
+function Page({ html }: { html: string }) {
+  return (
+    <>
+      <div className="prose-content" dangerouslySetInnerHTML={{ __html: html }} />
+      <MermaidDiagrams />
+    </>
+  );
+}
+
+function mount(html = BLOCK) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const view = render(<Page html={html} />, { container: host });
+  return { ...view, pre: host.querySelector("pre")!, host };
 }
 
 beforeEach(() => {
-  // Re-evaluate the mocked module on each import, so `state.loaded` reflects this test only.
-  vi.resetModules();
   state.loaded = false;
   state.theme = "dark";
   mermaid.render.mockResolvedValue({ svg: '<svg role="img"><text>diagram</text></svg>' });
@@ -39,18 +48,24 @@ afterEach(() => {
 
 describe("MermaidDiagrams", () => {
   it("never loads mermaid when the page has no diagram", async () => {
-    render(<MermaidDiagrams />);
+    // Re-evaluate the mocked module on import, so `state.loaded` reflects this test only.
+    vi.resetModules();
+    mount("<p>none</p>");
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
     expect(state.loaded).toBe(false);
     expect(mermaid.initialize).not.toHaveBeenCalled();
   });
 
   it("renders each block after its pre and hides the source", async () => {
-    const pre = addBlock();
-    render(<MermaidDiagrams />);
+    const { pre } = mount();
     await waitFor(() => expect(pre.hidden).toBe(true));
     expect(mermaid.initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ startOnLoad: false, securityLevel: "strict", theme: "base" }),
+      expect.objectContaining({
+        startOnLoad: false,
+        suppressErrorRendering: true,
+        securityLevel: "strict",
+        theme: "base",
+      }),
     );
     expect(mermaid.render).toHaveBeenCalledWith(expect.any(String), SOURCE);
     const rendered = pre.nextElementSibling;
@@ -66,8 +81,7 @@ describe("MermaidDiagrams", () => {
       document.body.append(leftover);
       throw new Error("Parse error on line 1");
     });
-    const pre = addBlock();
-    render(<MermaidDiagrams />);
+    const { pre } = mount();
     await waitFor(() => expect(mermaid.render).toHaveBeenCalled());
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
     const id = mermaid.render.mock.calls[0][0] as string;
@@ -78,16 +92,34 @@ describe("MermaidDiagrams", () => {
   });
 
   it("re-renders from the original source when the theme changes", async () => {
-    const pre = addBlock();
-    const { rerender } = render(<MermaidDiagrams />);
+    const { pre, rerender } = mount();
     await waitFor(() => expect(pre.hidden).toBe(true));
     state.theme = "light";
     mermaid.render.mockResolvedValue({ svg: "<svg><text>light</text></svg>" });
-    rerender(<MermaidDiagrams />);
+    rerender(<Page html={BLOCK} />);
     await waitFor(() => expect(document.body.textContent).toContain("light"));
     expect(mermaid.render).toHaveBeenCalledTimes(2);
     expect(mermaid.render).toHaveBeenLastCalledWith(expect.any(String), SOURCE);
     expect(document.querySelectorAll("[data-mermaid-rendered]")).toHaveLength(1);
     expect(pre.hidden).toBe(true);
+  });
+
+  it("renders only its own Prose container, even with several on the page", async () => {
+    const first = mount();
+    await waitFor(() => expect(first.pre.hidden).toBe(true));
+    const second = mount();
+    await waitFor(() => expect(second.pre.hidden).toBe(true));
+    expect(document.querySelectorAll("[data-mermaid-rendered]")).toHaveLength(2);
+    expect(first.host.querySelectorAll("[data-mermaid-rendered]")).toHaveLength(1);
+    expect(second.host.querySelectorAll("[data-mermaid-rendered]")).toHaveLength(1);
+
+    state.theme = "light";
+    first.rerender(<Page html={BLOCK} />);
+    await waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(3));
+    second.rerender(<Page html={BLOCK} />);
+    await waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(4));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(first.host.querySelectorAll("[data-mermaid-rendered]")).toHaveLength(1);
+    expect(second.host.querySelectorAll("[data-mermaid-rendered]")).toHaveLength(1);
   });
 });
