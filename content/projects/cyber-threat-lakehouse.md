@@ -5,13 +5,13 @@ summary: Spark and Delta Lake pipeline over 2.5M network flow records with Bronz
 repo_url: https://github.com/chrisguzman77/cyber-lakehouse
 live_url: null
 award: null
-date: 2026-02-01  # [CHRIS: repo was created 2026-01-31; keep Feb 2026 or use 2026-01-01?]
+date: 2026-02-01
 tech: [python, apache spark, delta lake, databricks, sql]
 ---
 
 ## What it is
 
-A lakehouse pipeline that turns the full UNSW-NB15 dataset (2,540,047 network flow records) into a model that flags malicious traffic. UNSW-NB15 mixes real benign traffic with nine synthetic attack families, such as exploits, DoS, reconnaissance and worms. I wanted to show both halves: multi-million-row data engineering, and honest evaluation on imbalanced data. [CHRIS: why you built it (class, self-study, interview prep?) and one thing that surprised you]
+A lakehouse pipeline that turns the full UNSW-NB15 dataset (2,540,047 network flow records) into a model that flags malicious traffic. UNSW-NB15 mixes real benign traffic with nine synthetic attack families, such as exploits, DoS, reconnaissance and worms. I wanted to show both halves: multi-million-row data engineering, and honest evaluation on imbalanced data. I built it to practice the data-engineering and ML side of security work. The surprise was the dedupe: the raw data is about 13% attacks, but attack flows are heavily duplicated, so after deduplication only about 4% are.
 
 ## How it works
 

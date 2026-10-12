@@ -3,14 +3,14 @@ title: How I built this site
 slug: how-i-built-this-site
 excerpt: Next.js, FastAPI and Directus on a home Proxmox VM behind a Cloudflare Tunnel, with a cited chat, alerts, and backups that get restored every week.
 tags: [next.js, fastapi, self-hosting, cloudflare, rag, observability]
-published_at: "[CHRIS: publish date]"
+published_at: "2026-10-11"
 ---
 
 This site is my portfolio, and it is also one of my projects. A resume can say "Docker, CI/CD, Postgres." I wanted a site where you can see those things working, then open the repo and check the code against what I say.
 
 It runs on a virtual machine in my home with no open ports. A chat answers questions about me from this site's pages and cites them. Every merge to `main` is built, scanned and deployed automatically, and the data is backed up off-site every night.
 
-[CHRIS: one or two sentences, in your own words, on why you built it this way instead of using a hosted template or site builder]
+I built it this way because I wanted to learn how to self-host my own application and what goes into building one, and treat the whole thing as a learning experience. I also wanted a site that builds my personal brand and shows what I'm learning and building, and maybe inspires someone to do the same.
 
 Here is how it fits together, what I decided and why, and two things that broke.
 
@@ -63,8 +63,6 @@ The admin tools (`cms.`, `grafana.`, `analytics.`) are each behind a Cloudflare 
 
 The trade-off: losing the tunnel or my home internet means losing the site. A Cloudflare Worker serves a "back shortly" page, and Better Stack checks from outside and alerts me. There is no failover; restoring from backup is the recovery plan.
 
-[CHRIS: why a home Proxmox server instead of a cloud VM, in a sentence or two]
-
 **Secrets.** The stack needs around twenty secrets. GitHub's secrets are write-only and awkward for whole env files, so they live in the repo as an env file encrypted with SOPS and age, readable by my laptop's key and the VM's key. A deploy decrypts it into a private temp file that is deleted on exit. A pre-commit hook and a CI check both reject plaintext env files, and `make secrets-check` catches placeholders. Diffs show which keys changed, never the values. The only unencrypted secrets on the VM and my laptop are their age private keys.
 
 ## Shipping
@@ -101,7 +99,7 @@ Answers are buffered, not streamed. The API checks that the full answer cites at
 
 **Quality gate.** Retrieval has a test in CI: a set of golden questions, each with the page it should find, run against the seed content with the real embedding model. All but one must find their page in the top 5, or CI fails. A hand-run eval also sends the real model answerable questions and ones it must refuse (off-topic requests, prompt injection) and prints every answer for me to read.
 
-[CHRIS: what surprised you when you first read the eval report, or what you tuned because of it]
+The first time I ran the eval, every answer failed: the model wrote its citations as 【1】 instead of [1], so my check threw out every answer. After I changed the check to accept both formats, 24 of 26 passed, and the two failures were the test being picky about punctuation.
 
 ## Knowing it's up
 
@@ -127,7 +125,7 @@ The trade-offs: up to a day of data can be lost, nothing older than 31 days can 
 
 That was wrong. Mail security scanners such as Microsoft Safe Links open links in a real browser and run their scripts. A school inbox's scanner opened the link, the script ran, and a subscription was confirmed that no one had clicked.
 
-[CHRIS: how you noticed it, one or two sentences]
+I was testing the feature by subscribing with both my school and personal email, but I only clicked the link in my personal one. When I checked the subscribers page, both showed as confirmed.
 
 The fix (commit `a3eed5c`) was to act only on a click. The confirm and unsubscribe pages now wait for a press of "Confirm subscription" or "Unsubscribe." The one-click unsubscribe that Gmail and Yahoo show (RFC 8058, where the mail provider posts to the API) didn't change. The lesson I took from it: consent has to be something a person does, and a page loading is not that.
 
@@ -147,7 +145,7 @@ The lesson: the import graph is the bundle, and a regression that is easy to mis
 
 ## What I'd do differently, and what's next
 
-[CHRIS: what you would do differently or build next. Suggested angles: availability, since one home VM is a single failure domain and a second API replica would first need Redis or advisory locks (ADR 0003, 0007); or a deploy path narrower than a root-equivalent runner (ADR 0006).]
+The biggest gap is availability: everything runs on one VM in my house, so a power or internet outage takes the site down. Running a second copy of the API would first need shared locking (Redis or Postgres advisory locks). I'd also like a narrower deploy path than a runner with root-level access to the VM.
 
 ## Read the code
 
