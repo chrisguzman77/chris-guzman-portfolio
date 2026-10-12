@@ -5,7 +5,7 @@
     "title": "Hello, world",
     "published_at": "2026-09-15T12:00:00.000Z",
     "excerpt": "Why I self-host this portfolio on a Proxmox box in my closet.",
-    "body": "## Why self-host\n\nBecause running it end to end is the point.",
+    "body": "## Why self-host\n\nBecause running it end to end is the point.\n\n```mermaid\nflowchart LR\n  Visitor --> Tunnel[Cloudflare Tunnel] --> Proxmox\n```",
     "tags": ["homelab"],
     "cover": null
   }

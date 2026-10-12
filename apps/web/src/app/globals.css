@@ -188,6 +188,22 @@
 .dark .prose-content code[data-theme] span {
   color: var(--shiki-dark);
 }
+/* ```mermaid blocks (see renderMarkdown). The source shows like any code block until
+   <MermaidDiagrams> renders the diagram after it, and stays if rendering fails. */
+.prose-content pre.mermaid-source {
+  padding: 14px;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+.prose-content [data-mermaid-rendered] {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.prose-content [data-mermaid-rendered] svg {
+  display: block;
+  margin-inline: auto;
+  max-width: 100%;
+  height: auto;
+}
 
 /* <details> FAQ entries draw their own chevron; hide Safari's built-in disclosure triangle. */
 summary::-webkit-details-marker {

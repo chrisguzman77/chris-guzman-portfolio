@@ -44,6 +44,22 @@ function demoteH1() {
   };
 }
 
+// Runs after sanitize: a ```mermaid block becomes <pre class="mermaid-source" data-mermaid> holding
+// the source as one text node, so markup in it stays text. With no <code> child, rehype-pretty-code
+// skips it. The visible source is the fallback when JS is off or the diagram fails to render.
+function mermaidBlocks() {
+  return (tree: Root) => {
+    walk(tree, (element) => {
+      const [code] = element.children;
+      if (element.tagName !== "pre" || code?.type !== "element" || code.tagName !== "code") return;
+      const className = code.properties.className;
+      if (!Array.isArray(className) || !className.includes("language-mermaid")) return;
+      element.properties = { className: ["mermaid-source"], dataMermaid: "" };
+      element.children = [{ type: "text", value: toString(code) }];
+    });
+  };
+}
+
 function collectHeadings(headings: Heading[]) {
   return () => (tree: Root) => {
     walk(tree, (element) => {
@@ -65,6 +81,7 @@ export async function renderMarkdown(md: string): Promise<{ html: string; headin
     .use(rehypeSlug)
     .use(rehypeSanitize, sanitizeSchema)
     .use(collectHeadings(headings))
+    .use(mermaidBlocks)
     .use(rehypePrettyCode, prettyCodeOptions)
     .use(rehypeStringify)
     .process(rewriteAssetUrls(md));
