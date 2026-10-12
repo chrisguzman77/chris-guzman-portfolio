@@ -1,14 +1,16 @@
 import uuid
 from typing import Annotated, Literal, cast
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Path, Request
 
 from portfolio_api.clients.groq import ModelBusyError, ModelUnavailableError
 from portfolio_api.clients.turnstile import TurnstileUnavailableError, TurnstileVerifier
 from portfolio_api.errors import ApiError
 from portfolio_api.metrics import CHAT_QUESTIONS, CHAT_REJECTED
+from portfolio_api.models import ChatFeedback
 from portfolio_api.ratelimit import SlidingWindowLimiter, client_ip, client_key
 from portfolio_api.schemas.chat import (
+    FeedbackRequest,
     MessageRequest,
     MessageResponse,
     SessionCreated,
@@ -19,11 +21,14 @@ from portfolio_api.services.chat import (
     BudgetExhaustedError,
     ChatService,
     ChatSwitch,
+    MessageNotFoundError,
     SessionLimitError,
     SessionNotFoundError,
 )
 
 router = APIRouter(prefix="/v1/chat", tags=["chat"])
+
+MAX_MESSAGE_ID = 2**31 - 1  # chat_messages.id is a Postgres integer
 
 
 def require_ip(request: Request) -> str:
@@ -52,6 +57,10 @@ async def limit_messages(request: Request) -> None:
         if exc.code == "rate_limited":  # not the 400 for a request without an address
             CHAT_QUESTIONS.labels(outcome=CHAT_REJECTED).inc()
         raise
+
+
+async def limit_feedback(request: Request) -> None:
+    _limit(request.app.state.chat_feedback_limiter, request, "Too much feedback. Try later.")
 
 
 async def require_chat(request: Request) -> ChatService:
@@ -116,8 +125,28 @@ async def ask(
         raise ApiError(503, "chat_unavailable", "Chat is unavailable right now.") from exc
     outcome = cast(Literal["answered", "no_match", "uncited"], answer.outcome.value)
     return MessageResponse(
+        message_id=answer.message_id,
         answer=answer.answer,
         sources=[SourceOut(n=s.n, title=s.title, url=s.url) for s in answer.sources],
         outcome=outcome,
         questions_left=answer.questions_left,
     )
+
+
+# No Turnstile: the session was Turnstile-checked when it opened. A rating never uses a question.
+@router.post(
+    "/sessions/{session_id}/messages/{message_id}/feedback",
+    status_code=204,
+    dependencies=[Depends(limit_feedback)],
+)
+async def rate(
+    request: Request,
+    session_id: uuid.UUID,
+    message_id: Annotated[int, Path(ge=1, le=MAX_MESSAGE_ID)],
+    service: Annotated[ChatService, Depends(require_chat)],
+    body: FeedbackRequest,
+) -> None:
+    try:
+        await service.rate(session_id, message_id, require_ip(request), ChatFeedback(body.rating))
+    except MessageNotFoundError as exc:
+        raise ApiError(404, "message_not_found", "This answer can't be rated.") from exc

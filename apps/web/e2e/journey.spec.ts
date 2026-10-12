@@ -83,6 +83,12 @@ test("chat: ask a question, get a cited answer", async ({ page, isMobile }) => {
     "href",
     "/projects/this-portfolio",
   );
+  const notHelpful = terminal.getByRole("button", { name: "Mark answer not helpful" });
+  await notHelpful.click();
+  await expect(terminal.getByRole("status").filter({ hasText: "thanks: noted" })).toBeVisible();
+  await expect(notHelpful).toHaveAttribute("aria-pressed", "true");
+  await expect(notHelpful).toBeDisabled();
+  await expectNoAxeViolations(page);
 
   await page.keyboard.press("Escape");
   await expect(terminal).toBeHidden();

@@ -15,11 +15,12 @@ from portfolio_api.clients.directus import ChatSettings, DirectusError
 from portfolio_api.clients.groq import ChatModel, ModelBusyError, ModelUnavailableError
 from portfolio_api.metrics import (
     CHAT_BUDGET_USED_RATIO,
+    CHAT_FEEDBACK,
     CHAT_QUESTIONS,
     CHAT_REJECTED,
     CHAT_TOKENS,
 )
-from portfolio_api.models import ChatOutcome
+from portfolio_api.models import ChatFeedback, ChatOutcome, ChatSession
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as repo
 from portfolio_api.services.grounding import (
@@ -53,6 +54,10 @@ class BudgetExhaustedError(Exception):
     """Today's site-wide token budget is spent."""
 
 
+class MessageNotFoundError(Exception):
+    """Unknown message, or not in a live session opened from this IP."""
+
+
 class SearchesIndex(Protocol):
     async def search(self, question: str) -> Retrieved: ...
 
@@ -77,6 +82,7 @@ class ChatAnswer:
     sources: list[Source]
     outcome: ChatOutcome
     questions_left: int
+    message_id: int  # the chat_messages row, so the visitor can rate this reply
 
 
 def _utcnow() -> datetime:
@@ -134,6 +140,14 @@ class ChatService:
     def ip_hash(self, ip: str) -> str:
         return hmac.new(self._salt, ip.encode(), hashlib.sha256).hexdigest()
 
+    def _owns(self, row: ChatSession | None, ip: str, now: datetime) -> bool:
+        """The session exists, was opened from ``ip`` and is still live (ask and rate use it)."""
+        return (
+            row is not None
+            and hmac.compare_digest(row.ip_hash, self.ip_hash(ip))
+            and now - row.created_at <= SESSION_MAX_AGE
+        )
+
     async def open_session(self, ip: str) -> tuple[uuid.UUID, int]:
         async with self._sessions.begin() as session:
             session_id = await repo.create_session(session, self.ip_hash(ip))
@@ -178,12 +192,7 @@ class ChatService:
         # reservation is a conditional UPDATE, so concurrent asks cannot overspend the cap; a
         # question that does not end in a counted answer is given back below.
         async with self._sessions.begin() as session:
-            row = await repo.get_session(session, session_id)
-            if (
-                row is None
-                or not hmac.compare_digest(row.ip_hash, self.ip_hash(ip))
-                or now - row.created_at > SESSION_MAX_AGE
-            ):
+            if not self._owns(await repo.get_session(session, session_id), ip, now):
                 raise SessionNotFoundError
             count = await repo.reserve_question(session, session_id, MAX_QUESTIONS)
             if count is None:
@@ -224,7 +233,7 @@ class ChatService:
             used_today: int | None = None
             async with self._sessions() as session:
                 async with session.begin():
-                    await repo.record_message(
+                    message_id = await repo.record_message(
                         session,
                         session_id=session_id,
                         question=question,
@@ -256,7 +265,7 @@ class ChatService:
             CHAT_TOKENS.labels(kind="output").inc(composed.output_tokens)
             CHAT_BUDGET_USED_RATIO.set(used_today / self._daily_budget)
         left = MAX_QUESTIONS - count + (0 if counts else 1)
-        return ChatAnswer(composed.answer, composed.sources, composed.outcome, left)
+        return ChatAnswer(composed.answer, composed.sources, composed.outcome, left, message_id)
 
     async def _release(self, session_id: uuid.UUID) -> None:
         """Best effort, in its own transaction; never masks the error that got us here."""
@@ -265,6 +274,37 @@ class ChatService:
                 await repo.release_question(session, session_id)
         except Exception:
             log.exception("could not give back a chat question", session_id=str(session_id))
+
+    async def rate(
+        self, session_id: uuid.UUID, message_id: int, ip: str, rating: ChatFeedback
+    ) -> None:
+        """Store the visitor's rating of one reply; the last rating wins, a repeat is a no-op.
+
+        Raises MessageNotFoundError unless the message is in a live session opened from ``ip``:
+        one error for every case, so message ids cannot be probed.
+        """
+        now = self._clock()
+        async with self._sessions.begin() as session:
+            if not self._owns(await repo.get_session(session, session_id), ip, now):
+                raise MessageNotFoundError
+            message = await repo.message_in_session(session, session_id, message_id)
+            if message is None:
+                raise MessageNotFoundError
+            if message.feedback == rating:
+                return
+            previous, previous_at = message.feedback, message.feedback_at
+            # A change on the same UTC day moves that day's count; otherwise today just gains one.
+            if (
+                previous is not None
+                and previous_at is not None
+                and previous_at.astimezone(UTC).date() == now.date()
+            ):
+                await repo.count_feedback(session, now.date(), previous, -1)
+            await repo.count_feedback(session, now.date(), rating, 1)
+            message.feedback = rating
+            message.feedback_at = now
+            outcome = message.outcome
+        CHAT_FEEDBACK.labels(rating=rating.value, outcome=outcome.value).inc()
 
     async def refresh_budget_gauge(self) -> None:
         """Set chat_budget_used_ratio from today's stored usage (startup and every 5 minutes)."""

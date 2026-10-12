@@ -12,7 +12,7 @@ from prometheus_client.metrics_core import Metric
 from starlette.routing import Route
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from portfolio_api.models import ChatOutcome
+from portfolio_api.models import ChatFeedback, ChatOutcome
 
 
 class _Registry(CollectorRegistry):
@@ -51,6 +51,12 @@ CHAT_TOKENS = Counter(
 )
 CHAT_BUDGET_USED_RATIO = Gauge(
     "chat_budget_used_ratio", "Today's chat tokens divided by the daily budget.", registry=REGISTRY
+)
+CHAT_FEEDBACK = Counter(
+    "chat_feedback_total",
+    "Chat ratings stored, by rating and the rated reply's outcome.",
+    ["rating", "outcome"],
+    registry=REGISTRY,
 )
 CONTACT_SUBMISSIONS = Counter(
     "contact_submissions_total",
@@ -91,6 +97,9 @@ for _outcome in (*(o.value for o in ChatOutcome), CHAT_REJECTED):
     CHAT_QUESTIONS.labels(outcome=_outcome)
 for _kind in ("input", "output"):
     CHAT_TOKENS.labels(kind=_kind)
+for _rating in (r.value for r in ChatFeedback):
+    for _outcome in (o.value for o in ChatOutcome):
+        CHAT_FEEDBACK.labels(rating=_rating, outcome=_outcome)
 for _result in ("sent", "failed"):
     CONTACT_SUBMISSIONS.labels(result=_result)
 for _result in ("ok", "error"):

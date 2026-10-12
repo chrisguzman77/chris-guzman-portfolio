@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import ChatSettings
@@ -11,7 +12,7 @@ from portfolio_api.clients.groq import ModelBusyError, ModelUnavailableError
 from portfolio_api.clients.turnstile import TurnstileUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
-from portfolio_api.models import ChatUsageDaily
+from portfolio_api.models import ChatFeedback, ChatMessage, ChatUsageDaily
 from portfolio_api.ratelimit import SlidingWindowLimiter
 from portfolio_api.services.chat import ChatService, ChatSwitch
 from tests.fakes import (
@@ -111,7 +112,11 @@ async def test_ask(settings: Settings, db: Sessions) -> None:
     sid = await open_session(app)
     res = await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": "  FastAPI?  "})
     assert res.status_code == 200
-    assert res.json() == {
+    body = res.json()
+    async with db() as session:
+        stored = await session.scalar(select(ChatMessage.id))
+    assert body.pop("message_id") == stored
+    assert body == {
         "answer": "He built it with FastAPI [1].",
         "sources": [{"n": 1, "title": "ACM@AU platform", "url": "/projects/acm"}],
         "outcome": "answered",
@@ -209,6 +214,10 @@ async def test_ipv6_clients_share_their_64(settings: Settings, db: Sessions) -> 
     [
         ("/v1/chat/sessions", {"turnstile_token": "tok"}),
         ("/v1/chat/sessions/00000000-0000-4000-8000-000000000000/messages", {"question": "q?"}),
+        (
+            "/v1/chat/sessions/00000000-0000-4000-8000-000000000000/messages/1/feedback",
+            {"rating": "up"},
+        ),
     ],
 )
 async def test_requests_without_a_client_ip_are_rejected(
@@ -222,6 +231,92 @@ async def test_requests_without_a_client_ip_are_rejected(
     async with AsyncClient(transport=ASGITransport(app=no_client), base_url="http://test") as c:
         res = await c.post(path, json=body)
     assert (res.status_code, res.json()["error"]["code"]) == (400, "bad_request")
+
+
+async def ask_one(app: FastAPI, sid: str) -> int:
+    res = await call(app, f"/v1/chat/sessions/{sid}/messages", {"question": "FastAPI?"})
+    assert res.status_code == 200, res.text
+    return res.json()["message_id"]
+
+
+def feedback_path(sid: str, message_id: int | str) -> str:
+    return f"/v1/chat/sessions/{sid}/messages/{message_id}/feedback"
+
+
+async def test_feedback_is_stored_and_the_last_rating_wins(
+    settings: Settings, db: Sessions
+) -> None:
+    app = make_app(settings, db)
+    sid = await open_session(app)
+    mid = await ask_one(app, sid)
+    res = await call(app, feedback_path(sid, mid), {"rating": "down"})
+    assert (res.status_code, res.content) == (204, b"")
+    res = await call(app, feedback_path(sid, mid), {"rating": "up"})
+    assert res.status_code == 204
+    async with db() as session:
+        msg = await session.get(ChatMessage, mid)
+    assert msg is not None and msg.feedback == ChatFeedback.up
+
+
+async def test_feedback_failures_are_one_indistinguishable_404(
+    settings: Settings, db: Sessions
+) -> None:
+    app = make_app(settings, db)
+    sid = await open_session(app)
+    other = await open_session(app)
+    mid = await ask_one(app, sid)
+    unknown = "00000000-0000-4000-8000-000000000000"
+    attempts = [
+        (feedback_path(other, mid), IP),  # the message is in another session
+        (feedback_path(sid, mid), "198.51.100.9"),  # the session was opened from another IP
+        (feedback_path(sid, mid + 1000), IP),  # no such message
+        (feedback_path(unknown, mid), IP),  # no such session
+    ]
+    bodies: list[Any] = []
+    for path, ip in attempts:
+        res = await call(app, path, {"rating": "down"}, ip=ip)
+        assert res.status_code == 404
+        bodies.append(res.json())
+    expected = {"error": {"code": "message_not_found", "message": "This answer can't be rated."}}
+    assert bodies == [expected] * len(attempts)
+
+
+@pytest.mark.parametrize(
+    ("message_id", "body"),
+    [
+        ("1", {"rating": "meh"}),
+        ("1", {}),
+        ("0", {"rating": "up"}),
+        ("2147483648", {"rating": "up"}),  # past chat_messages.id's integer range
+        ("abc", {"rating": "up"}),
+    ],
+)
+async def test_feedback_validates_the_request(
+    settings: Settings, db: Sessions, message_id: str, body: Any
+) -> None:
+    app = make_app(settings, db)
+    sid = await open_session(app)
+    res = await call(app, feedback_path(sid, message_id), body)
+    assert (res.status_code, res.json()["error"]["code"]) == (400, "invalid_request")
+
+
+async def test_feedback_rate_limit(settings: Settings, db: Sessions) -> None:
+    app = make_app(settings, db)
+    sid = await open_session(app)
+    for _ in range(20):
+        res = await call(app, feedback_path(sid, 1), {"rating": "up"})
+        assert res.status_code == 404
+    res = await call(app, feedback_path(sid, 1), {"rating": "up"})
+    assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
+    assert int(res.headers["Retry-After"]) > 0
+
+
+async def test_feedback_when_chat_is_off(settings: Settings, db: Sessions) -> None:
+    app = make_app(settings, db, enabled=False)
+    res = await call(
+        app, feedback_path("00000000-0000-4000-8000-000000000000", 1), {"rating": "up"}
+    )
+    assert (res.status_code, res.json()["error"]["code"]) == (503, "chat_disabled")
 
 
 def test_wiring_depends_on_settings(settings: Settings) -> None:

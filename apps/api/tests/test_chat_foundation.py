@@ -96,6 +96,9 @@ async def test_chat_tables_cascade_and_defaults(db: Sessions) -> None:
         assert row is not None and row.question_count == 0
         message = (await session.scalars(select(ChatMessage))).one()
         assert message.sources == [] and message.input_tokens == 0
+        assert message.feedback is None and message.feedback_at is None
+        usage = await session.get(ChatUsageDaily, date(2026, 10, 2))
+        assert usage is not None and (usage.feedback_up, usage.feedback_down) == (0, 0)
     async with db.begin() as session:
         await session.execute(text("DELETE FROM chat_sessions"))
     async with db() as session:

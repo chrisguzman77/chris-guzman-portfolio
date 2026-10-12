@@ -4,7 +4,7 @@ import hmac
 import uuid
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import cast
 
 import pytest
@@ -15,7 +15,13 @@ from structlog.testing import capture_logs
 
 from portfolio_api.clients.directus import ChatSettings, DirectusError
 from portfolio_api.clients.groq import ChatTurn, ModelBusyError, ModelReply, ModelUnavailableError
-from portfolio_api.models import ChatMessage, ChatOutcome, ChatSession, ChatUsageDaily
+from portfolio_api.models import (
+    ChatFeedback,
+    ChatMessage,
+    ChatOutcome,
+    ChatSession,
+    ChatUsageDaily,
+)
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as chat_repo
 from portfolio_api.services.chat import (
@@ -23,6 +29,7 @@ from portfolio_api.services.chat import (
     BudgetExhaustedError,
     ChatService,
     ChatSwitch,
+    MessageNotFoundError,
     SearchesIndex,
     SessionLimitError,
     SessionNotFoundError,
@@ -475,3 +482,116 @@ async def test_budget_gauge_reads_todays_stored_usage(db: Sessions) -> None:
         session.add(ChatUsageDaily(day=now.date(), tokens=90_000, requests=10))
     await service(db, clock=now).refresh_budget_gauge()
     assert metric("chat_budget_used_ratio") == 0.5
+
+
+async def rated(db: Sessions, message_id: int) -> ChatMessage:
+    async with db() as session:
+        row = await session.get(ChatMessage, message_id)
+    assert row is not None
+    return row
+
+
+async def feedback_counts(db: Sessions) -> dict[date, tuple[int, int]]:
+    """(feedback_up, feedback_down) for every usage day."""
+    async with db() as session:
+        rows = (await session.scalars(select(ChatUsageDaily))).all()
+    return {r.day: (r.feedback_up, r.feedback_down) for r in rows}
+
+
+@pytest.mark.parametrize(
+    ("model", "retriever", "outcome"),
+    [
+        (FakeChatModel(), FakeRetriever(), ChatOutcome.answered),
+        (FakeChatModel(), FakeRetriever(best=0.3), ChatOutcome.no_match),
+        (FakeChatModel(ModelReply("He is great.", 900, 20)), FakeRetriever(), ChatOutcome.uncited),
+    ],
+)
+async def test_every_answer_carries_its_message_id(
+    db: Sessions, model: FakeChatModel, retriever: FakeRetriever, outcome: ChatOutcome
+) -> None:
+    chat = service(db, model, retriever)
+    session_id, _ = await chat.open_session(IP)
+    answer = await chat.ask(session_id, IP, "q?")
+    [msg] = await messages(db)
+    assert answer.outcome == outcome
+    assert answer.message_id == msg.id
+
+
+async def test_rating_is_stored_counted_and_measured(db: Sessions) -> None:
+    now = datetime.now(UTC)
+    chat = service(db, clock=now)
+    session_id, _ = await chat.open_session(IP)
+    answer = await chat.ask(session_id, IP, "Has he used FastAPI?")
+    before = metric("chat_feedback_total", rating="down", outcome="answered")
+    await chat.rate(session_id, answer.message_id, IP, ChatFeedback.down)
+    msg = await rated(db, answer.message_id)
+    assert (msg.feedback, msg.feedback_at) == (ChatFeedback.down, now)
+    assert await feedback_counts(db) == {now.date(): (0, 1)}
+    assert metric("chat_feedback_total", rating="down", outcome="answered") == before + 1
+    assert await question_count(db, session_id) == 1  # rating does not use up a question
+
+
+async def test_changing_a_rating_the_same_day_moves_the_count(db: Sessions) -> None:
+    now = datetime.now(UTC)
+    chat = service(db, clock=now)
+    session_id, _ = await chat.open_session(IP)
+    answer = await chat.ask(session_id, IP, "q?")
+    up = metric("chat_feedback_total", rating="up", outcome="answered")
+    await chat.rate(session_id, answer.message_id, IP, ChatFeedback.down)
+    await chat.rate(session_id, answer.message_id, IP, ChatFeedback.up)
+    assert (await rated(db, answer.message_id)).feedback == ChatFeedback.up
+    assert await feedback_counts(db) == {now.date(): (1, 0)}
+    assert metric("chat_feedback_total", rating="up", outcome="answered") == up + 1
+
+
+async def test_repeating_a_rating_changes_nothing(db: Sessions) -> None:
+    now = datetime.now(UTC)
+    chat = service(db, clock=now)
+    session_id, _ = await chat.open_session(IP)
+    answer = await chat.ask(session_id, IP, "q?")
+    down = metric("chat_feedback_total", rating="down", outcome="answered")
+    await chat.rate(session_id, answer.message_id, IP, ChatFeedback.down)
+    later = service(db, clock=now + timedelta(minutes=5))
+    await later.rate(session_id, answer.message_id, IP, ChatFeedback.down)
+    assert (await rated(db, answer.message_id)).feedback_at == now
+    assert await feedback_counts(db) == {now.date(): (0, 1)}
+    assert metric("chat_feedback_total", rating="down", outcome="answered") == down + 1
+
+
+async def test_changing_a_rating_on_a_later_day_counts_only_today(db: Sessions) -> None:
+    evening = datetime(2026, 10, 12, 23, 30, tzinfo=UTC)
+    chat = service(db, clock=evening)
+    session_id, _ = await chat.open_session(IP)
+    async with db.begin() as session:  # opened just before the fake clock, so it is live
+        await session.execute(
+            update(ChatSession)
+            .where(ChatSession.id == session_id)
+            .values(created_at=evening - timedelta(minutes=1))
+        )
+    answer = await chat.ask(session_id, IP, "q?")
+    await chat.rate(session_id, answer.message_id, IP, ChatFeedback.up)
+    after_midnight = service(db, clock=evening + timedelta(hours=1))
+    await after_midnight.rate(session_id, answer.message_id, IP, ChatFeedback.down)
+    assert await feedback_counts(db) == {
+        date(2026, 10, 12): (1, 0),
+        date(2026, 10, 13): (0, 1),
+    }
+
+
+async def test_rating_needs_the_message_in_a_live_session_from_the_same_ip(db: Sessions) -> None:
+    chat = service(db)
+    session_id, _ = await chat.open_session(IP)
+    other_session, _ = await chat.open_session(IP)
+    answer = await chat.ask(session_id, IP, "q?")
+    later = service(db, clock=datetime.now(UTC) + timedelta(hours=3))
+    mid = answer.message_id
+    for attempt in (
+        lambda: chat.rate(other_session, mid, IP, ChatFeedback.down),  # another session
+        lambda: chat.rate(session_id, mid, "198.51.100.1", ChatFeedback.down),  # other IP
+        lambda: chat.rate(session_id, mid + 1000, IP, ChatFeedback.down),  # unknown message
+        lambda: chat.rate(uuid.uuid4(), mid, IP, ChatFeedback.down),  # unknown session
+        lambda: later.rate(session_id, mid, IP, ChatFeedback.down),  # expired session
+    ):
+        with pytest.raises(MessageNotFoundError):
+            await attempt()
+    assert (await rated(db, mid)).feedback is None

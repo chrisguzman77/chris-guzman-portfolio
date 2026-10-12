@@ -27,7 +27,12 @@ class SourceOut(BaseModel):
 
 
 class MessageResponse(BaseModel):
+    message_id: int
     answer: str
     sources: list[SourceOut]
     outcome: Literal["answered", "no_match", "uncited"]
     questions_left: int
+
+
+class FeedbackRequest(BaseModel):
+    rating: Literal["up", "down"]

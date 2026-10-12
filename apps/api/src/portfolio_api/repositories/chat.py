@@ -7,7 +7,13 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from portfolio_api.models import ChatMessage, ChatOutcome, ChatSession, ChatUsageDaily
+from portfolio_api.models import (
+    ChatFeedback,
+    ChatMessage,
+    ChatOutcome,
+    ChatSession,
+    ChatUsageDaily,
+)
 
 
 async def create_session(session: AsyncSession, ip_hash: str) -> uuid.UUID:
@@ -71,19 +77,30 @@ async def record_message(
     sources: Sequence[dict[str, Any]],
     input_tokens: int,
     output_tokens: int,
-) -> None:
-    session.add(
-        ChatMessage(
-            session_id=session_id,
-            question=question,
-            answer=answer,
-            outcome=outcome,
-            sources=list(sources),
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
+) -> int:
+    row = ChatMessage(
+        session_id=session_id,
+        question=question,
+        answer=answer,
+        outcome=outcome,
+        sources=list(sources),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
+    session.add(row)
     await session.flush()
+    return row.id
+
+
+async def message_in_session(
+    session: AsyncSession, session_id: uuid.UUID, message_id: int
+) -> ChatMessage | None:
+    """The message if it belongs to ``session_id``, locked until the transaction ends."""
+    return await session.scalar(
+        select(ChatMessage)
+        .where(ChatMessage.id == message_id, ChatMessage.session_id == session_id)
+        .with_for_update()
+    )
 
 
 async def tokens_used(session: AsyncSession, day: date) -> int:
@@ -100,6 +117,19 @@ async def add_usage(session: AsyncSession, day: date, tokens: int) -> None:
                 "tokens": ChatUsageDaily.tokens + stmt.excluded.tokens,
                 "requests": ChatUsageDaily.requests + 1,
             },
+        )
+    )
+
+
+async def count_feedback(session: AsyncSession, day: date, rating: ChatFeedback, step: int) -> None:
+    """Add ``step`` to ``day``'s count for ``rating`` (-1 takes back a same-day rating)."""
+    column = (
+        ChatUsageDaily.feedback_up if rating == ChatFeedback.up else ChatUsageDaily.feedback_down
+    )
+    stmt = insert(ChatUsageDaily).values({"day": day, column.key: step})
+    await session.execute(
+        stmt.on_conflict_do_update(
+            index_elements=[ChatUsageDaily.day], set_={column.key: column + step}
         )
     )
 
@@ -133,3 +163,13 @@ async def sessions_since(
     for message in rows:
         by_session[message.session_id].append(message)
     return [(s, by_session[s.id]) for s in sessions]
+
+
+async def rated_since(
+    session: AsyncSession, since: datetime, rating: ChatFeedback | None
+) -> list[ChatMessage]:
+    """Messages rated since ``since`` (only ``rating``, or both when None), newest rating first."""
+    query = select(ChatMessage).where(ChatMessage.feedback_at >= since)
+    if rating is not None:
+        query = query.where(ChatMessage.feedback == rating)
+    return list((await session.scalars(query.order_by(ChatMessage.feedback_at.desc()))).all())

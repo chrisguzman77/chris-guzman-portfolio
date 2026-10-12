@@ -7,6 +7,7 @@ class Base(DeclarativeBase):
 
 # Imported after Base so Alembic's autogenerate sees every table through this module.
 from portfolio_api.models.chat import (  # noqa: E402
+    ChatFeedback,
     ChatMessage,
     ChatOutcome,
     ChatSession,
@@ -24,6 +25,7 @@ from portfolio_api.models.rag import RagChunk, RagDocument  # noqa: E402
 
 __all__ = [
     "Base",
+    "ChatFeedback",
     "ChatMessage",
     "ChatOutcome",
     "ChatSession",

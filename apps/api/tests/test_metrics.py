@@ -14,6 +14,7 @@ METRIC_NAMES = (
     "chat_questions_total",
     "chat_tokens_total",
     "chat_budget_used_ratio",
+    "chat_feedback_total",
     "contact_submissions_total",
     "rag_sync_runs_total",
     "newsletter_subscribers",
@@ -129,3 +130,9 @@ def test_budget_gauge_job_runs_only_with_chat(settings: Settings) -> None:
 async def test_rejected_chat_questions_start_at_zero(client: AsyncClient) -> None:
     text = (await client.get("/metrics")).text
     assert 'chat_questions_total{outcome="rejected"}' in text
+
+
+async def test_chat_feedback_series_exist_from_startup(client: AsyncClient) -> None:
+    text = (await client.get("/metrics")).text
+    assert 'chat_feedback_total{outcome="no_match",rating="down"}' in text
+    assert 'chat_feedback_total{outcome="error",rating="up"}' in text

@@ -21,6 +21,15 @@ def _outcome_values(e: type[ChatOutcome]) -> list[str]:
     return [m.value for m in e]
 
 
+class ChatFeedback(enum.StrEnum):
+    up = "up"
+    down = "down"
+
+
+def _feedback_values(e: type[ChatFeedback]) -> list[str]:
+    return [m.value for m in e]
+
+
 class ChatSession(Base):
     """One terminal session; bound to the visitor's IP hash, never the raw IP."""
 
@@ -52,13 +61,20 @@ class ChatMessage(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
     output_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The visitor's rating of this reply; the last one wins. Deleted with the row.
+    feedback: Mapped[ChatFeedback | None] = mapped_column(
+        Enum(ChatFeedback, name="chat_feedback", values_callable=_feedback_values)
+    )
+    feedback_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ChatUsageDaily(Base):
-    """Model tokens and calls per UTC day, for the daily budget gate."""
+    """Model tokens and calls per UTC day, for the daily budget gate, plus that day's ratings."""
 
     __tablename__ = "chat_usage_daily"
 
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     tokens: Mapped[int] = mapped_column(Integer, server_default="0")
     requests: Mapped[int] = mapped_column(Integer, server_default="0")
+    feedback_up: Mapped[int] = mapped_column(Integer, server_default="0")
+    feedback_down: Mapped[int] = mapped_column(Integer, server_default="0")
