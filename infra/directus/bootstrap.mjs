@@ -37,6 +37,7 @@ const SEED_ORDER = [
   "education",
   "involvement",
   "projects",
+  "faq",
 ];
 
 function env(name) {

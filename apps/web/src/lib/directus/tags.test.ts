@@ -6,13 +6,14 @@ import { describe, expect, it } from "vitest";
 import { CONTENT_COLLECTIONS, collectionTag, isContentCollection, itemTag } from "./tags";
 
 describe("cache tags", () => {
-  it("lists the nine content collections", () => {
+  it("lists the ten content collections", () => {
     expect(CONTENT_COLLECTIONS).toEqual([
       "profile",
       "experience",
       "education",
       "involvement",
       "certifications",
+      "faq",
       "projects",
       "posts",
       "resume",

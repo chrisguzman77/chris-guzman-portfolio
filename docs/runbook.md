@@ -80,7 +80,7 @@ docker logs --tail 100 portfolio-api-1
 
 ## Content (CMS)
 
-Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Directus login). Collections: `profile`, `experience`, `education`, `involvement`, `certifications`, `projects`, `posts`, `resume`.
+Edit content at https://cms.christopherguzman.me (Cloudflare Access, then the Directus login). Collections: `profile`, `experience`, `education`, `involvement`, `certifications`, `faq`, `projects`, `posts`, `resume`.
 
 - **Only `published` items appear on the site.** Drafts are never shown: every read filters `status = published`.
 - **Saving any item refreshes the site.** The revalidation Flow posts the collection name to `http://web:3000/api/revalidate`, which expires that collection's cached data immediately (`revalidateTag(collection, { expire: 0 })`), so the next visit to an affected page renders the new content. Every cached read also expires after 24 hours as a backstop.

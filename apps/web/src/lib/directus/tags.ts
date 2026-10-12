@@ -4,6 +4,7 @@ export const CONTENT_COLLECTIONS = [
   "education",
   "involvement",
   "certifications",
+  "faq",
   "projects",
   "posts",
   "resume",
