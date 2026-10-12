@@ -41,4 +41,4 @@ For the hackathon, wallet preload and bank settlement were simulated: preload ju
 
 ## My part
 
-We were a team of five. I built the backend API with the wallet ledger, and the signed QR payments: the transaction flow, the HMAC signing, the per-transaction nonce, and the device's pending-to-accepted check. I also built the kiosk's on-screen keyboard and kiosk scripts, and extended the offline assistant from akallery's first draft. Viet built the vendor app, most of the user interface and the QR scan format; Aden got the assistant working on the Pi; George Dorton built the offline maps. [CHRIS: akallery's real name, if you want it instead of the GitHub handle]
+We were a team of five. I built the backend API with the wallet ledger, and the signed QR payments: the transaction flow, the HMAC signing, the per-transaction nonce, and the device's pending-to-accepted check. I also built the kiosk's on-screen keyboard and kiosk scripts, and extended the offline assistant from Aden Kallery's first draft. Viet Nguyen built the vendor app, most of the user interface and the QR scan format; Aden also got the assistant working on the Pi; George Dorton built the offline maps.
