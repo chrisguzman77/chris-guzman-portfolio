@@ -31,7 +31,7 @@ A nightly job backs up the database and uploaded media, checks each archive, and
 
 - **Short-lived access tokens, rotating refresh tokens.** The access token lives about five minutes in an httpOnly cookie, never in localStorage. Refresh tokens are stored hashed and rotate on every use. Each one belongs to a family: a replay within 30 seconds is treated as two tabs racing, and a later replay revokes the whole family as likely theft. The trade-off: a stolen access token works for up to five minutes. Logins also get Argon2 hashing, TOTP 2FA, email verification, and a step-up mode where admins re-enter their password (and TOTP) for 30 minutes of elevated access.
 - **The judge is the one privileged container, so it's boxed in.** It sits on an internal-only network with no public port, job networking is off, and each run is capped on memory, time and processes. The official Piston image is amd64-only, and both production and my Apple Silicon dev machine are ARM, so I build it from pinned source with an ARM64 package path.
-- **Started without Redis, added it when leaderboards needed it.** I first decided against Redis, then added it when the daily-challenge leaderboards justified it. [CHRIS: why you first ruled out Redis] It is cache only: a miss rebuilds from Postgres.
+- **Started without Redis, added it when leaderboards needed it.** I first decided against it: rate limiting already worked in Postgres at our volumes, caching bought nothing measurable at our traffic, and I accepted five-minute access tokens instead of a revocation list. A day later, the daily-challenge leaderboards gave it a real job. It is cache only: a miss rebuilds from Postgres.
 - **Validated CMS blocks.** Each page is an ordered list of typed blocks with separate draft and published copies. The API validates every block on every write, and owner and editor permissions are checked server-side per request.
 
 ## Results
@@ -43,4 +43,4 @@ A nightly job backs up the database and uploaded media, checks each archive, and
 
 ## My part
 
-I'm the chapter's Lead Developer. I designed and built the platform, including auth end to end, and I run it in production. [CHRIS: did other students contribute code? If so, say what they built]
+I'm the chapter's Lead Developer. I designed and built the platform, including auth end to end, and I run it in production. I wrote all of its code; the only other commits are Dependabot's dependency updates.
