@@ -18,7 +18,7 @@ Here is how it fits together, what I decided and why, and two things that broke.
 
 ![Architecture of christopherguzman.me](DIAGRAM:site-architecture.png)
 
-Green arrows are the request path, dashed arrows lead to admin tools behind Cloudflare Access, and everything in the dashed box runs on one Proxmox VM under Docker Compose.
+Green arrows are the request path, a dashed arrow means behind Cloudflare Access, and everything in the dashed box runs on one Proxmox VM under Docker Compose.
 
 **Frontend (web).** Next.js renders every page on the server. Pages read content from Directus on each request, but the fetches are cached by tag, so Directus is hit only after I publish something or once a day. When I save an item in Directus, a Flow posts the collection name to the site's `/api/revalidate` route, which clears that collection's cache tag. `next build` never contacts the CMS, because CI has no route to it. Responses are checked with zod, so a malformed item is skipped and logged instead of breaking a page.
 
@@ -26,7 +26,7 @@ Green arrows are the request path, dashed arrows lead to admin tools behind Clou
 
 **CMS.** Directus is the content system of record. I weighed it against MDX in the repo, Sanity, Payload and Strapi. Directus needs no vendor account, and content sits with the rest of the system, so the same backups cover it. The schema is code: a bootstrap script runs on every deploy and creates any missing collections, fields, roles and Flows, but never alters or deletes. The admin UI at `cms.christopherguzman.me` is the only part reachable from outside, and it sits behind Cloudflare Access.
 
-**Database.** One Postgres instance with pgvector holds three databases: `directus`, `portfolio` (the API's), and `umami` (analytics). Each app's role reaches only its own database; only the backup container holds the superuser password.
+**Database.** One Postgres instance with pgvector holds three databases: `directus`, `portfolio` (the API's), and `umami` (analytics). Each app's role reaches only its own database, plus one read-only analytics role for Grafana; only the backup container holds the superuser password.
 
 ## Self-hosting without opening a port
 
@@ -65,14 +65,14 @@ The trade-off: losing the tunnel or my home internet means losing the site. A Cl
 
 [CHRIS: why a home Proxmox server instead of a cloud VM, in a sentence or two]
 
-**Secrets.** The stack needs around twenty secrets. GitHub's secrets are write-only and awkward for whole env files, so they live in the repo as an env file encrypted with SOPS and age, readable by my laptop's key and the VM's key. A deploy decrypts it into a private temp file that is deleted on exit. A pre-commit hook and a CI check both reject plaintext env files, and `make secrets-check` catches placeholder values before they ship. Diffs show which keys changed, never the values. The only unencrypted secrets anywhere are the two age private keys.
+**Secrets.** The stack needs around twenty secrets. GitHub's secrets are write-only and awkward for whole env files, so they live in the repo as an env file encrypted with SOPS and age, readable by my laptop's key and the VM's key. A deploy decrypts it into a private temp file that is deleted on exit. A pre-commit hook and a CI check both reject plaintext env files, and `make secrets-check` catches placeholders. Diffs show which keys changed, never the values. The only unencrypted secrets on the VM and my laptop are their age private keys.
 
 ## Shipping
 
 Every pull request runs CI on GitHub-hosted runners, with path filters so an API change doesn't rebuild the web app.
 
-- **Web:** lint, type check, formatting, 539 unit tests, a production build, then 26 Playwright tests against the built app with a fake API and fake CMS. The Playwright run fails on any console error, any Content Security Policy violation, or any axe accessibility violation. It ends by building the Docker image.
-- **API:** ruff, pyright, Alembic migrations plus `alembic check` (which fails if the models and migrations disagree), 342 pytest tests against a real Postgres with pgvector, and an image build.
+- **Web:** lint, type check, formatting, 545 unit tests, a production build, then 28 Playwright tests against the built app with a fake API and fake CMS. The Playwright run fails on any console error, any Content Security Policy violation, or any axe accessibility violation. It ends by building the Docker image.
+- **API:** ruff, pyright, Alembic migrations plus `alembic check` (which fails if the models and migrations disagree), 343 pytest tests against a real Postgres with pgvector, and an image build.
 - **Infra:** Compose and monitoring config checks, and a round-trip test of the backup and restore scripts.
 
 A merge to `main` triggers the release workflow. It builds four images (web, api, the deploy runner, and backup), scans each with Trivy, and fails on any critical vulnerability that has a fix available. Images go to GitHub's container registry, tagged with the full commit SHA.
@@ -81,7 +81,7 @@ Deploying was the interesting part. With no inbound ports, CI can't SSH in. The 
 
 The runner is a service in the same Compose file. It is ephemeral: it registers, runs one job, and exits, and Compose restarts it for the next one. A deploy checks out the exact released commit on the VM and runs `scripts/deploy.sh` with that SHA. The script decrypts secrets, pulls images, runs migrations, starts everything and waits for health checks, applies the Directus bootstrap, and smoke-tests the site locally and through `https://christopherguzman.me`.
 
-The runner mounts the Docker socket, which makes it root-equivalent on the VM. ADR 0006 says so plainly. The mitigations: it is repo-scoped and ephemeral, the deploy job only runs for `main`, pull request jobs never target its label, only I have write access, and fork pull requests need my approval. A deploy also never restarts the runner that is running it.
+The runner mounts the Docker socket, which makes it root-equivalent on the VM. ADR 0006 says so plainly. The mitigations: it is repo-scoped and ephemeral, the deploy job only runs for `main`, only I have write access, and fork pull requests need my approval.
 
 Every deployed version is an immutable image tag, so rolling back is one command: `deploy.sh` with `IMAGE_TAG` set to the previous good SHA. The catch is the database: the schema stays at the newer migration, so rolling back across a destructive one needs a down-migration.
 
@@ -113,11 +113,11 @@ The homepage status card gets its numbers from the API, which runs fixed queries
 
 **Analytics.** Umami counts page views without cookies or stored IP addresses. The tracker loads from the site's own `/stats/` path; the dashboard is behind Access.
 
-**Backups.** Every night at 03:30 Eastern, a backup container dumps all three databases and the CMS uploads, writes a checksum manifest, encrypts the whole stream with age, and uploads it to Cloudflare R2. No plaintext leaves a temp directory that is deleted on exit.
+**Backups.** Every night at 03:30 Eastern, a backup container dumps all three databases and the CMS uploads, writes a checksum manifest, encrypts the whole stream with age, and uploads it to Cloudflare R2. No plaintext survives outside a temp directory deleted on exit. Each successful run pings a Better Stack heartbeat, and Grafana alerts if none succeeds for 36 hours.
 
 The backup key is not the SOPS key. The VM holds only its public half; the private key lives in my password manager and a GitHub secret, so a compromised VM cannot read old backups. A 30-day bucket lock means the VM's credentials cannot delete or overwrite recent backups either.
 
-A backup only counts if it restores. Every Sunday, a GitHub Actions job restores the newest one into a throwaway Postgres and runs a SQL check that fails unless the content tables have rows and the API's migration table exists. Each success also pings a Better Stack heartbeat.
+A backup only counts if it restores. Every Sunday, a GitHub Actions job restores the newest one into a throwaway Postgres and runs a SQL check that fails unless the content tables have rows and the API's migration table exists.
 
 The trade-offs: up to a day of data can be lost, nothing older than 31 days can be restored, and losing the private key would make every backup unreadable.
 
