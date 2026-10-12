@@ -49,13 +49,20 @@ function fallback() {
 // Static failover. With an R2 bucket bound as SNAPSHOT, an origin outage serves the latest
 // crawl of the public site (written by .github/workflows/snapshot.yml) instead of PAGE.
 // Without the binding, or for anything not in the snapshot, PAGE is still the answer.
+// Dynamic paths are refused before any R2 read, even if a bad crawl ever captured them.
+const NEVER_SNAPSHOT = ["/api/", "/stats/", "/newsletter/", "/admin"];
 const CACHE_TTL_MS = 60_000;
-const BANNER_HTML = `<div role="status" style="margin:0;padding:.6rem 1rem;background:#fbbf24;color:#1c1917;font:500 15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center">This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at <a href="mailto:chguzman@augusta.edu" style="color:#1c1917;font-weight:600;text-decoration:underline">chguzman@augusta.edu</a>.</div>`;
+// Hidden with CSS rather than deleted: removing server-rendered elements breaks React hydration.
+// The padding keeps the fixed banner from covering the page's last content.
+const HIDE_STYLE = `<style id="snapshot-style">[data-live-feature]{display:none!important}body{padding-bottom:4rem}</style>`;
+// Appended just before </body> and pinned to the bottom: as the first child of <body> it made
+// React hydration fail (error #418). The chat pill that normally sits bottom-right is hidden.
+const BANNER_HTML = `<div id="snapshot-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483000;margin:0;padding:.6rem 1rem;background:#fbbf24;color:#1c1917;font:500 15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center">This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at <a href="mailto:chguzman@augusta.edu" style="color:#1c1917;font-weight:600;text-decoration:underline">chguzman@augusta.edu</a>.</div>`;
 
 // current.json and <prefix>manifest.json, keyed by R2 key: { at, value }.
 const jsonCache = new Map();
 
-export function resetSnapshotCache() {
+function resetSnapshotCache() {
   jsonCache.clear();
 }
 
@@ -70,7 +77,7 @@ async function readJson(bucket, key) {
 
 // Manifest keys are pathname + search; pages are also stored under the bare pathname with any
 // trailing slash stripped, so HTML requests fall back to that (e.g. ?utm_source=... still hits).
-export function lookupKeys(request) {
+function lookupKeys(request) {
   const { pathname, search } = new URL(request.url);
   const keys = [pathname + search];
   if ((request.headers.get("accept") ?? "").includes("text/html")) {
@@ -80,8 +87,9 @@ export function lookupKeys(request) {
   return keys;
 }
 
-export function snapshotHeaders(entry, isHtml) {
-  const headers = new Headers({ "content-type": entry.type, "x-served-from": "snapshot" });
+function snapshotHeaders(entry, isHtml) {
+  const type = entry.type ?? "application/octet-stream";
+  const headers = new Headers({ "content-type": type, "x-served-from": "snapshot" });
   if (isHtml) {
     // The captured CSP names the nonce baked into that HTML; the copy must never be cached or indexed.
     headers.set("cache-control", "no-store");
@@ -101,23 +109,27 @@ async function fromSnapshot(request, bucket) {
   const key = lookupKeys(request).find((k) => Object.hasOwn(entries, k));
   if (!key) return null;
   const entry = entries[key];
-  const object = await bucket.get(pointer.prefix + entry.file);
+  const isHead = request.method === "HEAD";
+  const object = await (isHead ? bucket.head(pointer.prefix + entry.file) : bucket.get(pointer.prefix + entry.file));
   if (!object) return null;
 
-  const isHtml = entry.type.startsWith("text/html");
+  const isHtml = (entry.type ?? "").startsWith("text/html");
   const headers = snapshotHeaders(entry, isHtml);
-  if (request.method === "HEAD") return new Response(null, { status: 200, headers });
+  if (isHead) {
+    headers.set("content-length", String(object.size));
+    return new Response(null, { status: 200, headers });
+  }
   const response = new Response(object.body, { status: 200, headers });
   if (!isHtml) return response;
   return new HTMLRewriter()
-    .on("body", {
+    .on("head", {
       element(e) {
-        e.prepend(BANNER_HTML, { html: true });
+        e.append(HIDE_STYLE, { html: true });
       },
     })
-    .on("[data-live-feature]", {
+    .on("body", {
       element(e) {
-        e.remove();
+        e.append(BANNER_HTML, { html: true });
       },
     })
     .transform(response);
@@ -126,6 +138,8 @@ async function fromSnapshot(request, bucket) {
 async function outage(request, env) {
   const bucket = env?.SNAPSHOT;
   if (!bucket || (request.method !== "GET" && request.method !== "HEAD")) return fallback();
+  const url = new URL(request.url);
+  if (url.searchParams.has("_rsc") || NEVER_SNAPSHOT.some((p) => url.pathname.startsWith(p))) return fallback();
   try {
     return (await fromSnapshot(request, bucket)) ?? fallback();
   } catch {
@@ -133,7 +147,12 @@ async function outage(request, env) {
   }
 }
 
+// Only a default export: the Workers runtime treats named exports as entrypoints, which
+// plain helper functions are not, so the test-facing helpers ride on the handler object.
 export default {
+  lookupKeys,
+  snapshotHeaders,
+  resetSnapshotCache,
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.hostname === `www.${APEX}`) {

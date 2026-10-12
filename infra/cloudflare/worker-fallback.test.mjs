@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 
-import worker, { lookupKeys, resetSnapshotCache, snapshotHeaders } from "./worker-fallback.mjs";
+import * as mod from "./worker-fallback.mjs";
+import worker from "./worker-fallback.mjs";
+
+const { lookupKeys, resetSnapshotCache, snapshotHeaders } = worker;
+
+test("the module's only export is default (the Workers runtime treats named exports as entrypoints)", () => {
+  assert.deepEqual(Object.keys(mod), ["default"]);
+});
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -69,6 +76,12 @@ const ENTRIES = {
     type: "image/avif",
     cacheControl: "public, max-age=60, must-revalidate",
   },
+  // A bad crawl that captured dynamic paths must still never be served.
+  "/api/healthz": { file: "files/healthz", type: "application/json" },
+  "/stats/script.js": { file: "files/healthz", type: "application/javascript" },
+  "/newsletter/confirm": { file: "files/healthz", type: "text/html; charset=utf-8" },
+  "/admin": { file: "files/healthz", type: "text/html; charset=utf-8" },
+  "/projects?_rsc=1x2y": { file: "files/healthz", type: "text/x-component" },
 };
 const OBJECTS = {
   "current.json": JSON.stringify({ prefix: PREFIX, createdAt: "2026-10-12T08:15:00Z", commit: "deadbeef" }),
@@ -77,18 +90,28 @@ const OBJECTS = {
   [`${PREFIX}files/projects`]: "<html><body><main>Projects</main></body></html>",
   [`${PREFIX}files/abc`]: "console.log(1)",
   [`${PREFIX}files/img`]: "AVIF",
+  [`${PREFIX}files/healthz`]: '{"ok":true}',
 };
 
-// In-memory stand-in for the R2 binding: get(key) resolves to { body, text(), json() } or null.
+// In-memory stand-in for the R2 binding: get(key) resolves to { body, size, text(), json() } or
+// null; head(key) resolves to { size } or null. Every call is recorded as [method, key].
 function fakeBucket(objects) {
-  const reads = [];
+  const calls = [];
   return {
-    reads,
+    calls,
+    get reads() {
+      return calls.map(([, key]) => key);
+    },
     async get(key) {
-      reads.push(key);
+      calls.push(["get", key]);
       if (!(key in objects)) return null;
       const value = objects[key];
-      return { body: value, text: async () => value, json: async () => JSON.parse(value) };
+      return { body: value, size: value.length, text: async () => value, json: async () => JSON.parse(value) };
+    },
+    async head(key) {
+      calls.push(["head", key]);
+      if (!(key in objects)) return null;
+      return { size: objects[key].length };
     },
   };
 }
@@ -106,6 +129,7 @@ class FakeHTMLRewriter {
     return this;
   }
   transform(response) {
+    this.transformed = response;
     return response;
   }
 }
@@ -114,8 +138,7 @@ function fakeElement() {
   const calls = [];
   return {
     calls,
-    prepend: (content, options) => calls.push(["prepend", content, options]),
-    remove: () => calls.push(["remove"]),
+    append: (content, options) => calls.push(["append", content, options]),
   };
 }
 
@@ -159,7 +182,7 @@ test("origin up: passes through even when a snapshot is bound", async () => {
   assert.deepEqual(bucket.reads, []);
 });
 
-test("origin 530 and an HTML hit: serves the snapshot page with banner and live features removed", async () => {
+test("origin 530 and an HTML hit: serves the snapshot page with banner and live features hidden", async () => {
   originDown();
   const res = await worker.fetch(page("/"), { SNAPSHOT: fakeBucket(OBJECTS) });
   assert.equal(res.status, 200);
@@ -171,22 +194,39 @@ test("origin 530 and an HTML hit: serves the snapshot page with banner and live 
   assert.equal(res.headers.get("x-robots-tag"), "noindex");
 
   assert.equal(rewriters.length, 1);
-  const { handlers } = rewriters[0];
+  const { handlers, transformed } = rewriters[0];
+  // The rewriter is applied to the 200 snapshot response, headers already set.
+  assert.equal(transformed, res);
+  assert.equal(transformed.status, 200);
+  assert.equal(transformed.headers.get("content-security-policy"), CSP);
+  assert.equal(transformed.headers.get("x-served-from"), "snapshot");
+  assert.equal(transformed.headers.get("cache-control"), "no-store");
+  assert.equal(transformed.headers.get("x-robots-tag"), "noindex");
+
+  // Nothing is deleted (hydration): live features are hidden by an appended <style>.
+  assert.deepEqual(Object.keys(handlers).sort(), ["body", "head"]);
+  const head = fakeElement();
+  handlers.head.element(head);
+  assert.deepEqual(head.calls, [
+    [
+      "append",
+      '<style id="snapshot-style">[data-live-feature]{display:none!important}body{padding-bottom:4rem}</style>',
+      { html: true },
+    ],
+  ]);
 
   const body = fakeElement();
   handlers.body.element(body);
   assert.equal(body.calls.length, 1);
   const [method, banner, options] = body.calls[0];
-  assert.equal(method, "prepend");
+  // Appended before </body>: prepending it as the first child broke hydration (React #418).
+  assert.equal(method, "append");
   assert.deepEqual(options, { html: true });
-  assert.match(banner, /role="status"/);
+  assert.match(banner, /^<div id="snapshot-banner" role="status" style="[^"]+">/);
+  assert.match(banner, /position:fixed;left:0;right:0;bottom:0;z-index:2147483000/);
   assert.match(banner, /This is a backup copy of the site while my server is offline\./);
   assert.match(banner, /Chat and the contact form are paused; email me at/);
   assert.match(banner, /href="mailto:chguzman@augusta\.edu"/);
-
-  const live = fakeElement();
-  handlers["[data-live-feature]"].element(live);
-  assert.deepEqual(live.calls, [["remove"]]);
 });
 
 test("a page URL with tracking params falls back to the page key", async () => {
@@ -219,12 +259,16 @@ test("/_next/image is looked up by its exact query string", async () => {
   await assertBackShortly(await worker.fetch(asset("/_next/image?url=%2Fimages%2Fchris.jpg&w=1080&q=75"), env));
 });
 
-test("HEAD on a hit returns the headers without a body", async () => {
+test("HEAD on a hit uses R2 head(), returns the headers and content-length without a body", async () => {
   originDown();
-  const res = await worker.fetch(page("/", { method: "HEAD" }), { SNAPSHOT: fakeBucket(OBJECTS) });
+  const bucket = fakeBucket(OBJECTS);
+  const res = await worker.fetch(page("/", { method: "HEAD" }), { SNAPSHOT: bucket });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("x-served-from"), "snapshot");
+  assert.equal(res.headers.get("content-length"), String(OBJECTS[`${PREFIX}files/home`].length));
   assert.equal(await res.text(), "");
+  assert.deepEqual(bucket.calls.at(-1), ["head", `${PREFIX}files/home`]);
+  assert.equal(rewriters.length, 0);
 });
 
 test("miss: 503 Back shortly", async () => {
@@ -232,10 +276,14 @@ test("miss: 503 Back shortly", async () => {
   await assertBackShortly(await worker.fetch(page("/not-in-snapshot"), { SNAPSHOT: fakeBucket(OBJECTS) }));
 });
 
-test("/api/healthz is never served from the snapshot", async () => {
-  originDown();
-  await assertBackShortly(await worker.fetch(asset("/api/healthz"), { SNAPSHOT: fakeBucket(OBJECTS) }));
-});
+for (const path of ["/api/healthz", "/stats/script.js", "/newsletter/confirm", "/admin", "/projects?_rsc=1x2y"]) {
+  test(`${path} is refused before any R2 read, even though the manifest has it`, async () => {
+    originDown();
+    const bucket = fakeBucket(OBJECTS);
+    await assertBackShortly(await worker.fetch(asset(path), { SNAPSHOT: bucket }));
+    assert.deepEqual(bucket.calls, []);
+  });
+}
 
 test("no SNAPSHOT binding: 503 Back shortly", async () => {
   originDown();
@@ -315,4 +363,7 @@ test("snapshotHeaders: HTML forces no-store, noindex and the captured CSP", () =
 
   const bare = snapshotHeaders({ file: "files/x", type: "text/plain" }, false);
   assert.equal(bare.get("cache-control"), "no-store");
+
+  const untyped = snapshotHeaders({ file: "files/x" }, false);
+  assert.equal(untyped.get("content-type"), "application/octet-stream");
 });
