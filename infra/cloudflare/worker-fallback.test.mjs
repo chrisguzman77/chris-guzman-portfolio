@@ -210,7 +210,7 @@ test("origin 530 and an HTML hit: serves the snapshot page with banner and live 
   assert.deepEqual(head.calls, [
     [
       "append",
-      '<style id="snapshot-style">[data-live-feature]{display:none!important}body{padding-bottom:4rem}</style>',
+      '<style id="snapshot-style">[data-live-feature]{display:none!important}</style>',
       { html: true },
     ],
   ]);
@@ -223,7 +223,8 @@ test("origin 530 and an HTML hit: serves the snapshot page with banner and live 
   assert.equal(method, "append");
   assert.deepEqual(options, { html: true });
   assert.match(banner, /^<div id="snapshot-banner" role="status" style="[^"]+">/);
-  assert.match(banner, /position:fixed;left:0;right:0;bottom:0;z-index:2147483000/);
+  // Sticky at the end of the flex-column <body>: pinned while scrolling, below the footer at the end.
+  assert.match(banner, /position:sticky;bottom:0;z-index:2147483000/);
   assert.match(banner, /This is a backup copy of the site while my server is offline\./);
   assert.match(banner, /Chat and the contact form are paused; email me at/);
   assert.match(banner, /href="mailto:chguzman@augusta\.edu"/);

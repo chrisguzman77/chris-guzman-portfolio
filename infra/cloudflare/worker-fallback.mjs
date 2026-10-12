@@ -53,11 +53,12 @@ function fallback() {
 const NEVER_SNAPSHOT = ["/api/", "/stats/", "/newsletter/", "/admin"];
 const CACHE_TTL_MS = 60_000;
 // Hidden with CSS rather than deleted: removing server-rendered elements breaks React hydration.
-// The padding keeps the fixed banner from covering the page's last content.
-const HIDE_STYLE = `<style id="snapshot-style">[data-live-feature]{display:none!important}body{padding-bottom:4rem}</style>`;
-// Appended just before </body> and pinned to the bottom: as the first child of <body> it made
-// React hydration fail (error #418). The chat pill that normally sits bottom-right is hidden.
-const BANNER_HTML = `<div id="snapshot-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483000;margin:0;padding:.6rem 1rem;background:#fbbf24;color:#1c1917;font:500 15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center">This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at <a href="mailto:chguzman@augusta.edu" style="color:#1c1917;font-weight:600;text-decoration:underline">chguzman@augusta.edu</a>.</div>`;
+const HIDE_STYLE = `<style id="snapshot-style">[data-live-feature]{display:none!important}</style>`;
+// Appended just before </body>: as the first child of <body> it made React hydration fail
+// (error #418). Sticky, not fixed: as the last child of the flex-column <body> it pins to the
+// viewport bottom while scrolling and ends up below the footer, so it never covers content
+// (a fixed banner wraps to ~87px on phones). The chat pill that sits bottom-right is hidden.
+const BANNER_HTML = `<div id="snapshot-banner" role="status" style="position:sticky;bottom:0;z-index:2147483000;margin:0;padding:.6rem 1rem;background:#fbbf24;color:#1c1917;font:500 15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center">This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at <a href="mailto:chguzman@augusta.edu" style="color:#1c1917;font-weight:600;text-decoration:underline">chguzman@augusta.edu</a>.</div>`;
 
 // current.json and <prefix>manifest.json, keyed by R2 key: { at, value }.
 const jsonCache = new Map();
@@ -148,8 +149,11 @@ async function outage(request, env) {
 }
 
 // Only a default export: the Workers runtime treats named exports as entrypoints, which
-// plain helper functions are not, so the test-facing helpers ride on the handler object.
+// plain helpers and constants are not, so the test-facing ones ride on the handler object
+// (apps/web/e2e/failover.spec.ts injects HIDE_STYLE and BANNER_HTML).
 export default {
+  HIDE_STYLE,
+  BANNER_HTML,
   lookupKeys,
   snapshotHeaders,
   resetSnapshotCache,
