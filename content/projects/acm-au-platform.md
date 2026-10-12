@@ -3,9 +3,9 @@ slug: acm-au-platform
 title: ACM@AU platform
 summary: The ACM chapter's production site with end-to-end auth (rotating refresh tokens, TOTP 2FA) and a block-based CMS, self-hosted.
 repo_url: null
-live_url: [CHRIS: live URL, or remove]
+live_url: https://augustauniversityacm.com
 award: null
-date: 2026-01-01  # [CHRIS: the current repo dates from April 2026; keep Jan 2026, when you started as Lead Developer?]
+date: 2026-01-01
 tech: [sveltekit, typescript, fastapi, postgresql, docker]
 ---
 
@@ -17,13 +17,11 @@ The production website and member platform for Augusta University's ACM chapter.
 
 ![Architecture of the ACM@AU platform: visitors reach Cloudflare, which forwards through an outbound-only tunnel to a Docker Compose stack on an Oracle Cloud ARM VM: cloudflared, a SvelteKit frontend, a FastAPI backend, Postgres, a Redis leaderboard cache, and a Piston judge on an internal-only network](DIAGRAM:acm-au-platform.png)
 
-[CHRIS: the diagram and this alt text show Access on /admin, the challenges, Redis and the judge; update them if your answers below change any of these (see content/README.md step 8)]
-
-A visitor's request hits Cloudflare first, which handles TLS and DNS and can put Cloudflare Access in front of the admin area. [CHRIS: is Access on /admin live?] From there it travels through a Cloudflare Tunnel that the VM opens outbound, so the server has no open inbound ports.
+A visitor's request hits Cloudflare first, which handles TLS and DNS. From there it travels through a Cloudflare Tunnel that the VM opens outbound, so the server has no open inbound ports.
 
 Inside the VM, everything runs in Docker Compose. The SvelteKit app is the frontend and a backend-for-frontend: the browser only talks to it, with same-origin cookies, and it calls the FastAPI backend. FastAPI handles auth, the CMS and the coding challenges, and stores users, pages and results in Postgres.
 
-The platform also runs a daily coding challenge. FastAPI sends each submission to a self-hosted Piston judge, a code-execution sandbox, and stores the verdict in Postgres. Leaderboards are cached in Redis. [CHRIS: keep or cut the challenge system?]
+The platform also runs a daily coding challenge. FastAPI sends each submission to a self-hosted Piston judge, a code-execution sandbox, and stores the verdict in Postgres. Leaderboards are cached in Redis.
 
 A nightly job backs up the database and uploaded media, checks each archive, and keeps 14 days.
 
@@ -38,8 +36,6 @@ A nightly job backs up the database and uploaded media, checks each archive, and
 
 - Hosted on Oracle's Always Free tier (2 OCPU, 12 GB ARM VM); the only recurring cost is the domain, about $10 a year.
 - 162 commits, 27 database migrations, and more than 500 backend test functions, with CI running linting, type checks, tests and dependency audits.
-
-[CHRIS: usage numbers? e.g. registered members, officers editing in the CMS, challenge participants, uptime]
 
 ## My part
 

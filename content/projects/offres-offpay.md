@@ -39,8 +39,6 @@ For the hackathon, wallet preload and bank settlement were simulated: preload ju
 - Won Capital One's Best Financial Hack at VandyHacks (March 2026).
 - The whole stack, including a TinyLlama model of about 637 MB, runs offline on one Raspberry Pi 5.
 
-[CHRIS: any measured numbers to add? e.g. assistant response time on the Pi, QR scan time, how many teams competed]
-
 ## My part
 
-We were a team of five. I built the backend API with the wallet ledger, and the signed QR payments: the transaction flow, the HMAC signing, the per-transaction nonce, and the device's pending-to-accepted check. The rest of the five-person team built the other parts of the system. [CHRIS: name who built what, if you want to credit teammates]
+We were a team of five. I built the backend API with the wallet ledger, and the signed QR payments: the transaction flow, the HMAC signing, the per-transaction nonce, and the device's pending-to-accepted check. I also built the kiosk's on-screen keyboard and kiosk scripts, and extended the offline assistant from akallery's first draft. Viet built the vendor app, most of the user interface and the QR scan format; Aden got the assistant working on the Pi; George Dorton built the offline maps. [CHRIS: akallery's real name, if you want it instead of the GitHub handle]
