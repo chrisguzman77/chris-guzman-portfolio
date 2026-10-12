@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 
+import { assetKey, fileName, pageKey } from "../../scripts/snapshot/lib.mjs";
 import * as mod from "./worker-fallback.mjs";
 import worker from "./worker-fallback.mjs";
 
@@ -258,6 +259,36 @@ test("/_next/image is looked up by its exact query string", async () => {
   assert.equal(hit.headers.get("content-type"), "image/avif");
   assert.equal(await hit.text(), "AVIF");
   await assertBackShortly(await worker.fetch(asset("/_next/image?url=%2Fimages%2Fchris.jpg&w=1080&q=75"), env));
+});
+
+test("contract: serves keys and object names exactly as the crawler (lib.mjs) writes them", async () => {
+  originDown();
+  const origin = "https://christopherguzman.me";
+  const image = "/_next/image?url=%2Fimages%2Fchris.jpg&w=640&q=75";
+  const cms = "/cms-assets/c2c0f8aa-0a4d-4b75-9b2f-96e3607df494";
+  const crawled = [
+    { key: pageKey(new URL(`${origin}/projects/offres-offpay/`)), type: "text/html; charset=utf-8", body: "<p>Pay</p>" },
+    { key: assetKey(new URL(origin + image)), type: "image/avif", body: "AVIF" },
+    { key: assetKey(new URL(origin + cms)), type: "application/pdf", body: "%PDF" },
+  ];
+  const entries = {};
+  const objects = {
+    "current.json": JSON.stringify({ prefix: PREFIX, createdAt: "2026-10-12T08:15:00Z", commit: "deadbeef" }),
+  };
+  for (const c of crawled) {
+    entries[c.key] = { file: fileName(c.key), type: c.type };
+    objects[PREFIX + fileName(c.key)] = c.body;
+  }
+  objects[`${PREFIX}manifest.json`] = JSON.stringify({ version: 1, entries });
+  const env = { SNAPSHOT: fakeBucket(objects) };
+
+  const requests = [page("/projects/offres-offpay"), asset(image), asset(cms)];
+  for (const [i, request] of requests.entries()) {
+    const res = await worker.fetch(request, env);
+    assert.equal(res.status, 200, request.url);
+    assert.equal(res.headers.get("content-type"), crawled[i].type);
+    assert.equal(await res.text(), crawled[i].body);
+  }
 });
 
 test("HEAD on a hit uses R2 head(), returns the headers and content-length without a body", async () => {
