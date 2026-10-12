@@ -204,7 +204,7 @@ Two checks in the `web` CI job guard page weight and speed.
 
 - **What fails a PR:**
   - **JS size (hard gate).** `apps/web/e2e/budget.spec.ts` loads `/`, `/projects`, `/blog`, the fixture post `/blog/hello-world` and `/contact` on the mobile project. It adds up the uncompressed bytes of every script each page loads until the network goes idle, including lazy chunks such as mermaid on the post. It fails when a page goes over its budget in `apps/web/e2e/budgets.json`. It also fails when a measured page has no budget, or a budget has no page.
-  - **Lighthouse (soft gate).** `pnpm perf:lighthouse --serve` scores `/`, `/blog` and the fixture post on mobile, 3 runs each. It fails only when a page's median score is below 85, because runner speed varies.
+  - **Lighthouse (soft gate).** `pnpm perf:lighthouse --serve` scores `/`, `/projects` and `/blog` on mobile, 3 runs each. The fixture post is left out because its mermaid diagram puts it at the threshold on GitHub runners; the JS size gate still covers it. It fails only when a page's median score is below 85, because runner speed varies.
 - **Read the step summary:** open the run's Summary tab.
   - The JS table shows each page's measured size, its budget and the headroom left. Negative headroom means the page is over budget.
   - The Lighthouse table shows each page's median score, the 3 runs behind it, and the median LCP and TBT (for information only).
