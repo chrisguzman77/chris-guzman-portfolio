@@ -88,6 +88,11 @@ test("isExcluded drops API, stats, RSC, admin and newsletter keys", () => {
   }
 });
 
+test("isExcluded matches the _rsc search param, not the substring", () => {
+  assert.equal(isExcluded("/?_rsc=abc"), true);
+  assert.equal(isExcluded("/_next/static/chunks/_rsc_helper-1a2b.js"), false);
+});
+
 test("extractHtmlRefs finds src, srcset, links, object data and OG images", () => {
   const refs = extractHtmlRefs(HOME_HTML, `${ORIGIN}/`).map(key);
   const expected = [

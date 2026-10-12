@@ -25,7 +25,7 @@ export function isExcluded(key) {
   return (
     key.startsWith("/api/") ||
     key.startsWith("/stats/") ||
-    key.includes("_rsc") ||
+    new URL(key, "http://x").searchParams.has("_rsc") ||
     key.startsWith("/admin") ||
     key.startsWith("/newsletter/")
   );

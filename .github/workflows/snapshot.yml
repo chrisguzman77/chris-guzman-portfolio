@@ -22,6 +22,11 @@ concurrency:
   group: snapshot
   cancel-in-progress: false
 
+# bash -eo pipefail, so a failed crawl piped into tee fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   snapshot:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
@@ -32,6 +37,8 @@ jobs:
       PREFIX: snapshots/${{ github.run_id }}/
       AWS_DEFAULT_REGION: auto
       R2: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,7 +48,7 @@ jobs:
           node-version: 24
 
       - name: Crawl the public site
-        run: node scripts/snapshot/crawl.mjs --origin https://christopherguzman.me --out snapshot | tee crawl.log
+        run: node scripts/snapshot/crawl.mjs --origin https://christopherguzman.me --out snapshot 2>&1 | tee crawl.log
 
       - name: Check R2 setup
         id: setup
@@ -55,27 +62,45 @@ jobs:
             echo "::notice title=Snapshot not uploaded::R2_SNAPSHOT_ACCESS_KEY_ID is not set yet; the crawl ran and validated, upload skipped. See infra/cloudflare/README.md."
           fi
 
-      - name: Upload snapshot
-        if: steps.setup.outputs.ready == 'true'
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
-        run: aws s3 cp snapshot/ "s3://${BUCKET}/${PREFIX}" --recursive --endpoint-url "$R2" --only-show-errors
-
-      - name: Switch current.json to the new snapshot
+      - name: Skip if this run was already published (re-run)
+        id: fresh
         if: steps.setup.outputs.ready == 'true'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
         run: |
-          jq -n --arg prefix "$PREFIX" --arg createdAt "$(jq -r .createdAt snapshot/manifest.json)" \
+          current=$(aws s3 cp "s3://${BUCKET}/current.json" - --endpoint-url "$R2" 2>/dev/null || true)
+          if [[ "${current}" == *"\"prefix\":\"${PREFIX}\""* || "${current}" == *"\"prefix\": \"${PREFIX}\""* ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Snapshot already live::current.json already points at ${PREFIX}; this is a re-run, skipping upload, pointer and prune."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload snapshot
+        if: steps.setup.outputs.ready == 'true' && steps.fresh.outputs.publish == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
+        run: |
+          test -f snapshot/manifest.json
+          aws s3 cp snapshot/ "s3://${BUCKET}/${PREFIX}" --recursive --endpoint-url "$R2" --only-show-errors
+
+      - name: Switch current.json to the new snapshot
+        if: steps.setup.outputs.ready == 'true' && steps.fresh.outputs.publish == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
+        run: |
+          created=$(jq -er .createdAt snapshot/manifest.json)
+          jq -n --arg prefix "$PREFIX" --arg createdAt "$created" \
             --arg commit "$GITHUB_SHA" '{prefix: $prefix, createdAt: $createdAt, commit: $commit}' > current.json
           cat current.json
           aws s3 cp current.json "s3://${BUCKET}/current.json" --content-type application/json \
             --endpoint-url "$R2" --only-show-errors
 
       - name: Prune all but the newest 3 snapshots
-        if: steps.setup.outputs.ready == 'true'
+        if: steps.setup.outputs.ready == 'true' && steps.fresh.outputs.publish == 'true'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
@@ -93,7 +118,7 @@ jobs:
       - name: Summary
         if: always()
         env:
-          UPLOADED: ${{ steps.setup.outputs.ready }}
+          UPLOADED: ${{ steps.setup.outputs.ready == 'true' && steps.fresh.outputs.publish == 'true' }}
         run: |
           {
             echo "### Snapshot"
