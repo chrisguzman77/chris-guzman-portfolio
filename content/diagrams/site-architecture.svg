@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="t d">
+  <title id="t">christopherguzman.me architecture</title>
+  <desc id="d">Visitors reach Cloudflare, which forwards requests through an outbound-only tunnel to cloudflared inside a Proxmox VM running Docker Compose. cloudflared routes to web (Next.js), api (FastAPI) and Directus behind Cloudflare Access. api, Directus and Umami store data in Postgres with pgvector (directus, portfolio and umami databases). An observability box holds Prometheus, Grafana and Umami. A nightly backup job sends encrypted dumps to Cloudflare R2. GitHub Actions builds images into GHCR, and a self-hosted runner in the VM pulls them and deploys.</desc>
+  <defs>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d7a57"/>
+    </marker>
+    <marker id="ah-gray" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="719" fill="#ffffff" stroke="#e6e8eb" stroke-width="1"/>
+
+  <!-- VM boundary -->
+  <rect x="30" y="160" width="880" height="500" rx="14" fill="none" stroke="#4b5563" stroke-width="1.5" stroke-dasharray="8 6"/>
+
+  <!-- Boxes -->
+  <g fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5">
+    <rect x="30" y="42" width="140" height="64" rx="10"/>
+    <rect x="220" y="30" width="440" height="88" rx="10"/>
+    <rect x="950" y="30" width="210" height="88" rx="10"/>
+    <rect x="950" y="200" width="210" height="80" rx="10"/>
+    <rect x="60" y="320" width="190" height="70" rx="10"/>
+    <rect x="330" y="220" width="210" height="70" rx="10"/>
+    <rect x="330" y="320" width="210" height="70" rx="10"/>
+    <rect x="330" y="420" width="210" height="70" rx="10"/>
+    <rect x="620" y="205" width="260" height="70" rx="10"/>
+    <rect x="620" y="320" width="260" height="90" rx="10"/>
+    <rect x="620" y="470" width="260" height="80" rx="10"/>
+    <rect x="330" y="540" width="210" height="70" rx="10"/>
+    <rect x="950" y="540" width="210" height="70" rx="10"/>
+  </g>
+
+  <!-- Arrows: main request path -->
+  <g stroke="#0d7a57" stroke-width="2.5" fill="none" marker-end="url(#ah-accent)">
+    <line x1="170" y1="74" x2="220" y2="74"/>
+    <line x1="235" y1="118" x2="235" y2="320"/>
+    <line x1="250" y1="338" x2="330" y2="262"/>
+    <line x1="250" y1="355" x2="330" y2="355"/>
+  </g>
+
+  <!-- Arrows: everything else -->
+  <g stroke="#4b5563" stroke-width="2" fill="none" marker-end="url(#ah-gray)">
+    <line x1="250" y1="372" x2="330" y2="448" stroke-dasharray="6 5"/>
+    <line x1="540" y1="355" x2="620" y2="355"/>
+    <line x1="540" y1="455" x2="620" y2="398"/>
+    <line x1="750" y1="470" x2="750" y2="410"/>
+    <line x1="1055" y1="118" x2="1055" y2="200"/>
+    <line x1="950" y1="240" x2="880" y2="240"/>
+    <line x1="540" y1="575" x2="950" y2="575"/>
+  </g>
+
+  <!-- Box labels -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" text-anchor="middle">
+    <text x="100" y="81" font-size="19" font-weight="600">Visitor</text>
+
+    <text x="440" y="66" font-size="20" font-weight="600">Cloudflare</text>
+    <text x="440" y="95" font-size="15">DNS · WAF · cache · Access on admin hosts</text>
+
+    <text x="1055" y="66" font-size="19" font-weight="600">GitHub Actions</text>
+    <text x="1055" y="95" font-size="15">builds images</text>
+
+    <text x="1055" y="235" font-size="19" font-weight="600">GHCR</text>
+    <text x="1055" y="260" font-size="15">image registry</text>
+
+    <text x="155" y="362" font-size="19" font-weight="600">cloudflared</text>
+
+    <text x="435" y="250" font-size="19" font-weight="600">web</text>
+    <text x="435" y="274" font-size="15">Next.js</text>
+
+    <text x="435" y="350" font-size="19" font-weight="600">api</text>
+    <text x="435" y="374" font-size="15">FastAPI</text>
+
+    <text x="435" y="450" font-size="19" font-weight="600">Directus</text>
+    <text x="435" y="474" font-size="15">CMS · behind Access</text>
+
+    <text x="750" y="235" font-size="19" font-weight="600">runner</text>
+    <text x="750" y="259" font-size="15">self-hosted · deploys</text>
+
+    <text x="750" y="357" font-size="19" font-weight="600">Postgres + pgvector</text>
+
+    <text x="750" y="505" font-size="19" font-weight="600">Observability</text>
+    <text x="750" y="530" font-size="15">Prometheus · Grafana · Umami</text>
+
+    <text x="435" y="570" font-size="19" font-weight="600">backup</text>
+    <text x="435" y="594" font-size="15">nightly · encrypted</text>
+
+    <text x="1055" y="570" font-size="19" font-weight="600">Cloudflare R2</text>
+    <text x="1055" y="594" font-size="15">30-day lock</text>
+  </g>
+
+  <!-- Technical (mono) labels -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#16191d" font-size="14">
+    <text x="750" y="386" text-anchor="middle">directus · portfolio · umami</text>
+    <text x="225" y="222" text-anchor="end" font-size="15">Tunnel</text>
+    <text x="225" y="242" text-anchor="end">outbound-only</text>
+    <text x="1067" y="164">push</text>
+    <text x="762" y="446">umami</text>
+    <text x="50" y="644" font-size="15">Proxmox VM · Docker Compose</text>
+  </g>
+
+  <!-- Legend -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" font-size="15">
+    <line x1="40" y1="690" x2="84" y2="690" stroke="#0d7a57" stroke-width="2.5" marker-end="url(#ah-accent)"/>
+    <text x="96" y="695">request path</text>
+    <line x1="240" y1="690" x2="284" y2="690" stroke="#4b5563" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ah-gray)"/>
+    <text x="296" y="695">behind Cloudflare Access</text>
+  </g>
+</svg>

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="t d">
+  <title id="t">Cyber Threat Lakehouse pipeline</title>
+  <desc id="d">Four UNSW-NB15 CSV files (2,540,047 rows) are ingested into a Bronze Delta table, then normalized and deduplicated by SHA-256 flow hash into Silver (2,013,620 unique flows). Gold holds 54 engineered features. A stratified sample of about 500,000 rows trains three models (random forest, logistic regression, histogram gradient boosting); runs are logged to MLflow and the best model, chosen by F1, is registered in Unity Catalog. The Score job batch-scores all flows, and Spark SQL runs analytics and data-quality gates on the predictions. The five Spark jobs run locally in Docker or as a Databricks Workflow.</desc>
+  <defs>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d7a57"/>
+    </marker>
+    <marker id="ah-gray" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="619" fill="#ffffff" stroke="#e6e8eb" stroke-width="1"/>
+
+  <!-- Boxes -->
+  <g fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5">
+    <rect x="40" y="80" width="260" height="90" rx="10"/>
+    <rect x="470" y="80" width="260" height="90" rx="10"/>
+    <rect x="900" y="80" width="260" height="90" rx="10"/>
+    <rect x="900" y="260" width="260" height="90" rx="10"/>
+    <rect x="470" y="260" width="260" height="90" rx="10"/>
+    <rect x="40" y="260" width="260" height="90" rx="10"/>
+    <rect x="470" y="440" width="260" height="90" rx="10"/>
+    <rect x="40" y="440" width="260" height="90" rx="10"/>
+  </g>
+
+  <!-- Arrows: pipeline -->
+  <g stroke="#0d7a57" stroke-width="2.5" fill="none" marker-end="url(#ah-accent)">
+    <line x1="300" y1="125" x2="470" y2="125"/>
+    <line x1="730" y1="125" x2="900" y2="125"/>
+    <line x1="1030" y1="170" x2="1030" y2="260"/>
+    <line x1="900" y1="305" x2="730" y2="305"/>
+    <line x1="470" y1="305" x2="300" y2="305"/>
+  </g>
+
+  <!-- Arrows: side outputs -->
+  <g stroke="#4b5563" stroke-width="2" fill="none" marker-end="url(#ah-gray)">
+    <line x1="600" y1="350" x2="600" y2="440"/>
+    <line x1="170" y1="350" x2="170" y2="440"/>
+  </g>
+
+  <!-- Box labels -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" text-anchor="middle">
+    <text x="170" y="118" font-size="19" font-weight="600">Raw CSVs</text>
+    <text x="170" y="143" font-size="15">UNSW-NB15 · 4 files</text>
+
+    <text x="600" y="118" font-size="19" font-weight="600">Bronze</text>
+    <text x="600" y="143" font-size="15">raw Delta table</text>
+
+    <text x="1030" y="118" font-size="19" font-weight="600">Silver</text>
+    <text x="1030" y="143" font-size="15">normalize · SHA-256 dedupe</text>
+
+    <text x="1030" y="298" font-size="19" font-weight="600">Gold</text>
+    <text x="1030" y="323" font-size="15">54 features</text>
+
+    <text x="600" y="298" font-size="19" font-weight="600">Train · 3 models</text>
+    <text x="600" y="323" font-size="15">RF · LogReg · HistGB</text>
+
+    <text x="170" y="298" font-size="19" font-weight="600">Score</text>
+    <text x="170" y="323" font-size="15">batch · all flows</text>
+
+    <text x="600" y="478" font-size="19" font-weight="600">MLflow + Unity Catalog</text>
+    <text x="600" y="503" font-size="15">runs · registered model</text>
+
+    <text x="170" y="478" font-size="19" font-weight="600">Spark SQL</text>
+    <text x="170" y="503" font-size="15">analytics · quality gates</text>
+  </g>
+
+  <!-- Row counts on arrows -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#16191d" font-size="14" text-anchor="middle">
+    <text x="385" y="113">2,540,047 rows</text>
+    <text x="815" y="113">2,540,047 rows</text>
+    <text x="1018" y="220" text-anchor="end">2,013,620 unique flows</text>
+    <text x="815" y="293">~500k sample</text>
+    <text x="385" y="293">best by F1</text>
+    <text x="612" y="400" text-anchor="start">log runs</text>
+    <text x="182" y="400" text-anchor="start">predictions</text>
+  </g>
+
+  <text x="600" y="582" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="15" fill="#16191d">Five Spark jobs, Bronze to Score: locally in Docker or as a Databricks Workflow</text>
+</svg>
