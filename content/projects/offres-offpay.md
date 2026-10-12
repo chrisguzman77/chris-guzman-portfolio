@@ -25,7 +25,7 @@ The vendor scans that QR with a separate React app, which sends it back to the d
 
 For the assistant, a question goes to BM25 retrieval over 9 disaster guides (floods, earthquakes, first aid, and others). The top 3 chunks go into a prompt for TinyLlama 1.1B, run through llama.cpp on the Pi's CPU.
 
-For the hackathon, wallet preload and bank settlement were simulated: preload just raises the SQLite balance, and settlement updates the transaction status. A real bank integration was the planned next step.
+For the hackathon, wallet preload and bank settlement were simulated: preload just raises the SQLite balance, and settlement updates the transaction status. A real bank integration was left as future work.
 
 ## Decisions worth noting
 
@@ -43,4 +43,4 @@ For the hackathon, wallet preload and bank settlement were simulated: preload ju
 
 ## My part
 
-We were a team of five. I built the backend API with the wallet ledger, and the signed QR payments: the transaction flow, the HMAC signing, and the replay protection described above. My teammates built the vendor app, the kiosk UI and the offline assistant. [CHRIS: confirm the teammate split (vendor app, kiosk UI, assistant) and whether to credit them by name]
+We were a team of five. I built the backend API with the wallet ledger, and the signed QR payments: the transaction flow, the HMAC signing, the per-transaction nonce, and the device's pending-to-accepted check. The rest of the five-person team built the other parts of the system. [CHRIS: name who built what, if you want to credit teammates]

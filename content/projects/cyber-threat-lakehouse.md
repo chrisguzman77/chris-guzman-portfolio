@@ -42,7 +42,7 @@ From the local run on the ~500k sample (test set of 99,960 flows):
 | Logistic regression | 0.735 | 0.999 | 0.847 | 0.9968 | 19.8 s |
 | Hist gradient boosting | 0.754 | 0.997 | 0.859 | 0.9988 | 3.9 s |
 
-All three models catch almost every attack, and the random forest has the best F1. The trade-off is precision: nearly one in four flagged flows is benign. The full Databricks Workflow over the 2.54M-row dataset finishes in under 5 minutes on serverless compute.
+All three models catch almost every attack, and the random forest has the best F1. The trade-off is precision: nearly one in four flagged flows is benign. The full Databricks Workflow over the 2.54M-row dataset finishes in under 5 minutes on serverless compute, though the Databricks job trains on a smaller 300k-row sample than the 500k-row local run above, so the two runs are not equivalent.
 
 ## My part
 
