@@ -17,7 +17,7 @@ export default defineConfig({
     // Route handlers run in node; component tests opt into jsdom with a
     // `// @vitest-environment jsdom` comment at the top of the file.
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
     exclude: ["e2e/**", "node_modules/**"],
   },
 });

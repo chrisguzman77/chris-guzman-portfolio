@@ -1,0 +1,22 @@
+{
+  "/": {
+    "scriptBytes": 583680,
+    "baseline": 530451
+  },
+  "/projects": {
+    "scriptBytes": 561152,
+    "baseline": 509811
+  },
+  "/blog": {
+    "scriptBytes": 568320,
+    "baseline": 515776
+  },
+  "/blog/hello-world": {
+    "scriptBytes": 1456128,
+    "baseline": 1323007
+  },
+  "/contact": {
+    "scriptBytes": 1003520,
+    "baseline": 911740
+  }
+}

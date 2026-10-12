@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import serverEnv from "./e2e/server-env.json";
+
 const backend = "http://127.0.0.1:3101";
 
 export default defineConfig({
@@ -26,15 +28,8 @@ export default defineConfig({
       command: "bash e2e/serve.sh",
       url: "http://127.0.0.1:3100/api/healthz",
       reuseExistingServer: !process.env.CI,
-      env: {
-        SITE_URL: "http://127.0.0.1:3100",
-        DIRECTUS_URL: backend,
-        DIRECTUS_TOKEN: "e2e",
-        API_INTERNAL_URL: backend,
-        PUBLIC_API_URL: backend,
-        TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
-        REVALIDATE_SECRET: "e2e",
-      },
+      // Shared with scripts/lighthouse-ci.mjs --serve.
+      env: serverEnv,
     },
   ],
 });
