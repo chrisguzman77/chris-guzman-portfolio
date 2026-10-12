@@ -89,6 +89,7 @@ browser ⌘K ─> terminal ─Turnstile─> POST /v1/chat/sessions
                  └─ question ─> POST /v1/chat/sessions/{id}/messages
                                   → limits, budget → hybrid search (RRF) → cutoff
                                   → Groq gpt-oss-120b (ChatModel) → citation check → JSON answer
+                 └─ [y]/[n] ─> POST /v1/chat/sessions/{id}/messages/{message_id}/feedback → chat_messages.feedback
 ```
 
 The API owns the index and chat tables in the `portfolio` database; it reads Directus with its own read-only token. `/internal/*` is reachable only from containers on the VM (secret header, and requests through the Cloudflare Tunnel are refused). See ADR 0008.

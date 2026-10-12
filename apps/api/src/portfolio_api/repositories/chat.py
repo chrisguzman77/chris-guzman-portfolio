@@ -163,3 +163,13 @@ async def sessions_since(
     for message in rows:
         by_session[message.session_id].append(message)
     return [(s, by_session[s.id]) for s in sessions]
+
+
+async def rated_since(
+    session: AsyncSession, since: datetime, rating: ChatFeedback | None
+) -> list[ChatMessage]:
+    """Messages rated since ``since`` (only ``rating``, or both when None), newest rating first."""
+    query = select(ChatMessage).where(ChatMessage.feedback_at >= since)
+    if rating is not None:
+        query = query.where(ChatMessage.feedback == rating)
+    return list((await session.scalars(query.order_by(ChatMessage.feedback_at.desc()))).all())

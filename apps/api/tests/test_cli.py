@@ -1,11 +1,12 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.cli import (
     format_chats,
+    format_feedback,
     judge_answerable,
     judge_refusal,
     load_eval_cases,
@@ -13,7 +14,14 @@ from portfolio_api.cli import (
     run_eval,
 )
 from portfolio_api.clients.groq import ModelBusyError, ModelReply
-from portfolio_api.models import ChatMessage, ChatOutcome, ChatSession, ChatUsageDaily
+from portfolio_api.models import (
+    ChatFeedback,
+    ChatMessage,
+    ChatOutcome,
+    ChatSession,
+    ChatUsageDaily,
+)
+from portfolio_api.repositories import chat as chat_repo
 from portfolio_api.services.chat import ChatService, Composed
 from portfolio_api.services.grounding import CANNED_ANSWER, Source
 from tests.fakes import FakeChatModel, FakeRetriever
@@ -170,3 +178,90 @@ def test_reindex_directus_failure_is_one_line_and_exit_1(
     err = capsys.readouterr().err
     assert err.startswith("reindex failed: ") and err.count("\n") == 1
     assert "Traceback" not in err
+
+
+def test_format_feedback() -> None:
+    msgs = [
+        ChatMessage(
+            question="Is he on Kubernetes?",
+            answer=CANNED_ANSWER,
+            outcome=ChatOutcome.no_match,
+            sources=[{"n": 1, "title": "Contact", "url": "/contact"}],
+            feedback=ChatFeedback.down,
+            feedback_at=datetime(2026, 10, 12, 14, 3, tzinfo=UTC),
+        ),
+        ChatMessage(
+            question="Poem?",
+            answer=None,
+            outcome=ChatOutcome.error,
+            sources=[],
+            feedback=ChatFeedback.up,
+            feedback_at=datetime(2026, 10, 11, 9, 0, tzinfo=UTC),
+        ),
+    ]
+    assert format_feedback(msgs) == (
+        "== 2026-10-12 14:03 UTC · down · no_match\n"
+        "Q: Is he on Kubernetes?\n"
+        f"A: {CANNED_ANSWER}\n"
+        "sources: Contact\n"
+        "\n"
+        "== 2026-10-11 09:00 UTC · up · error\n"
+        "Q: Poem?"
+    )
+    assert format_feedback([]) == "No rated answers in this period."
+
+
+def test_format_feedback_truncates_answers_and_strips_control_characters() -> None:
+    msg = ChatMessage(
+        question="\x1b[31mred\x07\nnext",
+        answer="a" * 299 + "\x1b" + "b" * 10,
+        outcome=ChatOutcome.answered,
+        sources=[{"n": 1, "title": "T\x9b", "url": "/x"}],
+        feedback=ChatFeedback.down,
+        feedback_at=datetime(2026, 10, 12, 14, 3, tzinfo=UTC),
+    )
+    out = format_feedback([msg])
+    lines = out.split("\n")
+    assert len(lines) == 4  # the injected newline did not add a line
+    assert lines[2] == "A: " + "a" * 299 + "b…"  # 300 characters, then the ellipsis
+    assert lines[3] == "sources: T"
+    assert not any((ord(c) < 32 and c != "\n") or 0x7F <= ord(c) <= 0x9F for c in out)
+
+
+async def test_rated_since_filters_by_rating_and_age_newest_first(db: Sessions) -> None:
+    now = datetime.now(UTC)
+    sid = uuid.uuid4()
+    rows: list[tuple[str, ChatFeedback | None, timedelta | None]] = [
+        ("old down", ChatFeedback.down, timedelta(days=8)),
+        ("down", ChatFeedback.down, timedelta(hours=2)),
+        ("newer down", ChatFeedback.down, timedelta(hours=1)),
+        ("up", ChatFeedback.up, timedelta(hours=3)),
+        ("unrated", None, None),
+    ]
+    async with db.begin() as session:
+        session.add(ChatSession(id=sid, ip_hash="x"))
+        await session.flush()
+        for question, feedback, age in rows:
+            session.add(
+                ChatMessage(
+                    session_id=sid,
+                    question=question,
+                    answer="a",
+                    outcome=ChatOutcome.answered,
+                    feedback=feedback,
+                    feedback_at=now - age if age is not None else None,
+                )
+            )
+    since = now - timedelta(days=7)
+    async with db() as session:
+        downs = await chat_repo.rated_since(session, since, ChatFeedback.down)
+        ups = await chat_repo.rated_since(session, since, ChatFeedback.up)
+        both = await chat_repo.rated_since(session, since, None)
+    assert [m.question for m in downs] == ["newer down", "down"]
+    assert [m.question for m in ups] == ["up"]
+    assert [m.question for m in both] == ["newer down", "down", "up"]
+
+
+def test_chat_feedback_rejects_an_unknown_rating() -> None:
+    with pytest.raises(SystemExit):
+        main(["chat-feedback", "--rating", "meh"])

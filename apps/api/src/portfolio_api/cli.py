@@ -1,4 +1,4 @@
-"""Operator commands: `portfolio-api reindex | chats [--days N] | chat-eval`."""
+"""Operator commands: `portfolio-api reindex | chats [--days N] | chat-eval | chat-feedback`."""
 
 import argparse
 import asyncio
@@ -17,7 +17,7 @@ from portfolio_api.clients.directus import DirectusContent, DirectusError
 from portfolio_api.clients.groq import GroqChatModel, ModelBusyError, ModelUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker
-from portfolio_api.models import ChatMessage, ChatOutcome, ChatSession
+from portfolio_api.models import ChatFeedback, ChatMessage, ChatOutcome, ChatSession
 from portfolio_api.rag.embedder import FastEmbedEmbedder
 from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.repositories import chat as chat_repo
@@ -25,6 +25,7 @@ from portfolio_api.services.chat import ChatService, Composed
 from portfolio_api.services.indexer import IndexService
 
 BUSY_RETRIES = 3
+ANSWER_PREVIEW = 300  # characters of each answer chat-feedback shows
 
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
@@ -52,6 +53,30 @@ def format_chats(rows: Sequence[tuple[ChatSession, Sequence[ChatMessage]]]) -> s
             if m.sources:
                 cited = ", ".join(_clean(f"{s['title']} ({s['url']})") for s in m.sources)
                 lines.append(f"    sources: {cited}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def _preview(text: str) -> str:
+    return text if len(text) <= ANSWER_PREVIEW else text[:ANSWER_PREVIEW] + "…"
+
+
+def format_feedback(messages: Sequence[ChatMessage]) -> str:
+    """Rated replies, in the order given. Uncited rows show the model's raw text, as chats does."""
+    if not messages:
+        return "No rated answers in this period."
+    lines: list[str] = []
+    for m in messages:
+        when = (
+            m.feedback_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC") if m.feedback_at else "?"
+        )
+        rating = m.feedback.value if m.feedback else "?"
+        lines.append(f"== {when} · {rating} · {m.outcome.value}")
+        lines.append(f"Q: {_clean(m.question)}")
+        if m.answer:
+            lines.append(f"A: {_preview(_clean(m.answer))}")
+        if m.sources:
+            lines.append("sources: " + ", ".join(_clean(s["title"]) for s in m.sources))
         lines.append("")
     return "\n".join(lines).rstrip()
 
@@ -174,6 +199,20 @@ async def _chats(settings: Settings, days: int) -> int:
     return 0
 
 
+async def _chat_feedback(settings: Settings, days: int, rating: str) -> int:
+    engine = make_engine(settings.database_url)
+    try:
+        async with make_sessionmaker(engine)() as session:
+            since = datetime.now(UTC) - timedelta(days=days)
+            rows = await chat_repo.rated_since(
+                session, since, None if rating == "all" else ChatFeedback(rating)
+            )
+    finally:
+        await engine.dispose()
+    print(format_feedback(rows))
+    return 0
+
+
 async def _chat_eval(settings: Settings) -> int:
     if not settings.groq_api_key:
         print("API_GROQ_API_KEY is not set", file=sys.stderr)
@@ -203,10 +242,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     chats = commands.add_parser("chats", help="print recent chat sessions")
     chats.add_argument("--days", type=int, default=7)
     commands.add_parser("chat-eval", help="run the answer-quality cases against the live model")
+    feedback = commands.add_parser("chat-feedback", help="print recently rated chat replies")
+    feedback.add_argument("--days", type=int, default=7)
+    feedback.add_argument("--rating", choices=["down", "up", "all"], default="down")
     args = parser.parse_args(argv)
     settings = Settings()
     if args.command == "reindex":
         return asyncio.run(_reindex(settings))
     if args.command == "chats":
         return asyncio.run(_chats(settings, args.days))
+    if args.command == "chat-feedback":
+        return asyncio.run(_chat_feedback(settings, args.days, args.rating))
     return asyncio.run(_chat_eval(settings))
