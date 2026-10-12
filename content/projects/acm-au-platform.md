@@ -17,6 +17,8 @@ The production website and member platform for Augusta University's ACM chapter.
 
 ![Architecture of the ACM@AU platform: visitors reach Cloudflare, which forwards through an outbound-only tunnel to a Docker Compose stack on an Oracle Cloud ARM VM: cloudflared, a SvelteKit frontend, a FastAPI backend, Postgres, a Redis leaderboard cache, and a Piston judge on an internal-only network](DIAGRAM:acm-au-platform.png)
 
+[CHRIS: the diagram and this alt text show Access on /admin, the challenges, Redis and the judge; update them if your answers below change any of these (see content/README.md step 8)]
+
 A visitor's request hits Cloudflare first, which handles TLS and DNS and can put Cloudflare Access in front of the admin area. [CHRIS: is Access on /admin live?] From there it travels through a Cloudflare Tunnel that the VM opens outbound, so the server has no open inbound ports.
 
 Inside the VM, everything runs in Docker Compose. The SvelteKit app is the frontend and a backend-for-frontend: the browser only talks to it, with same-origin cookies, and it calls the FastAPI backend. FastAPI handles auth, the CMS and the coding challenges, and stores users, pages and results in Postgres.

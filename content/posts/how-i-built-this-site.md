@@ -71,7 +71,7 @@ The trade-off: losing the tunnel or my home internet means losing the site. A Cl
 
 Every pull request runs CI on GitHub-hosted runners, with path filters so an API change doesn't rebuild the web app.
 
-- **Web:** lint, type check, formatting, 545 unit tests, a production build, then 28 Playwright tests against the built app with a fake API and fake CMS. The Playwright run fails on any console error, any Content Security Policy violation, or any axe accessibility violation. It ends by building the Docker image.
+- **Web:** lint, type check, formatting, 545 unit tests, a production build, then 26 Playwright tests across phone and desktop against the built app with a fake API and fake CMS. The Playwright run fails on any console error, any Content Security Policy violation, or any axe accessibility violation. It ends by building the Docker image.
 - **API:** ruff, pyright, Alembic migrations plus `alembic check` (which fails if the models and migrations disagree), 343 pytest tests against a real Postgres with pgvector, and an image build.
 - **Infra:** Compose and monitoring config checks, and a round-trip test of the backup and restore scripts.
 
