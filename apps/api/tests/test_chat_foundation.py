@@ -1,11 +1,13 @@
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.config import Settings
 from portfolio_api.models import (
+    ChatEvalKind,
+    ChatEvalRun,
     ChatMessage,
     ChatOutcome,
     ChatSession,
@@ -103,3 +105,35 @@ async def test_chat_tables_cascade_and_defaults(db: Sessions) -> None:
         await session.execute(text("DELETE FROM chat_sessions"))
     async with db() as session:
         assert await session.scalar(select(func.count()).select_from(ChatMessage)) == 0
+
+
+async def test_chat_eval_runs_store_a_run(db: Sessions) -> None:
+    now = datetime.now(UTC)
+    async with db.begin() as session:
+        session.add(
+            ChatEvalRun(
+                kind=ChatEvalKind.answer,
+                started_at=now,
+                finished_at=now,
+                commit=None,
+                cases=26,
+                passed=25,
+                answer_pass_rate=0.9375,
+                refusal_pass_rate=1.0,
+                hit_at_5=None,
+                mrr=None,
+                latency_p50_ms=1800,
+                latency_p95_ms=5200,
+                tokens_per_question=2100.5,
+                failures=[
+                    {"id": "answerable-04", "category": "answerable", "reason": "missing 100"}
+                ],
+            )
+        )
+    async with db() as session:
+        run = (await session.scalars(select(ChatEvalRun))).one()
+    assert isinstance(run.id, uuid.UUID) and run.kind == ChatEvalKind.answer
+    assert run.commit is None and run.hit_at_5 is None and run.tokens_per_question == 2100.5
+    assert run.failures == [
+        {"id": "answerable-04", "category": "answerable", "reason": "missing 100"}
+    ]

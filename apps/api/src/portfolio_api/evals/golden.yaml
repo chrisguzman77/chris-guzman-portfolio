@@ -1,6 +1,8 @@
-# Retrieval quality gate: each question must find one of its expected documents (by title
-# substring) in the top 5 results. Built from infra/directus/seed/*.json, so it never needs
-# Directus. Passing threshold: 15 of 16.
+# Golden retrieval questions: each should find one of its expected documents (by title
+# substring) in the top 5 results. Scored two ways, both by retrieval only (no model call):
+# - CI (tests/rag/test_golden.py) over infra/directus/seed/*.json; passing threshold 15 of 16.
+# - `portfolio-api chat-eval` over the live index, recorded as hit@5 and MRR.
+# Lives in the package so the CLI can read it from the image.
 - question: What is Chris studying?
   expect: ["B.S. in Computer Science"]
 - question: When does he graduate?
