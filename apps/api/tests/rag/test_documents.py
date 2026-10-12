@@ -9,6 +9,7 @@ EMPTY = SiteContent(
     education=[],
     involvement=[],
     certifications=[],
+    faq=[],
     projects=[],
     posts=[],
     resume_text=None,
@@ -113,6 +114,7 @@ def test_project_post_involvement_certification_and_resume_urls() -> None:
         certifications=[
             {"id": 3, "name": "Security+", "issuer": "CompTIA", "date": None, "url": None}
         ],
+        faq=[],
         projects=[
             {
                 "id": 4,
@@ -163,4 +165,25 @@ def test_seed_content_builds_one_document_per_item() -> None:
     assert len(by_type(docs, "profile")) == 1
     assert len(by_type(docs, "experience")) == 5
     assert len(by_type(docs, "projects")) == 4
+    assert len(by_type(docs, "faq")) == 8
     assert all(d.markdown.startswith(f"# {d.title}\n\n") for d in docs)
+
+
+def test_faq_document_is_cited_as_the_contact_page() -> None:
+    content = replace(
+        EMPTY,
+        faq=[
+            {
+                "id": 4,
+                "question": "Do you need visa sponsorship?",
+                "answer_md": "No. I'm a US citizen and don't need sponsorship.",
+            }
+        ],
+    )
+    [doc] = by_type(build_documents(content), "faq")
+    assert doc.source_id == "4"
+    assert doc.title == "Do you need visa sponsorship?"
+    assert doc.url == "/contact"
+    assert doc.markdown == (
+        "# Do you need visa sponsorship?\n\nNo. I'm a US citizen and don't need sponsorship."
+    )

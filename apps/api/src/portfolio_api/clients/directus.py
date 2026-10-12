@@ -14,7 +14,7 @@ log = structlog.get_logger()
 
 PUBLISHED = {"fields": "*", "filter[status][_eq]": "published", "limit": "-1"}
 MAX_RESUME_BYTES = 10 * 1024 * 1024
-LISTS = ["experience", "education", "involvement", "certifications", "projects", "posts"]
+LISTS = ["experience", "education", "involvement", "certifications", "faq", "projects", "posts"]
 
 
 class DirectusError(Exception):

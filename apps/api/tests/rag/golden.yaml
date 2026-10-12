@@ -1,6 +1,6 @@
 # Retrieval quality gate: each question must find one of its expected documents (by title
 # substring) in the top 5 results. Built from infra/directus/seed/*.json, so it never needs
-# Directus. Passing threshold: 14 of 15.
+# Directus. Passing threshold: 15 of 16.
 - question: What is Chris studying?
   expect: ["B.S. in Computer Science"]
 - question: When does he graduate?
@@ -31,3 +31,5 @@
   expect: ["SteelGate"]
 - question: Does he know FastAPI?
   expect: ["ACM@AU", "OFFRes", "This portfolio", "College of Allied Health Professions"]
+- question: Is Chris open to relocation?
+  expect: ["relocate"]

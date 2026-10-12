@@ -15,6 +15,7 @@ class SiteContent:
     education: list[Item]
     involvement: list[Item]
     certifications: list[Item]
+    faq: list[Item]
     projects: list[Item]
     posts: list[Item]
     resume_text: str | None
@@ -131,6 +132,12 @@ def _certification(item: Item) -> SourceDocument:
     return _doc("certifications", str(item["id"]), name, "/education", [line])
 
 
+def _faq(item: Item) -> SourceDocument:
+    return _doc(
+        "faq", str(item["id"]), _text(item, "question"), "/contact", [_text(item, "answer_md")]
+    )
+
+
 def _project(item: Item) -> SourceDocument:
     title = _text(item, "title")
     award, when = _text(item, "award"), _month(item.get("date"))
@@ -173,6 +180,7 @@ _BUILDERS: list[tuple[str, Callable[[Item], SourceDocument]]] = [
     ("education", _education),
     ("involvement", _involvement),
     ("certifications", _certification),
+    ("faq", _faq),
     ("projects", _project),
     ("posts", _post),
 ]
