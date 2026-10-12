@@ -12,7 +12,7 @@ from tests.rag.seed import load_seed_content
 from tests.rag.test_indexer import FakeSource
 
 GOLDEN = Path(__file__).with_name("golden.yaml")
-REQUIRED_HITS = 14
+REQUIRED_HITS = 15
 
 
 async def test_golden_questions_find_their_sources(

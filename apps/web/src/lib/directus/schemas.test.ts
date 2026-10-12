@@ -4,6 +4,7 @@ import {
   CertificationSchema,
   EducationSchema,
   ExperienceSchema,
+  FaqSchema,
   InvolvementSchema,
   PostSchema,
   ProfileSchema,
@@ -106,6 +107,15 @@ describe("content schemas", () => {
       CertificationSchema.parse({ id: 1, name: "Sec+", issuer: "CompTIA", date: null, url: null })
         .name,
     ).toBe("Sec+");
+  });
+
+  it("parses an FAQ entry and rejects one without an answer", () => {
+    expect(FaqSchema.parse({ id: 1, question: "Q?", answer_md: "A." })).toEqual({
+      id: 1,
+      question: "Q?",
+      answer_md: "A.",
+    });
+    expect(FaqSchema.safeParse({ id: 1, question: "Q?", answer_md: null }).success).toBe(false);
   });
 
   it("parses a project and rejects an unknown type", () => {

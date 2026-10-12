@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getProfile } from "@/lib/directus/queries";
+import { getFaq, getProfile } from "@/lib/directus/queries";
 import type { Profile } from "@/lib/directus/schemas";
 
 import ContactPage from "./page";
 
-vi.mock("@/lib/directus/queries", () => ({ getProfile: vi.fn() }));
+vi.mock("@/lib/directus/queries", () => ({ getProfile: vi.fn(), getFaq: vi.fn() }));
 vi.mock("@/components/contact/contact-form", () => ({
   ContactForm: (props: { apiUrl: string; siteKey: string; fallbackEmail: string }) => (
     <div data-testid="contact-form">{JSON.stringify(props)}</div>
@@ -24,8 +24,13 @@ const profile: Profile = {
   seo_description: "SEO.",
 };
 
+beforeEach(() => {
+  vi.mocked(getFaq).mockResolvedValue([]);
+});
+
 afterEach(() => {
   cleanup();
+  vi.mocked(getFaq).mockReset();
   vi.mocked(getProfile).mockReset();
   vi.unstubAllEnvs();
 });
@@ -41,6 +46,35 @@ describe("/contact", () => {
     expect(title.parentElement?.children).toHaveLength(2);
     expect(title.nextElementSibling).toBeNull();
     expect(container.querySelector('a[href^="tel:"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/\+?\d[\d\s().-]{8,}\d/);
+  });
+
+  it("leaves the FAQ out when there are no entries", async () => {
+    vi.mocked(getProfile).mockResolvedValue(profile);
+    render(await ContactPage());
+    expect(screen.queryByRole("heading", { name: "Questions recruiters ask" })).toBeNull();
+  });
+
+  it("renders each FAQ entry as a disclosure with its markdown answer", async () => {
+    vi.mocked(getProfile).mockResolvedValue(profile);
+    vi.mocked(getFaq).mockResolvedValue([
+      { id: 1, question: "Do you need visa sponsorship?", answer_md: "No. I'm a **US citizen**." },
+      {
+        id: 2,
+        question: "Where can I get your resume?",
+        answer_md: "On the [resume page](/resume).",
+      },
+    ]);
+    const { container } = render(await ContactPage());
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Questions recruiters ask" }),
+    ).toBeTruthy();
+    const items = container.querySelectorAll("details");
+    expect(items).toHaveLength(2);
+    expect(items[0].querySelector("summary")?.textContent).toBe("Do you need visa sponsorship?");
+    expect(items[0].querySelector("strong")?.textContent).toBe("US citizen");
+    expect(screen.getByRole("link", { name: "resume page" }).getAttribute("href")).toBe("/resume");
     expect(container.textContent).not.toMatch(/\+?\d[\d\s().-]{8,}\d/);
   });
 

@@ -189,6 +189,11 @@
   color: var(--shiki-dark);
 }
 
+/* <details> FAQ entries draw their own chevron; hide Safari's built-in disclosure triangle. */
+summary::-webkit-details-marker {
+  display: none;
+}
+
 /* "Ask about Chris" pill: two 1 s accent glows back to back, then 10 s of rest (12 s cycle).
    Drawn on a pseudo-element so the pill's own shadow stays; reduced motion stops it (rule above). */
 @keyframes chat-pill-glow {

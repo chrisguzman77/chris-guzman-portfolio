@@ -82,6 +82,7 @@ export const seedKeys = {
   education: (i) => i.school,
   involvement: (i) => i.organization,
   projects: (i) => i.slug,
+  faq: (i) => i.question,
 };
 
 /**

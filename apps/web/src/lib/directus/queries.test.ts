@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { DirectusUnavailableError, directusGet } from "./client";
 import {
   getCertifications,
+  getFaq,
   getChatSettings,
   getEducation,
   getExperience,
@@ -142,6 +143,7 @@ describe("list queries", () => {
     ["education", getEducation],
     ["involvement", getInvolvement],
     ["certifications", getCertifications],
+    ["faq", getFaq],
   ] as const)("%s sorts by the manual sort field and filters published", async (name, query) => {
     get.mockResolvedValue([]);
     await query();

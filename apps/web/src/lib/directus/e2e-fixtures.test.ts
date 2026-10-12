@@ -10,6 +10,7 @@ import { SiteStatusSchema } from "@/lib/status";
 
 import {
   CertificationSchema,
+  FaqSchema,
   ChatSettingsSchema,
   EducationSchema,
   ExperienceSchema,
@@ -35,6 +36,7 @@ const LISTS: [string, z.ZodType][] = [
   ["education", EducationSchema],
   ["involvement", InvolvementSchema],
   ["certifications", CertificationSchema],
+  ["faq", FaqSchema],
 ];
 
 describe("e2e Directus fixtures", () => {

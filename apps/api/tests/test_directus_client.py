@@ -51,6 +51,7 @@ SITE: dict[str, Any] = {
     "/items/education": [],
     "/items/involvement": [],
     "/items/certifications": [],
+    "/items/faq": [],
     "/items/projects": [],
     "/items/posts": [],
 }

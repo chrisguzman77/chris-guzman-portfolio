@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "question": "Do you need visa sponsorship?",
+    "answer_md": "No. I'm a US citizen and don't need sponsorship."
+  },
+  {
+    "id": 2,
+    "question": "Where can I get your resume?",
+    "answer_md": "On the [resume page](/resume), as a PDF you can view or download."
+  }
+]

@@ -24,6 +24,7 @@ def content_with_projects() -> SiteContent:
         education=[],
         involvement=[],
         certifications=[],
+        faq=[],
         projects=[
             {
                 "id": 1,

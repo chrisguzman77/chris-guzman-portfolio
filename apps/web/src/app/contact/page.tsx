@@ -2,13 +2,15 @@ import { ExternalLink, Mail } from "lucide-react";
 import type { Metadata } from "next";
 
 import { ContactForm } from "@/components/contact/contact-form";
+import { FaqSection } from "@/components/contact/faq-section";
 import { CopyEmail } from "@/components/content/copy-email";
 import { PageHeader } from "@/components/content/page-header";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { outboundProps } from "@/lib/analytics";
-import { getProfile } from "@/lib/directus/queries";
+import { getFaq, getProfile } from "@/lib/directus/queries";
 import { serverEnv } from "@/lib/env";
 import { lastPathSegmentOrNull } from "@/lib/format";
+import { renderMarkdown } from "@/lib/markdown";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -27,7 +29,14 @@ const openClass =
   "ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-background";
 
 export default async function ContactPage() {
-  const profile = await getProfile();
+  const [profile, faq] = await Promise.all([getProfile(), getFaq()]);
+  const faqItems = await Promise.all(
+    faq.map(async (item) => ({
+      id: item.id,
+      question: item.question,
+      html: (await renderMarkdown(item.answer_md)).html,
+    })),
+  );
   const { turnstileSiteKey, publicApiUrl } = serverEnv();
   const email = profile?.email || FALLBACK_EMAIL;
   // ProfileSchema turns empty or non-http(s) URLs into null, so they fall back here.
@@ -121,6 +130,7 @@ export default async function ContactPage() {
           </ul>
         </section>
       </div>
+      {faqItems.length > 0 ? <FaqSection items={faqItems} /> : null}
     </div>
   );
 }

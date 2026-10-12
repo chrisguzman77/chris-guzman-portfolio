@@ -140,7 +140,7 @@ test("sameJson ignores object key order but not values or array order", () => {
   assert.equal(sameJson(false, null), false);
 });
 
-test("seedKeys: singletons, experience company+role, education, involvement, projects", () => {
+test("seedKeys: singletons, experience company+role, education, involvement, projects, faq", () => {
   assert.equal(seedKeys.profile({ name: "x" }), seedKeys.profile({ name: "y" }));
   assert.equal(seedKeys.resume({}), seedKeys.resume({ file: "z" }));
   assert.notEqual(
@@ -154,11 +154,12 @@ test("seedKeys: singletons, experience company+role, education, involvement, pro
   assert.equal(seedKeys.education({ school: "AU" }), "AU");
   assert.equal(seedKeys.involvement({ organization: "ACM@AU" }), "ACM@AU");
   assert.equal(seedKeys.projects({ slug: "this-portfolio" }), "this-portfolio");
+  assert.equal(seedKeys.faq({ question: "Do you need visa sponsorship?" }), "Do you need visa sponsorship?");
 });
 
 test("seed files: valid JSON, no phone number, unique keys", async () => {
   const phone = /\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/;
-  for (const name of ["profile", "resume", "experience", "education", "involvement", "projects"]) {
+  for (const name of ["profile", "resume", "experience", "education", "involvement", "projects", "faq"]) {
     const raw = await readFile(new URL(`./seed/${name}.json`, import.meta.url), "utf8");
     assert.doesNotMatch(raw, phone, name);
     const data = JSON.parse(raw);

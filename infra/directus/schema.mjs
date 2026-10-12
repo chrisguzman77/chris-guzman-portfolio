@@ -9,6 +9,7 @@ export const CONTENT_COLLECTIONS = [
   "education",
   "involvement",
   "certifications",
+  "faq",
   "projects",
   "posts",
   "resume",
@@ -229,6 +230,16 @@ export const collections = [
       string("issuer", { required: true, ...half }),
       date("date"),
       string("url", half),
+    ],
+  },
+  {
+    collection: "faq",
+    meta: { icon: "help", sort_field: "sort" },
+    fields: [
+      status,
+      sort,
+      string("question", { required: true }),
+      text("answer_md", { required: true, markdown: true }),
     ],
   },
   {

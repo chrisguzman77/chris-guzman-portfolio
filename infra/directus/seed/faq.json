@@ -1,0 +1,50 @@
+[
+  {
+    "status": "published",
+    "sort": 1,
+    "question": "Are you looking for internships or full-time roles?",
+    "answer_md": "Both. I'm open to internships (for example, summer 2027) and to full-time roles starting after I graduate in May 2027."
+  },
+  {
+    "status": "published",
+    "sort": 2,
+    "question": "What roles are you interested in?",
+    "answer_md": "Full-stack, backend and infrastructure, data engineering, ML and data, and security or cyber operations. My [projects](/projects) show work in each."
+  },
+  {
+    "status": "published",
+    "sort": 3,
+    "question": "Where are you based, and will you relocate?",
+    "answer_md": "I'm in Augusta, GA, and open to relocating anywhere in the US. Remote and hybrid roles work too."
+  },
+  {
+    "status": "published",
+    "sort": 4,
+    "question": "Do you need visa sponsorship?",
+    "answer_md": "No. I'm a US citizen and don't need sponsorship."
+  },
+  {
+    "status": "published",
+    "sort": 5,
+    "question": "What are you studying, and when do you graduate?",
+    "answer_md": "A B.S. in Computer Science and a B.S. in Cyber Operations, with a minor in Mathematics, at Augusta University. I graduate in May 2027."
+  },
+  {
+    "status": "published",
+    "sort": 6,
+    "question": "What's your strongest stack?",
+    "answer_md": "Python and TypeScript. FastAPI and PostgreSQL on the backend; SvelteKit, React and Next.js on the frontend; Docker and GitHub Actions to ship. For data and ML work, Spark, Delta Lake and PyTorch."
+  },
+  {
+    "status": "published",
+    "sort": 7,
+    "question": "Where can I get your resume?",
+    "answer_md": "On the [resume page](/resume), as a PDF you can view or download."
+  },
+  {
+    "status": "published",
+    "sort": 8,
+    "question": "What's the best way to reach you?",
+    "answer_md": "Send a message with the contact form, or email me. I'm also on [LinkedIn](https://www.linkedin.com/in/christopher-emmanuel-guzman/)."
+  }
+]
