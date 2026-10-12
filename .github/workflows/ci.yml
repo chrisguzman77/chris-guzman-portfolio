@@ -132,6 +132,8 @@ jobs:
       - run: uv run pyright
       - run: uv run alembic upgrade head
       - run: uv run alembic check
+      # The newest migration must undo cleanly and re-apply before the tests run.
+      - run: uv run alembic downgrade -1 && uv run alembic upgrade head
       - run: uv run pytest
       - name: Build image (catches Dockerfile and base-image breakage)
         working-directory: .
