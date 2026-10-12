@@ -133,3 +133,17 @@ All three keys below are optional. Without `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCES
 3. **Ship it.** Commit, open the PR and merge. The deploy creates the `grafana_umami_ro` role and Grafana picks up the Newsletter dashboard. The deploy that adds these keys recreates the postgres and grafana containers once (a few seconds of downtime), because a new env key changes their config even while it is empty.
 4. **Rate-limit the sign-up routes.** In the rate-limit rule above (`api contact and chat`), edit the expression and add `or starts_with(http.request.uri.path, "/v1/newsletter/")` inside the inner parentheses, after the `/v1/chat/` term, so the whole expression reads `(http.host eq "api.christopherguzman.me" and (starts_with(http.request.uri.path, "/v1/contact") or starts_with(http.request.uri.path, "/v1/chat/") or starts_with(http.request.uri.path, "/v1/newsletter/")))`. Deploy.
 5. **Test.** Subscribe with your own address on the blog, confirm from the email, then open `https://christopherguzman.me/admin/subscribers` (you should pass through Access and see yourself). In Directus open a published post and run Email to subscribers with "Send a test to me only" ticked. Directus reports the run as done even if the API refused it, so confirm the test email arrives at `CONTACT_TO`; if it does not, see the Newsletter section of the runbook for the Flow logs.
+
+## Chat quality (eval history)
+
+`GRAFANA_CHAT_DB_PASSWORD` is optional for the site but needed for the Chat quality dashboard and the chat-eval alerts. Without it the read-only role isn't created, the dashboard shows errors, and the three chat-eval alerts send a DatasourceError email every 4 hours. Add it before merging the PR that ships them.
+
+1. **Store the key.** Run `make secrets-edit`, add `GRAFANA_CHAT_DB_PASSWORD=<output of openssl rand -hex 24>`, save, then run `make secrets-check`. Commit the re-encrypted `infra/compose/prod.enc.env` and merge it on its own.
+2. **Ship it.** Merge the PR.
+   - The deploy migrates, then creates `grafana_chat_ro`. Its log shows `grafana_chat_ro: ok`.
+   - Grafana picks up the Chat quality dashboard and the alerts.
+   - The deploy that adds the key recreates the postgres and grafana containers once (a few seconds of downtime).
+3. **Record the first run.** Actions → chat-eval → Run workflow (kind `answer`), or `gh workflow run chat-eval.yml -f kind=answer`.
+   - It takes about 10 minutes.
+   - Then check the run's Summary tab and Grafana → Chat quality.
+   - Until a run is recorded, Chat eval stale fires (an hour after the deploy).
