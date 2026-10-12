@@ -1,4 +1,4 @@
-# Answer-quality check run by hand against real Groq (`make chat-eval` on the VM).
+# Answer-quality cases: run weekly and recorded by .github/workflows/chat-eval.yml, or by hand (`make chat-eval`).
 # answerable: the answer must be "answered", contain every must_include string
 # (case-insensitive), and cite at least one of the listed source URLs.
 # refuse: the chat must not answer (outcome no_match or uncited).

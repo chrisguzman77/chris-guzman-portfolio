@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from portfolio_api.clients.directus import ChatSettings, DirectusError
 from portfolio_api.clients.groq import ChatModel, ModelBusyError, ModelUnavailableError
 from portfolio_api.metrics import (
+    CHAT_ANSWER_SECONDS,
     CHAT_BUDGET_USED_RATIO,
     CHAT_FEEDBACK,
     CHAT_QUESTIONS,
@@ -204,9 +205,13 @@ class ChatService:
             pairs = await repo.recent_exchanges(session, session_id, HISTORY_PAIRS)
         settled = False  # True once the question is either kept for an answer or given back
         try:
+            started = time.perf_counter()
             try:
                 composed = await self.compose(question, [Exchange(q, a) for q, a in pairs])
             except (ModelBusyError, ModelUnavailableError) as exc:
+                CHAT_ANSWER_SECONDS.labels(outcome=ChatOutcome.error.value).observe(
+                    time.perf_counter() - started
+                )
                 log.warning("chat model failed", error=str(exc))
                 try:
                     async with self._sessions() as session:
@@ -229,6 +234,9 @@ class ChatService:
                     log.exception("could not record chat error", session_id=str(session_id))
                 CHAT_QUESTIONS.labels(outcome=ChatOutcome.error.value).inc()
                 raise
+            CHAT_ANSWER_SECONDS.labels(outcome=composed.outcome.value).observe(
+                time.perf_counter() - started
+            )
             counts = composed.outcome == ChatOutcome.answered
             used_today: int | None = None
             async with self._sessions() as session:

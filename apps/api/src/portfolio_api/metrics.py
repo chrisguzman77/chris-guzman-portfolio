@@ -58,6 +58,13 @@ CHAT_FEEDBACK = Counter(
     ["rating", "outcome"],
     registry=REGISTRY,
 )
+CHAT_ANSWER_SECONDS = Histogram(
+    "chat_answer_seconds",
+    "Time to compose a chat answer (retrieval, model, citation check), by outcome.",
+    ["outcome"],
+    buckets=(0.25, 0.5, 1, 2, 4, 8, 16),
+    registry=REGISTRY,
+)
 CONTACT_SUBMISSIONS = Counter(
     "contact_submissions_total",
     "Contact email delivery attempts by result.",
@@ -100,6 +107,8 @@ for _kind in ("input", "output"):
 for _rating in (r.value for r in ChatFeedback):
     for _outcome in (o.value for o in ChatOutcome):
         CHAT_FEEDBACK.labels(rating=_rating, outcome=_outcome)
+for _outcome in (o.value for o in ChatOutcome):
+    CHAT_ANSWER_SECONDS.labels(outcome=_outcome)
 for _result in ("sent", "failed"):
     CONTACT_SUBMISSIONS.labels(result=_result)
 for _result in ("ok", "error"):

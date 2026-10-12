@@ -476,6 +476,27 @@ async def test_model_errors_are_measured(db: Sessions) -> None:
     assert metric("chat_questions_total", outcome="error") == errors + 1
 
 
+async def test_answer_time_is_measured_by_outcome(db: Sessions) -> None:
+    answered = metric("chat_answer_seconds_count", outcome="answered")
+    no_match = metric("chat_answer_seconds_count", outcome="no_match")
+    errors = metric("chat_answer_seconds_count", outcome="error")
+    chat = service(db)
+    session_id, _ = await chat.open_session(IP)
+    await chat.ask(session_id, IP, "Has he used FastAPI?")
+    assert metric("chat_answer_seconds_count", outcome="answered") == answered + 1
+
+    unmatched = service(db, retriever=FakeRetriever(best=0.1))
+    session_id, _ = await unmatched.open_session(IP)
+    await unmatched.ask(session_id, IP, "Unrelated?")
+    assert metric("chat_answer_seconds_count", outcome="no_match") == no_match + 1
+
+    failing = service(db, FakeChatModel(ModelUnavailableError("groq 500")))
+    session_id, _ = await failing.open_session(IP)
+    with pytest.raises(ModelUnavailableError):
+        await failing.ask(session_id, IP, "q?")
+    assert metric("chat_answer_seconds_count", outcome="error") == errors + 1
+
+
 async def test_budget_gauge_reads_todays_stored_usage(db: Sessions) -> None:
     now = datetime.now(UTC)
     async with db.begin() as session:

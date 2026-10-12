@@ -1,12 +1,16 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.cli import (
+    evaluate,
     format_chats,
     format_feedback,
+    image_commit,
     judge_answerable,
     judge_refusal,
     load_eval_cases,
@@ -15,6 +19,8 @@ from portfolio_api.cli import (
 )
 from portfolio_api.clients.groq import ModelBusyError, ModelReply
 from portfolio_api.models import (
+    ChatEvalKind,
+    ChatEvalRun,
     ChatFeedback,
     ChatMessage,
     ChatOutcome,
@@ -125,9 +131,13 @@ async def test_run_eval_reports_and_records_usage(db: Sessions) -> None:
         "refuse": ["Poem?"],
     }
     lines: list[str] = []
-    failed = await run_eval(chat(db, FakeChatModel()), cases, out=lines.append)
+    results = await run_eval(chat(db, FakeChatModel()), cases, out=lines.append)
     # FakeChatModel always answers "He built it with FastAPI [1]." citing /projects/acm.
-    assert failed == 2
+    assert [(r.id, r.category, r.reason) for r in results] == [
+        ("answerable-01", "answerable", None),
+        ("answerable-02", "answerable", "missing Go"),
+        ("refuse-01", "refuse", "answered instead of refusing"),
+    ]
     assert lines[0].startswith("PASS  FastAPI?")
     assert any(line.startswith("FAIL  Go?") and "missing Go" in line for line in lines)
     assert any(line.startswith("FAIL  Poem?") for line in lines)
@@ -145,11 +155,36 @@ async def test_run_eval_waits_and_retries_when_busy(db: Sessions) -> None:
 
     model = FakeChatModel(ModelBusyError("429"), ModelReply("NO_ANSWER", 10, 1))
     lines: list[str] = []
-    failed = await run_eval(
+    results = await run_eval(
         chat(db, model), {"answerable": [], "refuse": ["Poem?"]}, sleep=sleep, out=lines.append
     )
-    assert failed == 0 and waits == [30.0]
+    assert [r.reason for r in results] == [None] and waits == [30.0]
     assert lines[-1] == "1/1 passed"
+
+
+async def test_run_eval_times_the_answering_attempt_and_counts_tokens(db: Sessions) -> None:
+    times = iter([0.0, 1.5])
+    results = await run_eval(
+        chat(db, FakeChatModel()),
+        {"answerable": [], "refuse": ["Poem?"]},
+        out=lambda _: None,
+        timer=lambda: next(times),
+    )
+    assert (results[0].seconds, results[0].tokens) == (1.5, 1050)
+
+
+async def test_run_eval_gives_up_after_busy_retries_without_timing(db: Sessions) -> None:
+    async def sleep(seconds: float) -> None:
+        return None
+
+    results = await run_eval(
+        chat(db, FakeChatModel(ModelBusyError("429"))),
+        {"answerable": [], "refuse": ["Poem?"]},
+        sleep=sleep,
+        out=lambda _: None,
+    )
+    assert results[0].reason == "model busy after retries"
+    assert (results[0].seconds, results[0].tokens) == (None, 0)
 
 
 def test_reindex_without_directus_token_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -265,3 +300,83 @@ async def test_rated_since_filters_by_rating_and_age_newest_first(db: Sessions) 
 def test_chat_feedback_rejects_an_unknown_rating() -> None:
     with pytest.raises(SystemExit):
         main(["chat-feedback", "--rating", "meh"])
+
+
+def read(path: Path) -> str:
+    return path.read_text()  # sync: ruff forbids blocking file I/O inside async tests
+
+
+async def test_evaluate_records_a_run_and_writes_the_summary(db: Sessions, tmp_path: Path) -> None:
+    cases = {
+        "answerable": [
+            {"question": "FastAPI?", "must_include": ["FastAPI"], "sources": ["/projects/acm"]},
+            {"question": "Go?", "must_include": ["Go"], "sources": ["/projects/acm"]},
+        ],
+        "refuse": ["Poem?"],
+    }
+    golden = [
+        {"question": "ACM?", "expect": ["ACM@AU"]},  # FakeRetriever's only hit: rank 1
+        {"question": "Spark?", "expect": ["Cyber Threat Lakehouse"]},  # not retrieved
+    ]
+    times = iter([0.0, 1.0, 10.0, 12.0, 20.0, 24.0])  # compose takes 1 s, 2 s, 4 s
+    summary = tmp_path / "chat-eval.md"
+    lines: list[str] = []
+    failed = await evaluate(
+        chat(db, FakeChatModel()),
+        FakeRetriever(),
+        cases=cases,
+        golden=golden,
+        commit="abc1234def",
+        record=db,
+        summary_file=summary,
+        out=lines.append,
+        timer=lambda: next(times),
+    )
+    assert failed == 2
+    async with db() as session:
+        run = (await session.scalars(select(ChatEvalRun))).one()
+    assert run.kind == ChatEvalKind.answer and run.commit == "abc1234def"
+    assert run.started_at <= run.finished_at
+    assert (run.cases, run.passed) == (3, 1)
+    assert (run.answer_pass_rate, run.refusal_pass_rate) == (0.5, 0.0)
+    assert (run.hit_at_5, run.mrr) == (0.5, 0.5)
+    assert (run.latency_p50_ms, run.latency_p95_ms) == (2000, 4000)
+    assert run.tokens_per_question == 1050.0
+    assert run.failures == [
+        {"id": "answerable-02", "category": "answerable", "reason": "missing Go"},
+        {"id": "refuse-01", "category": "refuse", "reason": "answered instead of refusing"},
+    ]
+    text = read(summary)
+    assert text.startswith("## Chat eval (answer)\n") and text.endswith("\n")
+    assert "\n".join(lines).endswith("\n\n" + text.rstrip("\n"))  # printed after a blank line
+
+
+async def test_evaluate_without_record_writes_no_row(db: Sessions) -> None:
+    failed = await evaluate(
+        chat(db, FakeChatModel()),
+        FakeRetriever(),
+        cases={"answerable": [], "refuse": ["Poem?"]},
+        golden=[],
+        commit=None,
+        out=lambda _: None,
+    )
+    assert failed == 1
+    async with db() as session:
+        assert (await session.scalars(select(ChatEvalRun))).first() is None
+
+
+def test_chat_eval_redteam_is_not_available_yet(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["chat-eval", "--kind", "redteam", "--record"]) == 1
+    assert "no redteam cases yet" in capsys.readouterr().err
+
+
+def test_chat_eval_rejects_an_unknown_kind() -> None:
+    with pytest.raises(SystemExit):
+        main(["chat-eval", "--kind", "nope"])
+
+
+def test_image_commit_is_a_git_sha_or_none() -> None:
+    sha = "0123456789abcdef0123456789abcdef01234567"
+    assert image_commit(sha) == sha
+    assert image_commit("abc1234") == "abc1234"
+    assert image_commit("dev") is None and image_commit("latest") is None
