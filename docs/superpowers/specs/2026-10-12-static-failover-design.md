@@ -63,8 +63,8 @@ The pointer is written last, so a half-finished upload is never served.
      - Set `Content-Security-Policy` to the CSP captured at crawl time. It names the nonce baked into that HTML.
      - Add `x-served-from: snapshot`, `cache-control: no-store` and `x-robots-tag: noindex`.
      - Use `HTMLRewriter` to:
-       - append a `<style>` to `<head>` that hides `[data-live-feature]` (`display: none !important`);
-       - insert a banner `<div id="snapshot-banner" role="status">` as the first child of `<body>`: "This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at chguzman@augusta.edu".
+       - append a `<style>` to `<head>` that hides `[data-live-feature]` (`display: none !important`) and pads the bottom of `<body>` so the banner never covers content;
+       - append a banner `<div id="snapshot-banner" role="status">`, fixed to the bottom of the viewport, as the **last** child of `<body>`. Prepending it as the first child breaks hydration (React error #418, confirmed by the Playwright failover test), while appending it hydrates cleanly. The banner text: "This is a backup copy of the site while my server is offline. Chat and the contact form are paused; email me at chguzman@augusta.edu".
      - Nothing is deleted from the HTML. Deleting server-rendered elements would make React's hydration mismatch and re-render them. React 19 skips unexpected tags inserted in `<head>`/`<body>`, so the style and banner don't trigger a mismatch.
    - **Static assets:** keep their immutable caching.
    - **Status:** 200 for found objects.
