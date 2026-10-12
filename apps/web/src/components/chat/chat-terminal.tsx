@@ -20,6 +20,8 @@ import {
   CHAT_MESSAGES,
   askQuestion,
   createSession,
+  sendFeedback,
+  type ChatRating,
   type ChatSource,
 } from "@/lib/chat";
 
@@ -33,7 +35,15 @@ const STEP = 5;
 
 type Line =
   | { id: number; kind: "question"; text: string }
-  | { id: number; kind: "answer"; text: string; sources: ChatSource[]; animate: boolean }
+  | {
+      id: number;
+      kind: "answer";
+      text: string;
+      sources: ChatSource[];
+      animate: boolean;
+      sessionId: string; // kept per line: a session that hit its limit can still rate its replies
+      messageId: number;
+    }
   | { id: number; kind: "notice"; text: string };
 
 // Omit does not distribute over a union, so spell the id-less variants out.
@@ -108,6 +118,68 @@ function useVisibleArea(active: boolean): Visible | null {
     };
   }, [active]);
   return visible;
+}
+
+type FeedbackState = "idle" | "sending" | "saved" | "failed";
+
+const feedbackButton =
+  "rounded px-0.5 focus-visible:outline-2 focus-visible:outline-accent-brand disabled:cursor-default";
+
+// helpful? [y] [n] under every reply, canned ones included. Each reply keeps its own state.
+function AnswerFeedback({
+  apiUrl,
+  sessionId,
+  messageId,
+}: {
+  apiUrl: string;
+  sessionId: string;
+  messageId: number;
+}) {
+  const [state, setState] = useState<FeedbackState>("idle");
+  const [chosen, setChosen] = useState<ChatRating | null>(null);
+
+  async function rate(rating: ChatRating) {
+    setChosen(rating);
+    setState("sending"); // both buttons wait, so a double click sends one rating
+    setState((await sendFeedback(apiUrl, sessionId, messageId, rating)) ? "saved" : "failed");
+  }
+
+  function button(rating: ChatRating, key: string, label: string) {
+    const pressed = state === "saved" && chosen === rating;
+    const color =
+      state !== "saved"
+        ? "text-accent-brand hover:opacity-80"
+        : pressed
+          ? "text-foreground"
+          : "text-muted-foreground";
+    return (
+      <button
+        type="button"
+        onClick={() => void rate(rating)}
+        disabled={state === "sending" || state === "saved"}
+        aria-label={label}
+        aria-pressed={pressed}
+        className={`${feedbackButton} ${color}`}
+      >
+        {`[${key}]`}
+      </button>
+    );
+  }
+
+  return (
+    <p className="text-muted-foreground">
+      {CHAT_MESSAGES.helpful} {button("up", "y", "Mark answer helpful")}{" "}
+      {button("down", "n", "Mark answer not helpful")}{" "}
+      {/* Always rendered, so a change of text is announced. */}
+      <span role="status" className="ml-2">
+        {state === "saved"
+          ? CHAT_MESSAGES.feedbackSaved
+          : state === "failed"
+            ? CHAT_MESSAGES.feedbackFailed
+            : ""}
+      </span>
+    </p>
+  );
 }
 
 export function ChatTerminal({
@@ -212,6 +284,8 @@ export function ChatTerminal({
         text: result.answer,
         sources: result.sources,
         animate: !reducedMotion(),
+        sessionId: session.id,
+        messageId: result.messageId,
       });
       // An unchanged live region is not announced again, so alternate a zero-width suffix.
       setAnnouncement((previous) =>
@@ -429,6 +503,11 @@ export function ChatTerminal({
                     </Link>
                   ))}
                 </p>
+                <AnswerFeedback
+                  apiUrl={apiUrl}
+                  sessionId={line.sessionId}
+                  messageId={line.messageId}
+                />
               </div>
             ) : (
               <p key={line.id} role="status" className="text-muted-foreground">

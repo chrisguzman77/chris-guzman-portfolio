@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CHAT_MESSAGES, askQuestion, createSession, failureFor } from "./chat";
+import { CHAT_MESSAGES, askQuestion, createSession, failureFor, sendFeedback } from "./chat";
 
 const API = "https://api.example.com";
 
@@ -67,6 +67,7 @@ describe("createSession", () => {
 
 describe("askQuestion", () => {
   const answer = {
+    message_id: 41,
     answer: "Yes [1].",
     sources: [{ n: 1, title: "ACM", url: "/projects/acm" }],
     outcome: "answered",
@@ -77,6 +78,7 @@ describe("askQuestion", () => {
     const fetchMock = respond(200, answer);
     await expect(askQuestion(API, "s-1", "FastAPI?")).resolves.toEqual({
       kind: "answer",
+      messageId: 41,
       answer: "Yes [1].",
       sources: [{ n: 1, title: "ACM", url: "/projects/acm" }],
       outcome: "answered",
@@ -107,6 +109,31 @@ describe("askQuestion", () => {
   });
 });
 
+describe("sendFeedback", () => {
+  it("posts the rating to the answer's feedback URL", async () => {
+    const fetchMock = respond(204);
+    await expect(sendFeedback(API, "s-1", 41, "down")).resolves.toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${API}/v1/chat/sessions/s-1/messages/41/feedback`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ rating: "down" });
+  });
+
+  it.each([
+    [404, "message_not_found"],
+    [429, "rate_limited"],
+    [503, "chat_disabled"],
+  ])("returns false for %i %s", async (status, code) => {
+    respond(status, { error: { code, message: "x" } });
+    await expect(sendFeedback(API, "s-1", 41, "up")).resolves.toBe(false);
+  });
+
+  it("returns false when the network fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    await expect(sendFeedback(API, "s-1", 41, "up")).resolves.toBe(false);
+  });
+});
+
 it("keeps the exact terminal copy", () => {
   expect(CHAT_MESSAGES).toEqual({
     welcome:
@@ -118,5 +145,8 @@ it("keeps the exact terminal copy", () => {
     ended: "This session has ended. Press clear to start a new one.",
     unavailable: "Chat is unavailable right now. Try the contact page.",
     tooLong: "Questions can be up to 500 characters.",
+    helpful: "helpful?",
+    feedbackSaved: "thanks: noted",
+    feedbackFailed: "couldn't save feedback",
   });
 });

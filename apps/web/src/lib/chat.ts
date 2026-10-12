@@ -12,9 +12,13 @@ export const CHAT_MESSAGES = {
   ended: "This session has ended. Press clear to start a new one.",
   unavailable: "Chat is unavailable right now. Try the contact page.",
   tooLong: "Questions can be up to 500 characters.",
+  helpful: "helpful?",
+  feedbackSaved: "thanks: noted",
+  feedbackFailed: "couldn't save feedback",
 } as const;
 
 export type ChatSource = { n: number; title: string; url: string };
+export type ChatRating = "up" | "down";
 export type ChatFailure = "budget" | "busy" | "sessionLimit" | "ended" | "unavailable";
 export type SessionResult =
   | { kind: "ok"; sessionId: string; questionsLeft: number }
@@ -22,6 +26,7 @@ export type SessionResult =
 export type AskResult =
   | {
       kind: "answer";
+      messageId: number;
       answer: string;
       sources: ChatSource[];
       outcome: "answered" | "no_match" | "uncited";
@@ -32,6 +37,7 @@ export type AskResult =
 const ErrorBody = z.object({ error: z.object({ code: z.string() }) });
 const SessionBody = z.object({ session_id: z.string(), questions_left: z.number() });
 const AnswerBody = z.object({
+  message_id: z.number(),
   answer: z.string(),
   sources: z.array(z.object({ n: z.number(), title: z.string(), url: z.string() })),
   outcome: z.enum(["answered", "no_match", "uncited"]),
@@ -107,6 +113,7 @@ export async function askQuestion(
     return parsed.success
       ? {
           kind: "answer",
+          messageId: parsed.data.message_id,
           answer: parsed.data.answer,
           sources: parsed.data.sources,
           outcome: parsed.data.outcome,
@@ -115,4 +122,18 @@ export async function askQuestion(
       : { kind: "error", failure: "unavailable" };
   }
   return { kind: "error", failure: await failureFrom(res) };
+}
+
+// One rating per reply; the API keeps the last one. A rating never uses up a question.
+export async function sendFeedback(
+  apiUrl: string,
+  sessionId: string,
+  messageId: number,
+  rating: ChatRating,
+): Promise<boolean> {
+  const res = await post(
+    `${apiUrl}/v1/chat/sessions/${encodeURIComponent(sessionId)}/messages/${messageId}/feedback`,
+    { rating },
+  );
+  return res?.status === 204;
 }
