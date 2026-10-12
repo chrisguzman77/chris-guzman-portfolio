@@ -1,0 +1,102 @@
+name: snapshot
+
+# Crawl the live public site and publish it to R2 for the failover Worker
+# (infra/cloudflare/worker-fallback.mjs). Runs after every successful release
+# and nightly (content published in Directus). The pointer current.json is
+# written last, so a half-finished upload is never served. If the crawl's
+# safety checks fail (site down, already in failover), nothing is uploaded and
+# the previous snapshot stays live.
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "15 8 * * *" # 04:15 Eastern, after the 03:30 backup
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BUCKET: portfolio-snapshot
+      PREFIX: snapshots/${{ github.run_id }}/
+      AWS_DEFAULT_REGION: auto
+      R2: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Crawl the public site
+        run: node scripts/snapshot/crawl.mjs --origin https://christopherguzman.me --out snapshot | tee crawl.log
+
+      - name: Check R2 setup
+        id: setup
+        env:
+          HAS_KEY: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID != '' }}
+        run: |
+          if [[ "${HAS_KEY}" == "true" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Snapshot not uploaded::R2_SNAPSHOT_ACCESS_KEY_ID is not set yet; the crawl ran and validated, upload skipped. See infra/cloudflare/README.md."
+          fi
+
+      - name: Upload snapshot
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
+        run: aws s3 cp snapshot/ "s3://${BUCKET}/${PREFIX}" --recursive --endpoint-url "$R2" --only-show-errors
+
+      - name: Switch current.json to the new snapshot
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
+        run: |
+          jq -n --arg prefix "$PREFIX" --arg createdAt "$(jq -r .createdAt snapshot/manifest.json)" \
+            --arg commit "$GITHUB_SHA" '{prefix: $prefix, createdAt: $createdAt, commit: $commit}' > current.json
+          cat current.json
+          aws s3 cp current.json "s3://${BUCKET}/current.json" --content-type application/json \
+            --endpoint-url "$R2" --only-show-errors
+
+      - name: Prune all but the newest 3 snapshots
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_SNAPSHOT_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SNAPSHOT_SECRET_ACCESS_KEY }}
+        run: |
+          # "aws s3 ls" prints one "PRE <run-id>/" line per prefix; run ids grow, so numeric order is age.
+          aws s3 ls "s3://${BUCKET}/snapshots/" --endpoint-url "$R2" \
+            | awk '$1 == "PRE" { sub("/$", "", $2); print $2 }' \
+            | grep -E '^[0-9]+$' | sort -n | head -n -3 > old.txt
+          while read -r id; do
+            [[ "${id}" == "${GITHUB_RUN_ID}" ]] && continue
+            echo "pruning snapshots/${id}/"
+            aws s3 rm "s3://${BUCKET}/snapshots/${id}/" --recursive --endpoint-url "$R2" --only-show-errors
+          done < old.txt
+
+      - name: Summary
+        if: always()
+        env:
+          UPLOADED: ${{ steps.setup.outputs.ready }}
+        run: |
+          {
+            echo "### Snapshot"
+            if [[ -f crawl.log ]]; then echo '```'; cat crawl.log; echo '```'; fi
+            if [[ "${UPLOADED}" == "true" ]]; then echo "Prefix: \`${PREFIX}\`"; else echo "Not uploaded."; fi
+          } >> "$GITHUB_STEP_SUMMARY"

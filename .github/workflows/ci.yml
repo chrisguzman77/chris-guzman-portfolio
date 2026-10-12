@@ -148,7 +148,7 @@ jobs:
         with:
           node-version: 24
       - name: Fallback Worker and CMS bootstrap tests
-        run: node --test infra/cloudflare/worker-fallback.test.mjs infra/directus/lib.test.mjs
+        run: node --test scripts/snapshot/crawl.test.mjs infra/cloudflare/worker-fallback.test.mjs infra/directus/lib.test.mjs
       - name: Validate compose files
         run: |
           docker compose -f infra/compose/compose.dev.yaml config -q
