@@ -39,6 +39,7 @@ function Frame({
   return (
     <section
       aria-label="Site status"
+      data-live-feature=""
       className="w-full rounded-[10px] border border-border bg-card px-4 py-3.5 font-mono text-[11.5px] text-muted-foreground md:max-w-[380px]"
     >
       <p className="mb-2 flex items-center gap-1.5">

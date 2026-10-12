@@ -77,6 +77,7 @@ export function SubscribeForm({ apiUrl, siteKey }: { apiUrl: string; siteKey: st
   return (
     <section
       aria-labelledby={`${id}-heading`}
+      data-live-feature=""
       className="rounded-[10px] border border-border bg-card p-5"
     >
       <h2 id={`${id}-heading`} className="text-[15px] font-semibold">

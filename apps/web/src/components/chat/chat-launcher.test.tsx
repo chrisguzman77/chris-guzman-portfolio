@@ -53,6 +53,11 @@ describe("ChatLauncher", () => {
     expect(pill()?.querySelector("kbd")?.textContent).toBe(label);
   });
 
+  it("marks the pill as a live feature", async () => {
+    await renderLauncher();
+    expect(pill()?.getAttribute("data-live-feature")).toBe("");
+  });
+
   it("gives the pill a visible focus ring", async () => {
     await renderLauncher();
     expect(pill()?.className).toContain("focus-visible:outline");

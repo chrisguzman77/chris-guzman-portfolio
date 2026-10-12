@@ -122,6 +122,7 @@ export function ChatLauncher({
       {open ? null : (
         <button
           ref={pillRef}
+          data-live-feature=""
           type="button"
           onClick={show}
           aria-keyshortcuts={label === "⌘K" ? "Meta+K" : label ? "Control+K" : undefined}

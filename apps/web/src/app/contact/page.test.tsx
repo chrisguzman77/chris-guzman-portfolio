@@ -49,6 +49,13 @@ describe("/contact", () => {
     expect(container.textContent).not.toMatch(/\+?\d[\d\s().-]{8,}\d/);
   });
 
+  it("marks the contact form section as a live feature", async () => {
+    vi.mocked(getProfile).mockResolvedValue(profile);
+    render(await ContactPage());
+    const section = screen.getByRole("heading", { name: "Send a message" }).closest("section");
+    expect(section?.getAttribute("data-live-feature")).toBe("");
+  });
+
   it("leaves the FAQ out when there are no entries", async () => {
     vi.mocked(getProfile).mockResolvedValue(profile);
     render(await ContactPage());
