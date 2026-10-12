@@ -8,6 +8,7 @@ import {
   ChatSettingsSchema,
   EducationSchema,
   ExperienceSchema,
+  FaqSchema,
   InvolvementSchema,
   PostAssetRefSchema,
   PostSchema,
@@ -19,6 +20,7 @@ import {
   type ChatSettings,
   type Education,
   type Experience,
+  type Faq,
   type Involvement,
   type Post,
   type PostAssetRef,
@@ -127,6 +129,10 @@ export function getInvolvement(): Promise<Involvement[]> {
 
 export function getCertifications(): Promise<Certification[]> {
   return getList("certifications", CertificationSchema, "sort");
+}
+
+export function getFaq(): Promise<Faq[]> {
+  return getList("faq", FaqSchema, "sort");
 }
 
 export function getProjects(): Promise<Project[]> {

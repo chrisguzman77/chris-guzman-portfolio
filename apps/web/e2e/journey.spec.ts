@@ -48,6 +48,16 @@ test("contact: validation, then send", async ({ page }) => {
   await expectNoAxeViolations(page);
 });
 
+test("contact: FAQ answers open on click", async ({ page }) => {
+  await page.goto("/contact");
+  await expect(page.getByRole("heading", { name: "Questions recruiters ask" })).toBeVisible();
+  const answer = page.getByText("No. I'm a US citizen and don't need sponsorship.");
+  await expect(answer).toBeHidden();
+  await page.getByText("Do you need visa sponsorship?").click();
+  await expect(answer).toBeVisible();
+  await expectNoAxeViolations(page);
+});
+
 test("chat: ask a question, get a cited answer", async ({ page, isMobile }) => {
   await page.goto("/");
   const terminal = page.getByRole("region", { name: "Ask about Chris" });

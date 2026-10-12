@@ -73,6 +73,12 @@ export const CertificationSchema = z.object({
   url: httpUrl,
 });
 
+export const FaqSchema = z.object({
+  id: z.number(),
+  question: z.string(),
+  answer_md: z.string(),
+});
+
 export const ProjectSchema = z.object({
   id: z.number(),
   slug: z.string(),
@@ -126,6 +132,7 @@ export type Degree = z.infer<typeof DegreeSchema>;
 export type Education = z.infer<typeof EducationSchema>;
 export type Involvement = z.infer<typeof InvolvementSchema>;
 export type Certification = z.infer<typeof CertificationSchema>;
+export type Faq = z.infer<typeof FaqSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Post = z.infer<typeof PostSchema>;
 export type PostSummary = z.infer<typeof PostSummarySchema>;
