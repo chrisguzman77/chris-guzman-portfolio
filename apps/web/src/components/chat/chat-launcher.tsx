@@ -19,6 +19,10 @@ const ChatTerminal = lazy(() =>
   import("./chat-terminal").then((module) => ({ default: module.ChatTerminal })),
 );
 
+// The failover Worker adds this banner to the backup copy, where chat has no server to talk to.
+// Checked when used, since the banner is in the HTML before hydration but the check is cheap.
+const inFailover = () => document.getElementById("snapshot-banner") !== null;
+
 const subscribe = () => () => {};
 const readLabel = () =>
   shortcutLabel(currentPlatform(), window.matchMedia("(pointer: coarse)").matches);
@@ -75,6 +79,7 @@ export function ChatLauncher({
   const restoreFocus = useRef(false);
 
   const show = useCallback(() => {
+    if (inFailover()) return;
     returnFocus.current = document.activeElement as HTMLElement | null;
     setLoaded(true);
     setOpen(true);
@@ -99,7 +104,7 @@ export function ChatLauncher({
   useEffect(() => {
     const apple = isApplePlatform(currentPlatform());
     function onKey(event: KeyboardEvent) {
-      if (!isChatShortcut(event, apple)) return;
+      if (!isChatShortcut(event, apple) || inFailover()) return;
       event.preventDefault();
       if (open) hide();
       else show();

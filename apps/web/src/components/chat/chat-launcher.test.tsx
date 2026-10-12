@@ -230,6 +230,38 @@ describe("ChatLauncher", () => {
     });
   });
 
+  describe("in the failover backup copy", () => {
+    let banner: HTMLElement;
+    beforeEach(() => {
+      banner = document.createElement("div");
+      banner.id = "snapshot-banner";
+      document.body.appendChild(banner);
+    });
+    afterEach(() => banner.remove());
+
+    it("ignores the shortcut and the pill", async () => {
+      await renderLauncher();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "k", metaKey: true });
+      });
+      await act(async () => {
+        fireEvent.click(pill()!);
+      });
+      expect(screen.queryByRole("region")).toBeNull();
+      expect(pill()).toBeTruthy();
+    });
+
+    it("checks at event time, so a banner added after mount still blocks it", async () => {
+      banner.remove();
+      await renderLauncher();
+      document.body.appendChild(banner);
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "k", metaKey: true });
+      });
+      expect(screen.queryByRole("region")).toBeNull();
+    });
+  });
+
   it("carries the periodic glow effect", async () => {
     await renderLauncher();
     expect(pill()?.classList.contains("chat-pill-glow")).toBe(true);
