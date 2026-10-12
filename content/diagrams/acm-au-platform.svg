@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="t d">
   <title id="t">ACM@AU platform production topology</title>
-  <desc id="d">Visitors reach Cloudflare (TLS, DNS, Access on the admin area), which forwards requests through an outbound-only tunnel to cloudflared on an Oracle Cloud ARM VM running Docker Compose. cloudflared sends requests to the SvelteKit frontend, which calls the FastAPI backend, which stores users, pages and verdicts in Postgres. FastAPI caches leaderboards in Redis and sends code submissions to a sandboxed Piston judge on an internal-only network with no public port.</desc>
+  <desc id="d">Visitors reach Cloudflare (TLS, DNS), which forwards requests through an outbound-only tunnel to cloudflared on an Oracle Cloud ARM VM running Docker Compose. cloudflared sends requests to the SvelteKit frontend, which calls the FastAPI backend, which stores users, pages and verdicts in Postgres. FastAPI caches leaderboards in Redis and sends code submissions to a sandboxed Piston judge on an internal-only network with no public port.</desc>
   <defs>
     <marker id="ah-accent" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#0d7a57"/>
@@ -50,7 +50,7 @@
     <text x="100" y="81" font-size="19" font-weight="600">Visitor</text>
 
     <text x="430" y="66" font-size="20" font-weight="600">Cloudflare</text>
-    <text x="430" y="95" font-size="15">TLS · DNS · Access on /admin</text>
+    <text x="430" y="95" font-size="15">TLS · DNS</text>
 
     <text x="155" y="322" font-size="19" font-weight="600">cloudflared</text>
 
