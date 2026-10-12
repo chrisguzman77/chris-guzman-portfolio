@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="t d">
+  <title id="t">OFFRes / OFFPay architecture</title>
+  <desc id="d">Everything runs offline on a Raspberry Pi 5 kiosk. A user on the touchscreen uses the kiosk UI (React in Chromium), which calls the FastAPI backend holding the wallet ledger in SQLite. Paying creates a transaction that is signed with HMAC-SHA256 and a per-transaction nonce and shown as a QR code. A separate vendor app scans the QR code, asks the device to accept it (the device checks the HMAC), and later syncs accepted payments to settle them. The assistant retrieves the top three chunks from nine knowledge-base documents with BM25 and runs TinyLlama 1.1B through llama.cpp. Accent bars mark the backend API with the wallet ledger and the QR signing, which are my part.</desc>
+  <defs>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d7a57"/>
+    </marker>
+    <marker id="ah-gray" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="639" fill="#ffffff" stroke="#e6e8eb" stroke-width="1"/>
+
+  <!-- Raspberry Pi boundary -->
+  <rect x="230" y="40" width="940" height="360" rx="14" fill="none" stroke="#4b5563" stroke-width="1.5" stroke-dasharray="8 6"/>
+
+  <!-- Boxes -->
+  <g fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5">
+    <rect x="40" y="110" width="150" height="80" rx="10"/>
+    <rect x="270" y="100" width="220" height="100" rx="10"/>
+    <rect x="570" y="100" width="260" height="100" rx="10"/>
+    <rect x="570" y="260" width="260" height="80" rx="10"/>
+    <rect x="900" y="100" width="230" height="100" rx="10"/>
+    <rect x="900" y="260" width="230" height="80" rx="10"/>
+    <rect x="570" y="460" width="260" height="80" rx="10"/>
+  </g>
+
+  <!-- Accent bars: my part -->
+  <g fill="#0d7a57">
+    <rect x="570" y="110" width="3" height="80"/>
+    <rect x="570" y="270" width="3" height="60"/>
+  </g>
+
+  <!-- Arrows: payment path -->
+  <g stroke="#0d7a57" stroke-width="2.5" fill="none" marker-end="url(#ah-accent)">
+    <line x1="190" y1="150" x2="270" y2="150"/>
+    <line x1="490" y1="150" x2="570" y2="150"/>
+    <line x1="700" y1="200" x2="700" y2="260"/>
+    <line x1="700" y1="340" x2="700" y2="460"/>
+    <path d="M830,500 H865 V180 H830"/>
+  </g>
+
+  <!-- Arrows: assistant -->
+  <g stroke="#4b5563" stroke-width="2" fill="none" marker-end="url(#ah-gray)">
+    <line x1="830" y1="125" x2="900" y2="125"/>
+    <line x1="1015" y1="200" x2="1015" y2="260"/>
+  </g>
+
+  <!-- Box labels -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" text-anchor="middle">
+    <text x="115" y="145" font-size="19" font-weight="600">User</text>
+    <text x="115" y="169" font-size="15">touchscreen</text>
+
+    <text x="380" y="138" font-size="19" font-weight="600">Kiosk UI</text>
+    <text x="380" y="162" font-size="15">React · Chromium</text>
+    <text x="380" y="184" font-size="15">wallet · map · assistant</text>
+
+    <text x="700" y="143" font-size="19" font-weight="600">FastAPI backend</text>
+    <text x="700" y="168" font-size="15">wallet ledger · SQLite</text>
+
+    <text x="700" y="295" font-size="19" font-weight="600">QR signing</text>
+    <text x="700" y="319" font-size="15">HMAC-SHA256 · nonce</text>
+
+    <text x="1015" y="143" font-size="19" font-weight="600">Retrieval</text>
+    <text x="1015" y="168" font-size="15">BM25 · 9 docs</text>
+
+    <text x="1015" y="295" font-size="19" font-weight="600">llama.cpp</text>
+    <text x="1015" y="319" font-size="15">TinyLlama 1.1B</text>
+
+    <text x="700" y="495" font-size="19" font-weight="600">Vendor app</text>
+    <text x="700" y="519" font-size="15">React · QR scanner</text>
+  </g>
+
+  <!-- Arrow and group labels -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" font-size="15">
+    <text x="712" y="236">pay</text>
+    <text x="688" y="436" text-anchor="end">signed QR on screen</text>
+    <text x="878" y="478">accept: device checks HMAC</text>
+    <text x="878" y="500">later: sync to settle</text>
+    <text x="1027" y="236">top-3 chunks</text>
+  </g>
+  <text x="250" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#16191d">Raspberry Pi 5 · offline</text>
+
+  <!-- Legend -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" font-size="15">
+    <rect x="40" y="588" width="40" height="26" rx="5" fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5"/>
+    <rect x="40" y="592" width="3" height="18" fill="#0d7a57"/>
+    <text x="92" y="606">accent = my part</text>
+    <line x1="290" y1="601" x2="334" y2="601" stroke="#0d7a57" stroke-width="2.5" marker-end="url(#ah-accent)"/>
+    <text x="346" y="606">payment path</text>
+  </g>
+</svg>

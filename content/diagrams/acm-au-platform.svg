@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="t d">
+  <title id="t">ACM@AU platform production topology</title>
+  <desc id="d">Visitors reach Cloudflare (TLS, DNS, Access on the admin area), which forwards requests through an outbound-only tunnel to cloudflared on an Oracle Cloud ARM VM running Docker Compose. cloudflared sends requests to the SvelteKit frontend, which calls the FastAPI backend, which stores users, pages and verdicts in Postgres. FastAPI caches leaderboards in Redis and sends code submissions to a sandboxed Piston judge on an internal-only network with no public port.</desc>
+  <defs>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d7a57"/>
+    </marker>
+    <marker id="ah-gray" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="659" fill="#ffffff" stroke="#e6e8eb" stroke-width="1"/>
+
+  <!-- VM boundary and internal-only network -->
+  <g fill="none" stroke="#4b5563" stroke-width="1.5" stroke-dasharray="8 6">
+    <rect x="30" y="160" width="1140" height="440" rx="14"/>
+    <rect x="600" y="400" width="300" height="170" rx="12"/>
+  </g>
+
+  <!-- Boxes -->
+  <g fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5">
+    <rect x="30" y="42" width="140" height="64" rx="10"/>
+    <rect x="220" y="30" width="420" height="88" rx="10"/>
+    <rect x="60" y="280" width="190" height="70" rx="10"/>
+    <rect x="330" y="280" width="220" height="70" rx="10"/>
+    <rect x="630" y="280" width="240" height="70" rx="10"/>
+    <rect x="950" y="280" width="200" height="70" rx="10"/>
+    <rect x="950" y="410" width="200" height="70" rx="10"/>
+    <rect x="630" y="420" width="240" height="100" rx="10"/>
+  </g>
+
+  <!-- Arrows: main request path -->
+  <g stroke="#0d7a57" stroke-width="2.5" fill="none" marker-end="url(#ah-accent)">
+    <line x1="170" y1="74" x2="220" y2="74"/>
+    <line x1="235" y1="118" x2="235" y2="280"/>
+    <line x1="250" y1="315" x2="330" y2="315"/>
+    <line x1="550" y1="315" x2="630" y2="315"/>
+    <line x1="870" y1="315" x2="950" y2="315"/>
+  </g>
+
+  <!-- Arrows: other -->
+  <g stroke="#4b5563" stroke-width="2" fill="none" marker-end="url(#ah-gray)">
+    <line x1="870" y1="340" x2="950" y2="430"/>
+    <line x1="750" y1="350" x2="750" y2="420"/>
+  </g>
+
+  <!-- Box labels -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" text-anchor="middle">
+    <text x="100" y="81" font-size="19" font-weight="600">Visitor</text>
+
+    <text x="430" y="66" font-size="20" font-weight="600">Cloudflare</text>
+    <text x="430" y="95" font-size="15">TLS · DNS · Access on /admin</text>
+
+    <text x="155" y="322" font-size="19" font-weight="600">cloudflared</text>
+
+    <text x="440" y="310" font-size="19" font-weight="600">SvelteKit</text>
+    <text x="440" y="334" font-size="15">frontend · BFF</text>
+
+    <text x="750" y="310" font-size="19" font-weight="600">FastAPI</text>
+    <text x="750" y="334" font-size="15">auth · CMS · challenges</text>
+
+    <text x="1050" y="310" font-size="19" font-weight="600">Postgres</text>
+    <text x="1050" y="334" font-size="15">users · pages · verdicts</text>
+
+    <text x="1050" y="440" font-size="19" font-weight="600">Redis</text>
+    <text x="1050" y="464" font-size="15">leaderboard cache</text>
+
+    <text x="750" y="452" font-size="19" font-weight="600">Judge</text>
+    <text x="750" y="476" font-size="15">Piston sandbox</text>
+    <text x="750" y="498" font-size="15">no public port</text>
+  </g>
+
+  <!-- Technical (mono) labels -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#16191d" font-size="14">
+    <text x="225" y="196" text-anchor="end" font-size="15">Tunnel</text>
+    <text x="225" y="216" text-anchor="end">outbound-only</text>
+    <text x="762" y="383">submissions</text>
+    <text x="616" y="556">internal-only network</text>
+    <text x="50" y="586" font-size="15">Oracle Cloud ARM VM · Docker Compose</text>
+  </g>
+
+  <!-- Legend -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" font-size="15">
+    <line x1="40" y1="630" x2="84" y2="630" stroke="#0d7a57" stroke-width="2.5" marker-end="url(#ah-accent)"/>
+    <text x="96" y="635">request path</text>
+  </g>
+</svg>
