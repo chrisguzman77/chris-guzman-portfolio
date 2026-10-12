@@ -230,3 +230,29 @@ test("checkSafety flags fewer than 10 pages", () => {
   assert.equal(problems.length, 1);
   assert.match(problems[0], /9 pages/);
 });
+
+const miss = (k, status, error) => ({ kind: "asset", key: k, status, headers: {}, body: Buffer.alloc(0), error });
+
+test("checkSafety allows a 404 asset (a stale reference stays a warning)", () => {
+  assert.deepEqual(checkSafety(healthy(), [miss("/cms-assets/old-uuid", 404)]), []);
+});
+
+for (const status of [403, 429, 503]) {
+  test(`checkSafety flags an asset that returned ${status}`, () => {
+    const problems = checkSafety(healthy(), [miss("/cms-assets/abc", status)]);
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], new RegExp(`/cms-assets/abc returned ${status}`));
+  });
+}
+
+test("checkSafety flags an asset with no response (network error or timeout)", () => {
+  const problems = checkSafety(healthy(), [miss("/icon.svg", 0, "The operation was aborted due to timeout")]);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /\/icon\.svg returned no response \(The operation was aborted due to timeout\)/);
+});
+
+test("checkSafety flags a /_next/static miss of any status, 404 included", () => {
+  const problems = checkSafety(healthy(), [miss("/_next/static/chunks/gone.js", 404)]);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /\/_next\/static\/chunks\/gone\.js returned 404/);
+});

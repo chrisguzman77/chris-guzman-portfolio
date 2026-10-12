@@ -149,10 +149,19 @@ export function fileName(key) {
 
 /**
  * Problems that must stop the upload. results: [{ kind: "page"|"asset", key, status, headers, body }]
- * with lowercase header names.
+ * with lowercase header names. skipped: assets that did not return 200 ({ key, status, error }).
+ * A 404 is a stale reference (old CMS file, OG URL) and only a warning; a network error (status 0),
+ * 403, 429 or 5xx means the origin or Cloudflare failed mid-crawl, and a /_next/static miss of any
+ * status leaves pages without their CSS or JS, so those abort.
  */
-export function checkSafety(results) {
+export function checkSafety(results, skipped = []) {
   const problems = [];
+  for (const s of skipped) {
+    const failed = s.status === 0 || s.status === 403 || s.status === 429 || s.status >= 500;
+    if (failed || s.key.startsWith("/_next/static/")) {
+      problems.push(`asset ${s.key} returned ${s.status || `no response (${s.error})`}`);
+    }
+  }
   const pages = results.filter((r) => r.kind === "page");
   for (const p of pages) {
     if (p.status !== 200) problems.push(`page ${p.key} returned ${p.status}, expected 200`);

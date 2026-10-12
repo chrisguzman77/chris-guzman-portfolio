@@ -73,6 +73,7 @@ function claim(url, keyFn = assetKey) {
 
 const warnings = [];
 const results = [];
+const skipped = [];
 
 // 1. Sitemap and its pages.
 const sitemap = await get("asset", "/sitemap.xml");
@@ -106,6 +107,7 @@ while (queue.length) {
   queue = [];
   for (const a of await mapLimit(level, (k) => get("asset", k))) {
     if (a.status !== 200) {
+      skipped.push(a);
       warnings.push(`skipped ${a.key}: ${a.status || a.error}`);
       continue;
     }
@@ -121,7 +123,7 @@ while (queue.length) {
 }
 
 // 5. Safety checks, then write.
-const problems = checkSafety(results);
+const problems = checkSafety(results, skipped);
 if (problems.length) {
   console.error(`snapshot aborted, ${problems.length} problem(s):`);
   for (const p of problems) console.error(`  - ${p}`);
