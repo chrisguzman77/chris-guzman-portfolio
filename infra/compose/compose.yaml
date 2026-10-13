@@ -152,6 +152,9 @@ services:
     <<: *service
     image: grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
     depends_on: [prometheus]
+    labels:
+      # Changes when provisioning changes, so deploy recreates Grafana (it reads provisioning only at startup).
+      portfolio.provisioning-hash: ${GRAFANA_PROVISIONING_HASH:-unset}
     environment:
       GF_SECURITY_ADMIN_USER: admin
       # Applied only when grafana-data is first created; later changes go
