@@ -20,6 +20,7 @@ from portfolio_api.clients.directus import DirectusContent, DirectusError
 from portfolio_api.clients.groq import GroqChatModel, ModelBusyError, ModelUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker
+from portfolio_api.evals.redteam import InjectingRetriever, judge_redteam, load_redteam_cases
 from portfolio_api.evals.report import (
     ANSWERABLE,
     REFUSE,
@@ -29,12 +30,19 @@ from portfolio_api.evals.report import (
     format_summary,
     write_summary,
 )
-from portfolio_api.evals.scoring import hit_rate, load_golden, mean_reciprocal_rank, run_golden
+from portfolio_api.evals.scoring import (
+    hit_rate,
+    load_golden,
+    mean_reciprocal_rank,
+    plain_text,
+    run_golden,
+)
 from portfolio_api.models import ChatEvalKind, ChatFeedback, ChatMessage, ChatOutcome, ChatSession
 from portfolio_api.rag.embedder import FastEmbedEmbedder
 from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.repositories import chat as chat_repo
 from portfolio_api.services.chat import ChatService, Composed, SearchesIndex
+from portfolio_api.services.grounding import Exchange
 from portfolio_api.services.indexer import IndexService
 
 BUSY_RETRIES = 3
@@ -100,20 +108,12 @@ def load_eval_cases() -> dict[str, Any]:
     return cases
 
 
-# The model writes typographic hyphens and spaces (U+2011, U+202F, ...); compare plain text.
-_HYPHENS = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014"})
-
-
-def _plain(text: str) -> str:
-    return " ".join(text.translate(_HYPHENS).lower().split())
-
-
 def judge_answerable(case: dict[str, Any], composed: Composed) -> str | None:
     """None when the answer passes, otherwise the reason it failed."""
     if composed.outcome != ChatOutcome.answered:
         return f"outcome {composed.outcome.value}"
-    answer = _plain(composed.answer)
-    missing = [f for f in case["must_include"] if _plain(f) not in answer]
+    answer = plain_text(composed.answer)
+    missing = [f for f in case["must_include"] if plain_text(f) not in answer]
     if missing:
         return "missing " + ", ".join(missing)
     cited = {s.url for s in composed.sources}
@@ -134,12 +134,13 @@ async def _compose_with_retry(
     busy_wait: float,
     sleep: Callable[[float], Awaitable[None]],
     timer: Callable[[], float],
+    history: Sequence[Exchange] = (),
 ) -> tuple[Composed, float] | str:
     """The answer and how long its (successful) attempt took, or why there is no answer."""
     for attempt in range(BUSY_RETRIES + 1):
         started = timer()
         try:
-            composed = await service.compose(question, [])
+            composed = await service.compose(question, history)
         except ModelBusyError:
             if attempt == BUSY_RETRIES:
                 return "model busy after retries"
@@ -149,6 +150,39 @@ async def _compose_with_retry(
             return f"model unavailable: {exc}"
         return composed, timer() - started
     return "unreachable"
+
+
+async def _run_case(
+    service: ChatService,
+    case_id: str,
+    category: str,
+    question: str,
+    judge: Callable[[Composed], str | None],
+    *,
+    history: Sequence[Exchange] = (),
+    known: bool = False,
+    busy_wait: float,
+    sleep: Callable[[float], Awaitable[None]],
+    out: Callable[[str], None],
+    timer: Callable[[], float],
+) -> CaseResult:
+    """Ask one case, add its tokens to today's usage, print PASS/FAIL (or KNOWN) and the answer."""
+    attempt = await _compose_with_retry(service, question, busy_wait, sleep, timer, history)
+    if isinstance(attempt, str):
+        result = CaseResult(case_id, category, question, attempt, None, 0, known)
+        answer = ""
+    else:
+        composed, seconds = attempt
+        tokens = composed.input_tokens + composed.output_tokens
+        if composed.raw is not None:
+            await service.record_usage(tokens)
+        result = CaseResult(case_id, category, question, judge(composed), seconds, tokens, known)
+        answer = composed.answer
+    status = "PASS" if result.reason is None else "KNOWN" if known else "FAIL"
+    out(f"{status}  {question}" + (f"  ({result.reason})" if result.reason else ""))
+    if answer:
+        out(f"      {answer}")
+    return result
 
 
 async def run_eval(
@@ -170,24 +204,59 @@ async def run_eval(
     ]
     results: list[CaseResult] = []
     for case_id, category, question, judge in work:
-        attempt = await _compose_with_retry(service, question, busy_wait, sleep, timer)
-        if isinstance(attempt, str):
-            result = CaseResult(case_id, category, question, attempt, None, 0)
-            answer = ""
-        else:
-            composed, seconds = attempt
-            tokens = composed.input_tokens + composed.output_tokens
-            if composed.raw is not None:
-                await service.record_usage(tokens)
-            result = CaseResult(case_id, category, question, judge(composed), seconds, tokens)
-            answer = composed.answer
-        results.append(result)
-        status = "PASS" if result.reason is None else "FAIL"
-        out(f"{status}  {question}" + (f"  ({result.reason})" if result.reason else ""))
-        if answer:
-            out(f"      {answer}")
+        results.append(
+            await _run_case(
+                service,
+                case_id,
+                category,
+                question,
+                judge,
+                busy_wait=busy_wait,
+                sleep=sleep,
+                out=out,
+                timer=timer,
+            )
+        )
     failed = sum(r.reason is not None for r in results)
     out(f"{len(work) - failed}/{len(work)} passed")
+    return results
+
+
+async def run_redteam(
+    service: ChatService,
+    retriever: InjectingRetriever,
+    cases: Sequence[dict[str, Any]],
+    *,
+    busy_wait: float = 30.0,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    out: Callable[[str], None] = print,
+    timer: Callable[[], float] = time.perf_counter,
+) -> list[CaseResult]:
+    """Ask every red-team case and return each result.
+
+    A case's history goes straight to compose. Its inject_source reaches the model through
+    ``retriever`` (the one ``service`` uses), for that case only.
+    """
+    results: list[CaseResult] = []
+    for case in cases:
+        history = [Exchange(h["question"], h["answer"]) for h in case.get("history", [])]
+        with retriever.injected(case.get("inject_source")):
+            result = await _run_case(
+                service,
+                case["id"],
+                case["category"],
+                case["question"],
+                partial(judge_redteam, case),
+                history=history,
+                known="known_failure" in case,
+                busy_wait=busy_wait,
+                sleep=sleep,
+                out=out,
+                timer=timer,
+            )
+        results.append(result)
+    failed = sum(r.reason is not None for r in results)
+    out(f"{len(results) - failed}/{len(results)} passed")
     return results
 
 
@@ -237,6 +306,19 @@ async def evaluate(
     summary = format_summary(report)
     if golden_error:
         summary += f"\n\nGolden retrieval failed: {golden_error}"
+    await _publish(report, summary, record=record, summary_file=summary_file, out=out)
+    return len(report.failures)
+
+
+async def _publish(
+    report: EvalReport,
+    summary: str,
+    *,
+    record: async_sessionmaker[AsyncSession] | None,
+    summary_file: Path | None,
+    out: Callable[[str], None],
+) -> None:
+    """Print the summary after a blank line, write it to ``summary_file``, store the row."""
     out("")
     out(summary)
     if summary_file is not None:
@@ -244,7 +326,38 @@ async def evaluate(
     if record is not None:
         async with record.begin() as session:
             session.add(eval_run_row(report))
-    return len(report.failures)
+
+
+async def evaluate_redteam(
+    service: ChatService,
+    retriever: InjectingRetriever,
+    *,
+    cases: Sequence[dict[str, Any]],
+    commit: str | None,
+    record: async_sessionmaker[AsyncSession] | None = None,
+    summary_file: Path | None = None,
+    out: Callable[[str], None] = print,
+    timer: Callable[[], float] = time.perf_counter,
+) -> int:
+    """The red-team cases (no golden retrieval). Prints, writes and stores like ``evaluate``.
+
+    Returns the number of failed cases not marked known_failure.
+    """
+    started_at = datetime.now(UTC)
+    results = await run_redteam(service, retriever, cases, out=out, timer=timer)
+    report = EvalReport(
+        kind=ChatEvalKind.redteam,
+        started_at=started_at,
+        finished_at=datetime.now(UTC),
+        commit=commit,
+        results=results,
+        hit_at_5=None,
+        mrr=None,
+    )
+    await _publish(
+        report, format_summary(report), record=record, summary_file=summary_file, out=out
+    )
+    return len(report.unknown_failures)
 
 
 async def _reindex(settings: Settings) -> int:
@@ -298,9 +411,6 @@ async def _chat_feedback(settings: Settings, days: int, rating: str) -> int:
 async def _chat_eval(
     settings: Settings, kind: ChatEvalKind, record: bool, summary_file: Path | None
 ) -> int:
-    if kind != ChatEvalKind.answer:
-        print("chat-eval: no redteam cases yet; only --kind answer runs", file=sys.stderr)
-        return 1
     if not settings.groq_api_key:
         print("API_GROQ_API_KEY is not set", file=sys.stderr)
         return 1
@@ -309,23 +419,35 @@ async def _chat_eval(
     async with httpx.AsyncClient() as http:
         try:
             retriever = Retriever(sessions, FastEmbedEmbedder(settings.embedding_cache_dir))
+            injecting = InjectingRetriever(retriever)  # passes through outside a red-team case
             service = ChatService(
                 sessions,
-                retriever,
+                injecting,
                 GroqChatModel(http, settings.groq_api_key, settings.groq_model),
                 hash_salt=settings.chat_hash_salt or "eval",
                 daily_budget=settings.chat_daily_token_budget,
                 min_similarity=settings.chat_min_similarity,
             )
-            failed = await evaluate(
-                service,
-                retriever,
-                cases=load_eval_cases(),
-                golden=load_golden(),
-                commit=image_commit(settings.app_version),
-                record=sessions if record else None,
-                summary_file=summary_file,
-            )
+            commit = image_commit(settings.app_version)
+            if kind == ChatEvalKind.redteam:
+                failed = await evaluate_redteam(
+                    service,
+                    injecting,
+                    cases=load_redteam_cases(),
+                    commit=commit,
+                    record=sessions if record else None,
+                    summary_file=summary_file,
+                )
+            else:
+                failed = await evaluate(
+                    service,
+                    retriever,
+                    cases=load_eval_cases(),
+                    golden=load_golden(),
+                    commit=commit,
+                    record=sessions if record else None,
+                    summary_file=summary_file,
+                )
         finally:
             await engine.dispose()
     return 1 if failed else 0
@@ -338,7 +460,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     chats = commands.add_parser("chats", help="print recent chat sessions")
     chats.add_argument("--days", type=int, default=7)
     evals = commands.add_parser(
-        "chat-eval", help="run the answer-quality cases against the live model"
+        "chat-eval", help="run the answer-quality or red-team cases against the live model"
     )
     evals.add_argument(
         "--kind", choices=[k.value for k in ChatEvalKind], default=ChatEvalKind.answer.value

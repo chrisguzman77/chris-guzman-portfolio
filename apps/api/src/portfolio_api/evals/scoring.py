@@ -1,4 +1,4 @@
-"""Retrieval and latency scores for chat-eval and the golden test."""
+"""Scores for chat-eval and the golden test: retrieval, latency, and plain-text comparison."""
 
 import math
 from collections.abc import Sequence
@@ -11,6 +11,14 @@ import yaml
 from portfolio_api.services.chat import SearchesIndex
 
 HIT_K = 5  # hit@5: an expected title in the top 5 hits (the retriever returns at most 5)
+
+# The model writes typographic hyphens and spaces (U+2011, U+202F, ...); compare plain text.
+_HYPHENS = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014"})
+
+
+def plain_text(text: str) -> str:
+    """Lowercased, typographic hyphens made plain, whitespace collapsed: how judges compare."""
+    return " ".join(text.translate(_HYPHENS).lower().split())
 
 
 def load_golden() -> list[dict[str, Any]]:
