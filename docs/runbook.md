@@ -158,15 +158,43 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 - **Switch on/off:** Directus → Chat Settings → `enabled`. Off hides the launcher within seconds (Flow revalidation) and the API refuses new questions within a minute. Suggested questions are edited in the same place (the chat shows up to four; three are seeded).
 - **Re-index now:** `make reindex` on the VM. Publishing in Directus already triggers one (the Flow's `reindex` step, debounced 5 s), and one runs every 15 minutes and at API startup.
 - **Read chats:** `make chats` (last 7 days) or `DAYS=30 make chats`. Outcomes: `answered`, `no_match` (nothing relevant, model not called), `uncited` (model answered without citing; the visitor saw the fixed reply, the raw answer is shown here), `error` (Groq failed). Chats are deleted after 30 days.
-- **Check answer quality:** `make chat-eval` (~10 minutes, uses about a third of the day's Groq quota). Every line should be PASS; a FAIL shows the answer and why.
+- **Check answer quality:** `make chat-eval` (~10 minutes, uses about a third of the day's Groq quota). Every line should be PASS; a FAIL shows the answer and why. It records nothing; the weekly recorded run is described in Chat quality below.
 - **Read feedback:** visitors rate every reply `helpful? [y] [n]`. `make chat-feedback` lists the last 7 days of thumbs-down, newest first: time, outcome, question, the first 300 characters of the answer and its sources. `RATING=all DAYS=30 make chat-feedback` shows more. For `uncited` rows the answer shown is the model's raw text; the visitor saw the fixed reply. Counts over time: Grafana → "Portfolio overview" → "Chat feedback by rating (range)". The dashboard never shows question text. Ratings are deleted with their chat after 30 days; the daily counts in `chat_usage_daily` are kept 90 days.
 - **Budget:** 180,000 tokens per UTC day (`API_CHAT_DAILY_TOKEN_BUDGET`); when spent, the terminal says chat is resting until tomorrow.
 - **Switch provider:** add a class implementing `ChatModel` (`apps/api/src/portfolio_api/clients/groq.py` shows the shape), select it in `main.py`, add its key to secrets.
 
+## Chat quality
+
+- **Where to look:** Grafana → "Chat quality".
+  - **Scores over time:** answer and refusal pass rates, retrieval hit@5 and MRR on the live index, eval latency p50/p95, and tokens per question.
+  - **Latest failures:** the latest run's failed cases. Ids, categories and reasons come from the eval files, never from visitors.
+  - **Visitor feedback:** thumbs up/down per day.
+  - **Elsewhere:** live answer time is on "Portfolio overview" → "Chat answer time p50 / p95". Each run's score table is on GitHub → Actions → chat-eval → the run → Summary, and the eval step's log shows every answer.
+- **Schedule:** the answer eval runs every Sunday at 10:30 UTC (05:30 or 06:30 New York time) (`.github/workflows/chat-eval.yml`).
+  - It runs on the VM's runner, inside `portfolio-api-1`, and records one `chat_eval_runs` row. Rows are kept forever.
+  - It uses about a third of the day's Groq budget. Its tokens count in `chat_usage_daily`, so the budget gate still protects visitors.
+  - A red job means at least one case failed.
+- **Run it now:** Actions → chat-eval → Run workflow, kind `answer`, or `gh workflow run chat-eval.yml -f kind=answer`.
+  - On the VM, `make chat-eval` runs the same cases but records nothing. `docker exec portfolio-api-1 portfolio-api chat-eval --record` records too.
+  - `--kind redteam` exits with an error until the red-team cases ship.
+- **Alerts** (email to `CONTACT_TO`; while firing they remind once a week, not every 4 hours; DatasourceError emails still repeat every 4 hours):
+  - **Chat eval answer low:** the latest answer run passed fewer than 85% of its answerable cases. Read the failed cases. Usual causes:
+    - content changed or the index is stale: run `make reindex`, then the eval again;
+    - retrieval missed: compare hit@5/MRR with earlier runs;
+    - a `must_include` string is stricter than the model's wording: fix the case in `apps/api/src/portfolio_api/evals/chat_eval.yaml`.
+  - **Chat eval refusal:** a refuse case was answered (an off-topic, private or injection question got an answer). Read the answer in the eval step's log, then fix the prompt or grounding before anything else.
+  - **Chat eval stale:** no answer run was recorded in 9 days.
+    - Check Actions → chat-eval: did it run, did it fail before recording, is the runner offline?
+    - A database error in the log usually means a migration didn't run on deploy.
+  - **DatasourceError** on these rules means Grafana can't log in as `grafana_chat_ro`. Check that `GRAFANA_CHAT_DB_PASSWORD` is in the secrets and that the deploy's "Grafana read-only chat role" step printed `grafana_chat_ro: ok`.
+- **First runs:** the eval is a second process in `portfolio-api-1` with its own embedding model. Watch Grafana → "Host & containers" → api memory against its 768m limit during the first runs.
+- **After a timed-out or cancelled run:** check `docker top portfolio-api-1` for a leftover `chat-eval` process and kill it before re-running.
+- **Visitor feedback:** `make chat-feedback`, as described in Ask about Chris above.
+
 ## Monitoring and analytics
 
-- **Dashboards:** https://grafana.christopherguzman.me (Cloudflare Access, then the Grafana login `admin` / `GRAFANA_ADMIN_PASSWORD`). Dashboards → "Portfolio overview" (site, API, chat, contact, last backup; resume downloads are in Umami) and "Host & containers" (VM CPU, memory, swap, disk; each container against its limit). Prometheus has no hostname; query it from Grafana → Explore.
-- **Alerts** email `CONTACT_TO` from `alerts@christopherguzman.me`: Disk filling, Memory tight, Site down, API errors, Container down, Backup stale, Chat budget, Runner offline (runner container unseen for 15 minutes). Container down keeps firing for up to 24 h after a planned container removal (it looks back 24 h), so silence it first. They are provisioned from `infra/observability/grafana/provisioning/`; change them there, not in the UI.
+- **Dashboards:** https://grafana.christopherguzman.me (Cloudflare Access, then the Grafana login `admin` / `GRAFANA_ADMIN_PASSWORD`). Dashboards → "Portfolio overview" (site, API, chat, contact, last backup; resume downloads are in Umami), "Host & containers" (VM CPU, memory, swap, disk; each container against its limit) and "Chat quality" (see Chat quality above). Prometheus has no hostname; query it from Grafana → Explore.
+- **Alerts** email `CONTACT_TO` from `alerts@christopherguzman.me`: Disk filling, Memory tight, Site down, API errors, Container down, Backup stale, Chat budget, Runner offline (runner container unseen for 15 minutes), plus Chat eval answer low, Chat eval refusal and Chat eval stale (see Chat quality above). Container down keeps firing for up to 24 h after a planned container removal (it looks back 24 h), so silence it first. They are provisioned from `infra/observability/grafana/provisioning/`; change them there, not in the UI.
 - **Silence an alert** (planned work or a known issue): Grafana → Alerting → Silences → New silence. Add the matcher `alertname` = the alert's name (for example `Site down`), pick a duration, write a comment, save. It ends on its own; to end it early, open Alerting → Silences and expire it. A silence only stops the emails; the rule keeps evaluating.
 - **Test alert email:** Grafana → Alerting → Contact points → the email contact point → Test.
 - **Analytics:** https://analytics.christopherguzman.me (Access, then the Umami login). Custom events: `resume-download`, `chat-open`, `chat-question`, `contact-sent`, `outbound-click`. Without `UMAMI_WEBSITE_ID` the site loads no tracker. `resume-download` fires only when the PDF link on `/resume` is clicked, so its `from` is always `/resume`; read where visitors came from off the `/resume` page view's referrer in Umami.

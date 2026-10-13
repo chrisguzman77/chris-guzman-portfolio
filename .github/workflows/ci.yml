@@ -171,11 +171,12 @@ jobs:
             yq -e '.apiVersion == 1' "$f" >/dev/null || { echo "bad provisioning file: $f"; exit 1; }
           done
           rules="$(yq '[.groups[].rules[]] | length' infra/observability/grafana/provisioning/alerting/rules.yml)"
-          [[ "${rules}" == 9 ]] || { echo "expected 9 alert rules, found ${rules}"; exit 1; }
+          [[ "${rules}" == 12 ]] || { echo "expected 12 alert rules, found ${rules}"; exit 1; }
           # Grafana expands $VAR in every provisioning file; the only intended uses are
-          # ${CONTACT_TO} and ${GRAFANA_UMAMI_DB_PASSWORD}.
+          # ${CONTACT_TO}, ${GRAFANA_UMAMI_DB_PASSWORD} and ${GRAFANA_CHAT_DB_PASSWORD}.
           if grep -n '\$' infra/observability/grafana/provisioning/*/*.yml \
-              | grep -v '\${CONTACT_TO}' | grep -v '\${GRAFANA_UMAMI_DB_PASSWORD}'; then
+              | grep -v '\${CONTACT_TO}' | grep -v '\${GRAFANA_UMAMI_DB_PASSWORD}' \
+              | grep -v '\${GRAFANA_CHAT_DB_PASSWORD}'; then
             echo "provisioning files must not contain a dollar sign (Grafana expands it as an env var)"; exit 1
           fi
           for f in infra/observability/grafana/dashboards/*.json; do

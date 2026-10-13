@@ -1,0 +1,23 @@
+apiVersion: 1
+
+# Read-only view of the chat eval history and daily chat counts for the Chat quality
+# dashboard and the chat-eval alerts. Logs in as grafana_chat_ro (SELECT on chat_eval_runs
+# and chat_usage_daily only; infra/postgres/init/03-grafana-chat-ro.sh). Until
+# GRAFANA_CHAT_DB_PASSWORD is set the login fails: the dashboard shows errors and the
+# chat-eval alerts report a datasource error.
+datasources:
+  - name: chat-readonly
+    uid: chat-readonly
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: grafana_chat_ro
+    editable: false
+    jsonData:
+      database: portfolio
+      sslmode: disable
+      postgresVersion: 1700
+      maxOpenConns: 2
+      timescaledb: false
+    secureJsonData:
+      password: ${GRAFANA_CHAT_DB_PASSWORD}

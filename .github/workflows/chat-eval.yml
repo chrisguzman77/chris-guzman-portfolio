@@ -1,0 +1,64 @@
+name: chat-eval
+
+# The chat answer eval, run inside the deployed api container by the VM's self-hosted
+# runner (docker.sock; see docs/adr/0006-runner-in-compose.md). Each run is recorded in
+# chat_eval_runs (Grafana → Chat quality); alerts come from Grafana, not this job's status.
+# A red job means at least one case failed: read the summary. Scheduled runs use the
+# default branch only.
+on:
+  schedule:
+    - cron: "30 10 * * 0" # answer eval, Sunday 10:30 UTC
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: Which eval to run
+        type: choice
+        options: [answer, redteam]
+        default: answer
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-eval
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  eval:
+    runs-on: [self-hosted, portfolio-deploy]
+    timeout-minutes: 45
+    steps:
+      - name: Pick the kind
+        id: kind
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_KIND: ${{ inputs.kind }}
+        run: |
+          if [[ "${EVENT}" == schedule ]]; then
+            case "${SCHEDULE}" in
+              "30 10 * * 0") kind=answer ;;
+              *) echo "no kind for schedule '${SCHEDULE}'" >&2; exit 1 ;;
+            esac
+          else
+            kind="${INPUT_KIND}"
+          fi
+          echo "kind=${kind}" >> "${GITHUB_OUTPUT}"
+      - name: Clear the last summary
+        run: docker exec portfolio-api-1 rm -f /tmp/chat-eval.md
+      - name: Run the eval in the api container
+        env:
+          KIND: ${{ steps.kind.outputs.kind }}
+        run: docker exec portfolio-api-1 portfolio-api chat-eval --kind "${KIND}" --record --summary-file /tmp/chat-eval.md
+      - name: Add the summary to this run's page
+        if: always()
+        run: |
+          if docker cp portfolio-api-1:/tmp/chat-eval.md "${RUNNER_TEMP}/chat-eval.md"; then
+            cat "${RUNNER_TEMP}/chat-eval.md" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "No summary was written; the eval stopped early. See the eval step's log." >> "${GITHUB_STEP_SUMMARY}"
+          fi

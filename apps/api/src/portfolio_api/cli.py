@@ -1,27 +1,40 @@
-"""Operator commands: `portfolio-api reindex | chats [--days N] | chat-eval | chat-feedback`."""
+"""Operator commands: `portfolio-api reindex | chats | chat-eval | chat-feedback` (see --help)."""
 
 import argparse
 import asyncio
 import re
 import sys
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
 import httpx
 import yaml
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import DirectusContent, DirectusError
 from portfolio_api.clients.groq import GroqChatModel, ModelBusyError, ModelUnavailableError
 from portfolio_api.config import Settings
 from portfolio_api.db import make_engine, make_sessionmaker
-from portfolio_api.models import ChatFeedback, ChatMessage, ChatOutcome, ChatSession
+from portfolio_api.evals.report import (
+    ANSWERABLE,
+    REFUSE,
+    CaseResult,
+    EvalReport,
+    eval_run_row,
+    format_summary,
+    write_summary,
+)
+from portfolio_api.evals.scoring import hit_rate, load_golden, mean_reciprocal_rank, run_golden
+from portfolio_api.models import ChatEvalKind, ChatFeedback, ChatMessage, ChatOutcome, ChatSession
 from portfolio_api.rag.embedder import FastEmbedEmbedder
 from portfolio_api.rag.retrieval import Retriever
 from portfolio_api.repositories import chat as chat_repo
-from portfolio_api.services.chat import ChatService, Composed
+from portfolio_api.services.chat import ChatService, Composed, SearchesIndex
 from portfolio_api.services.indexer import IndexService
 
 BUSY_RETRIES = 3
@@ -120,16 +133,21 @@ async def _compose_with_retry(
     question: str,
     busy_wait: float,
     sleep: Callable[[float], Awaitable[None]],
-) -> Composed | str:
+    timer: Callable[[], float],
+) -> tuple[Composed, float] | str:
+    """The answer and how long its (successful) attempt took, or why there is no answer."""
     for attempt in range(BUSY_RETRIES + 1):
+        started = timer()
         try:
-            return await service.compose(question, [])
+            composed = await service.compose(question, [])
         except ModelBusyError:
             if attempt == BUSY_RETRIES:
                 return "model busy after retries"
             await sleep(busy_wait)  # free tier allows ~8,000 tokens a minute
+            continue
         except ModelUnavailableError as exc:
             return f"model unavailable: {exc}"
+        return composed, timer() - started
     return "unreachable"
 
 
@@ -140,29 +158,93 @@ async def run_eval(
     busy_wait: float = 30.0,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     out: Callable[[str], None] = print,
-) -> int:
-    """Ask every case, print PASS/FAIL with the answer, return the number of failures."""
-    work: list[tuple[str, Callable[[Composed], str | None]]] = [
-        (c["question"], partial(judge_answerable, c)) for c in cases["answerable"]
-    ] + [(q, judge_refusal) for q in cases["refuse"]]
-    failed = 0
-    for question, judge in work:
-        result = await _compose_with_retry(service, question, busy_wait, sleep)
-        if isinstance(result, str):
-            reason: str | None = result
+    timer: Callable[[], float] = time.perf_counter,
+) -> list[CaseResult]:
+    """Ask every case, print PASS/FAIL with the answer, return each case's result."""
+    work: list[tuple[str, str, str, Callable[[Composed], str | None]]] = [
+        (f"{ANSWERABLE}-{i:02d}", ANSWERABLE, c["question"], partial(judge_answerable, c))
+        for i, c in enumerate(cases["answerable"], start=1)
+    ] + [
+        (f"{REFUSE}-{i:02d}", REFUSE, q, judge_refusal)
+        for i, q in enumerate(cases["refuse"], start=1)
+    ]
+    results: list[CaseResult] = []
+    for case_id, category, question, judge in work:
+        attempt = await _compose_with_retry(service, question, busy_wait, sleep, timer)
+        if isinstance(attempt, str):
+            result = CaseResult(case_id, category, question, attempt, None, 0)
             answer = ""
         else:
-            if result.raw is not None:
-                await service.record_usage(result.input_tokens + result.output_tokens)
-            reason = judge(result)
-            answer = result.answer
-        failed += reason is not None
-        status = "PASS" if reason is None else "FAIL"
-        out(f"{status}  {question}" + (f"  ({reason})" if reason else ""))
+            composed, seconds = attempt
+            tokens = composed.input_tokens + composed.output_tokens
+            if composed.raw is not None:
+                await service.record_usage(tokens)
+            result = CaseResult(case_id, category, question, judge(composed), seconds, tokens)
+            answer = composed.answer
+        results.append(result)
+        status = "PASS" if result.reason is None else "FAIL"
+        out(f"{status}  {question}" + (f"  ({result.reason})" if result.reason else ""))
         if answer:
             out(f"      {answer}")
+    failed = sum(r.reason is not None for r in results)
     out(f"{len(work) - failed}/{len(work)} passed")
-    return failed
+    return results
+
+
+_SHA = re.compile(r"[0-9a-f]{7,40}")
+
+
+def image_commit(version: str) -> str | None:
+    """Compose sets API_APP_VERSION to the deployed image tag: a git SHA, or dev/latest."""
+    return version if _SHA.fullmatch(version) else None
+
+
+async def evaluate(
+    service: ChatService,
+    retriever: SearchesIndex,
+    *,
+    cases: dict[str, Any],
+    golden: Sequence[dict[str, Any]],
+    commit: str | None,
+    record: async_sessionmaker[AsyncSession] | None = None,
+    summary_file: Path | None = None,
+    out: Callable[[str], None] = print,
+    timer: Callable[[], float] = time.perf_counter,
+) -> int:
+    """The answer cases, then the golden questions through retrieval only (no tokens).
+
+    Prints the Markdown summary, writes it to ``summary_file`` and one chat_eval_runs row
+    through ``record`` when given, and returns the number of failed cases.
+    """
+    started_at = datetime.now(UTC)
+    results = await run_eval(service, cases, out=out, timer=timer)
+    golden_error: str | None = None
+    try:
+        ranks = [g.rank for g in await run_golden(retriever, golden)]
+    except Exception as exc:  # retrieval is the embedder and the database: any failure
+        # Keep the answer results; hit@5 and MRR are recorded as NULL. Type name only.
+        golden_error = type(exc).__name__
+        ranks = []
+    report = EvalReport(
+        kind=ChatEvalKind.answer,
+        started_at=started_at,
+        finished_at=datetime.now(UTC),
+        commit=commit,
+        results=results,
+        hit_at_5=hit_rate(ranks) if ranks else None,
+        mrr=mean_reciprocal_rank(ranks) if ranks else None,
+    )
+    summary = format_summary(report)
+    if golden_error:
+        summary += f"\n\nGolden retrieval failed: {golden_error}"
+    out("")
+    out(summary)
+    if summary_file is not None:
+        write_summary(summary_file, summary)  # first, so a database error still leaves it
+    if record is not None:
+        async with record.begin() as session:
+            session.add(eval_run_row(report))
+    return len(report.failures)
 
 
 async def _reindex(settings: Settings) -> int:
@@ -213,7 +295,12 @@ async def _chat_feedback(settings: Settings, days: int, rating: str) -> int:
     return 0
 
 
-async def _chat_eval(settings: Settings) -> int:
+async def _chat_eval(
+    settings: Settings, kind: ChatEvalKind, record: bool, summary_file: Path | None
+) -> int:
+    if kind != ChatEvalKind.answer:
+        print("chat-eval: no redteam cases yet; only --kind answer runs", file=sys.stderr)
+        return 1
     if not settings.groq_api_key:
         print("API_GROQ_API_KEY is not set", file=sys.stderr)
         return 1
@@ -221,15 +308,24 @@ async def _chat_eval(settings: Settings) -> int:
     sessions = make_sessionmaker(engine)
     async with httpx.AsyncClient() as http:
         try:
+            retriever = Retriever(sessions, FastEmbedEmbedder(settings.embedding_cache_dir))
             service = ChatService(
                 sessions,
-                Retriever(sessions, FastEmbedEmbedder(settings.embedding_cache_dir)),
+                retriever,
                 GroqChatModel(http, settings.groq_api_key, settings.groq_model),
                 hash_salt=settings.chat_hash_salt or "eval",
                 daily_budget=settings.chat_daily_token_budget,
                 min_similarity=settings.chat_min_similarity,
             )
-            failed = await run_eval(service, load_eval_cases())
+            failed = await evaluate(
+                service,
+                retriever,
+                cases=load_eval_cases(),
+                golden=load_golden(),
+                commit=image_commit(settings.app_version),
+                record=sessions if record else None,
+                summary_file=summary_file,
+            )
         finally:
             await engine.dispose()
     return 1 if failed else 0
@@ -241,7 +337,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands.add_parser("reindex", help="sync the chat index with published content")
     chats = commands.add_parser("chats", help="print recent chat sessions")
     chats.add_argument("--days", type=int, default=7)
-    commands.add_parser("chat-eval", help="run the answer-quality cases against the live model")
+    evals = commands.add_parser(
+        "chat-eval", help="run the answer-quality cases against the live model"
+    )
+    evals.add_argument(
+        "--kind", choices=[k.value for k in ChatEvalKind], default=ChatEvalKind.answer.value
+    )
+    evals.add_argument("--record", action="store_true", help="store the run in chat_eval_runs")
+    evals.add_argument("--summary-file", type=Path, help="also write the Markdown summary here")
     feedback = commands.add_parser("chat-feedback", help="print recently rated chat replies")
     feedback.add_argument("--days", type=int, default=7)
     feedback.add_argument("--rating", choices=["down", "up", "all"], default="down")
@@ -253,4 +356,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return asyncio.run(_chats(settings, args.days))
     if args.command == "chat-feedback":
         return asyncio.run(_chat_feedback(settings, args.days, args.rating))
-    return asyncio.run(_chat_eval(settings))
+    return asyncio.run(
+        _chat_eval(settings, ChatEvalKind(args.kind), args.record, args.summary_file)
+    )

@@ -5,6 +5,7 @@ from prometheus_client import CollectorRegistry, Counter, generate_latest
 
 from portfolio_api.config import Settings
 from portfolio_api.main import create_app
+from portfolio_api.metrics import REGISTRY
 from tests.fakes import metric
 
 CHAT_MESSAGES = "/v1/chat/sessions/{session_id}/messages"
@@ -15,6 +16,7 @@ METRIC_NAMES = (
     "chat_tokens_total",
     "chat_budget_used_ratio",
     "chat_feedback_total",
+    "chat_answer_seconds",
     "contact_submissions_total",
     "rag_sync_runs_total",
     "newsletter_subscribers",
@@ -136,3 +138,14 @@ async def test_chat_feedback_series_exist_from_startup(client: AsyncClient) -> N
     text = (await client.get("/metrics")).text
     assert 'chat_feedback_total{outcome="no_match",rating="down"}' in text
     assert 'chat_feedback_total{outcome="error",rating="up"}' in text
+
+
+def test_chat_answer_time_has_the_spec_buckets() -> None:
+    bounds = {
+        sample.labels["le"]
+        for family in REGISTRY.collect()
+        if family.name == "chat_answer_seconds"
+        for sample in family.samples
+        if sample.name == "chat_answer_seconds_bucket" and sample.labels["outcome"] == "answered"
+    }
+    assert bounds == {"0.25", "0.5", "1.0", "2.0", "4.0", "8.0", "16.0", "+Inf"}

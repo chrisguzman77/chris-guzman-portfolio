@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,15 @@ class ChatFeedback(enum.StrEnum):
 
 
 def _feedback_values(e: type[ChatFeedback]) -> list[str]:
+    return [m.value for m in e]
+
+
+class ChatEvalKind(enum.StrEnum):
+    answer = "answer"
+    redteam = "redteam"
+
+
+def _eval_kind_values(e: type[ChatEvalKind]) -> list[str]:
     return [m.value for m in e]
 
 
@@ -78,3 +87,28 @@ class ChatUsageDaily(Base):
     requests: Mapped[int] = mapped_column(Integer, server_default="0")
     feedback_up: Mapped[int] = mapped_column(Integer, server_default="0")
     feedback_down: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
+class ChatEvalRun(Base):
+    """One recorded chat-eval run (`portfolio-api chat-eval --record`); kept forever."""
+
+    __tablename__ = "chat_eval_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    kind: Mapped[ChatEvalKind] = mapped_column(
+        Enum(ChatEvalKind, name="chat_eval_kind", values_callable=_eval_kind_values)
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    commit: Mapped[str | None] = mapped_column(Text)  # the image's git SHA, when known
+    cases: Mapped[int] = mapped_column(Integer)
+    passed: Mapped[int] = mapped_column(Integer)
+    answer_pass_rate: Mapped[float | None] = mapped_column(Float)  # answerable cases only
+    refusal_pass_rate: Mapped[float | None] = mapped_column(Float)  # refuse cases (answer kind)
+    hit_at_5: Mapped[float | None] = mapped_column(Float)  # golden retrieval, live index
+    mrr: Mapped[float | None] = mapped_column(Float)
+    latency_p50_ms: Mapped[int] = mapped_column(Integer)  # per-case compose time
+    latency_p95_ms: Mapped[int] = mapped_column(Integer)
+    tokens_per_question: Mapped[float] = mapped_column(Float)
+    # [{id, category, reason}] for each failed case, all taken from the eval files.
+    failures: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
