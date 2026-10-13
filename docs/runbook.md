@@ -167,23 +167,24 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 
 - **Where to look:** Grafana → "Chat quality".
   - **Scores over time:** answer and refusal pass rates, retrieval hit@5 and MRR on the live index, eval latency p50/p95, and tokens per question.
-  - **Latest failures:** the latest run's failed cases. Ids, categories and reasons come from the eval files, never from visitors.
+  - **Latest failures:** the latest run's failed cases of each kind. Ids, categories and reasons come from the eval files, never from visitors. `known` is true for a red-team case marked `known_failure`: it counts in the pass rate but doesn't alert.
   - **Visitor feedback:** thumbs up/down per day.
   - **Elsewhere:** live answer time is on "Portfolio overview" → "Chat answer time p50 / p95". Each run's score table is on GitHub → Actions → chat-eval → the run → Summary, and the eval step's log shows every answer.
-- **Schedule:** the answer eval runs every Sunday at 10:30 UTC (05:30 or 06:30 New York time) (`.github/workflows/chat-eval.yml`).
+- **Schedule:** the answer eval runs every Sunday and the red-team eval every Wednesday, both at 10:30 UTC (05:30 or 06:30 New York time) (`.github/workflows/chat-eval.yml`).
   - It runs on the VM's runner, inside `portfolio-api-1`, and records one `chat_eval_runs` row. Rows are kept forever.
-  - It uses about a third of the day's Groq budget. Its tokens count in `chat_usage_daily`, so the budget gate still protects visitors.
-  - A red job means at least one case failed.
-- **Run it now:** Actions → chat-eval → Run workflow, kind `answer`, or `gh workflow run chat-eval.yml -f kind=answer`.
+  - The answer eval uses about a third of the day's Groq budget. The red-team eval uses up to about a quarter; cases the retrieval cutoff refuses use none. Their tokens count in `chat_usage_daily`, so the budget gate still protects visitors.
+  - A red job means at least one case failed. For the red-team eval, that means a case not marked `known_failure`.
+- **Run it now:** Actions → chat-eval → Run workflow, kind `answer` or `redteam`, or `gh workflow run chat-eval.yml -f kind=answer` (or `-f kind=redteam`).
   - On the VM, `make chat-eval` runs the same cases but records nothing. `docker exec portfolio-api-1 portfolio-api chat-eval --record` records too.
-  - `--kind redteam` exits with an error until the red-team cases ship.
+  - `--kind redteam` runs the red-team cases instead (`apps/api/src/portfolio_api/evals/redteam.yaml`, [ADR 0012](adr/0012-chat-red-team.md)). They cover prompt leaks and injection, misuse, fabrication, and multi-turn and indirect injection. The run skips the golden retrieval, so hit@5 and MRR stay empty on those rows. Each line shows PASS, FAIL or KNOWN, followed by the answer the visitor would have seen.
 - **Alerts** (email to `CONTACT_TO`; while firing they remind once a week, not every 4 hours; DatasourceError emails still repeat every 4 hours):
   - **Chat eval answer low:** the latest answer run passed fewer than 85% of its answerable cases. Read the failed cases. Usual causes:
     - content changed or the index is stale: run `make reindex`, then the eval again;
     - retrieval missed: compare hit@5/MRR with earlier runs;
     - a `must_include` string is stricter than the model's wording: fix the case in `apps/api/src/portfolio_api/evals/chat_eval.yaml`.
   - **Chat eval refusal:** a refuse case was answered (an off-topic, private or injection question got an answer). Read the answer in the eval step's log, then fix the prompt or grounding before anything else.
-  - **Chat eval stale:** no answer run was recorded in 9 days.
+  - **Chat eval red-team:** the latest red-team run has a failed case that isn't marked `known_failure`. It is provisioned **paused** until the red-team hardening change records a baseline and unpauses it, so until then it never fires. Read the case's answer in the eval step's log. Fix the prompt or grounding. If a reasonable fix doesn't hold, mark the case `known_failure: "<reason>"` in `redteam.yaml` and list it in ADR 0012.
+  - **Chat eval stale:** no answer run, or no red-team run, was recorded in 9 days. The alert names the kind.
     - Check Actions → chat-eval: did it run, did it fail before recording, is the runner offline?
     - A database error in the log usually means a migration didn't run on deploy.
   - **DatasourceError** on these rules means Grafana can't log in as `grafana_chat_ro`. Check that `GRAFANA_CHAT_DB_PASSWORD` is in the secrets and that the deploy's "Grafana read-only chat role" step printed `grafana_chat_ro: ok`.
@@ -194,7 +195,7 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 ## Monitoring and analytics
 
 - **Dashboards:** https://grafana.christopherguzman.me (Cloudflare Access, then the Grafana login `admin` / `GRAFANA_ADMIN_PASSWORD`). Dashboards → "Portfolio overview" (site, API, chat, contact, last backup; resume downloads are in Umami), "Host & containers" (VM CPU, memory, swap, disk; each container against its limit) and "Chat quality" (see Chat quality above). Prometheus has no hostname; query it from Grafana → Explore.
-- **Alerts** email `CONTACT_TO` from `alerts@christopherguzman.me`: Disk filling, Memory tight, Site down, API errors, Container down, Backup stale, Chat budget, Runner offline (runner container unseen for 15 minutes), plus Chat eval answer low, Chat eval refusal and Chat eval stale (see Chat quality above). Container down keeps firing for up to 24 h after a planned container removal (it looks back 24 h), so silence it first. They are provisioned from `infra/observability/grafana/provisioning/`; change them there, not in the UI.
+- **Alerts** email `CONTACT_TO` from `alerts@christopherguzman.me`: Disk filling, Memory tight, Site down, API errors, Container down, Backup stale, Chat budget, Runner offline (runner container unseen for 15 minutes), plus Chat eval answer low, Chat eval refusal, Chat eval red-team (paused until the red-team hardening change) and Chat eval stale (see Chat quality above). Container down keeps firing for up to 24 h after a planned container removal (it looks back 24 h), so silence it first. They are provisioned from `infra/observability/grafana/provisioning/`; change them there, not in the UI.
 - **Silence an alert** (planned work or a known issue): Grafana → Alerting → Silences → New silence. Add the matcher `alertname` = the alert's name (for example `Site down`), pick a duration, write a comment, save. It ends on its own; to end it early, open Alerting → Silences and expire it. A silence only stops the emails; the rule keeps evaluating.
 - **Test alert email:** Grafana → Alerting → Contact points → the email contact point → Test.
 - **Analytics:** https://analytics.christopherguzman.me (Access, then the Umami login). Custom events: `resume-download`, `chat-open`, `chat-question`, `contact-sent`, `outbound-click`. Without `UMAMI_WEBSITE_ID` the site loads no tracker. `resume-download` fires only when the PDF link on `/resume` is clicked, so its `from` is always `/resume`; read where visitors came from off the `/resume` page view's referrer in Umami.

@@ -1,7 +1,8 @@
 name: chat-eval
 
-# The chat evals (answer on Sunday, red-team on Wednesday), run inside the deployed api container by the VM's self-hosted
-# runner (docker.sock; see docs/adr/0006-runner-in-compose.md). Each run is recorded in
+# The chat evals (answer on Sunday, red-team on Wednesday) run inside the deployed api
+# container by the VM's self-hosted runner (docker.sock; see
+# docs/adr/0006-runner-in-compose.md). Each run is recorded in
 # chat_eval_runs (Grafana → Chat quality); alerts come from Grafana, not this job's status.
 # A red job means at least one case failed: read the summary. Scheduled runs use the
 # default branch only.
