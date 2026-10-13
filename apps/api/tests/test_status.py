@@ -22,6 +22,7 @@ from portfolio_api.services.status import (
     MEMO_SECONDS,
     P95,
     StatusService,
+    uptime_badge,
 )
 
 NOW = datetime(2026, 10, 3, 16, 0, tzinfo=UTC)  # noon in New York (EDT)
@@ -481,10 +482,96 @@ async def test_first_probe_is_looked_up_until_found_then_kept() -> None:
     assert len(lookups) == 2  # missing, then found; the third refresh reuses it
 
 
-async def test_status_requests_are_left_out_of_requests_today_and_p95() -> None:
+async def test_status_and_badge_requests_are_left_out_of_requests_today_and_p95() -> None:
     prometheus = FakePrometheus()
     await service(prometheus).get()
     [requests] = [q for q, _ in prometheus.calls if "increase(" in q]
-    assert 'http_requests_total{job="api",route!="/v1/status"}' in requests
+    assert 'http_requests_total{job="api",route!~"/v1/status(/badge)?"}' in requests
     assert P95 in [q for q, _ in prometheus.calls]
-    assert '{job="api",route!~"/v1/chat/.*|/v1/status"}' in P95
+    assert 'job="api",route!~"/v1/chat/.*|/v1/status(/badge)?"}' in P95
+
+
+@pytest.mark.parametrize(
+    ("uptime_30d", "message", "color"),
+    [
+        (1.0, "100%", "brightgreen"),
+        (0.995, "99.5%", "brightgreen"),
+        (0.9949, "99.49%", "green"),
+        (0.99, "99%", "green"),
+        (0.9899, "98.99%", "yellow"),
+        (0.95, "95%", "yellow"),
+        (0.9499, "94.99%", "red"),
+        (0.0, "0%", "red"),
+    ],
+)
+def test_badge_color_at_each_threshold(uptime_30d: float, message: str, color: str) -> None:
+    assert uptime_badge(uptime_30d).model_dump() == {
+        "schemaVersion": 1,
+        "label": "uptime 30d",
+        "message": message,
+        "color": color,
+    }
+
+
+def test_badge_percentage_is_rounded_to_two_decimals() -> None:
+    assert uptime_badge(0.987654).message == "98.77%"
+    # The color follows the figure shown: 99.496 rounds to 99.5, which is brightgreen.
+    badge = uptime_badge(0.99496)
+    assert (badge.message, badge.color) == ("99.5%", "brightgreen")
+
+
+def test_badge_without_uptime_is_na_and_lightgrey() -> None:
+    assert uptime_badge(None).model_dump() == {
+        "schemaVersion": 1,
+        "label": "uptime 30d",
+        "message": "n/a",
+        "color": "lightgrey",
+    }
+
+
+async def test_badge_endpoint_returns_shields_json_with_cache_header(settings: Settings) -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=make_app(settings)), base_url="http://t"
+    ) as c:
+        res = await c.get("/v1/status/badge")
+    assert res.status_code == 200
+    assert res.headers["cache-control"] == "public, max-age=60"
+    assert res.json() == {
+        "schemaVersion": 1,
+        "label": "uptime 30d",
+        "message": "100%",
+        "color": "brightgreen",
+    }
+
+
+async def test_badge_endpoint_is_na_when_prometheus_is_down(settings: Settings) -> None:
+    app = create_app(settings)
+    app.state.status_service = service(FakePrometheus(error=PrometheusError("down")))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+        res = await c.get("/v1/status/badge")
+    assert res.status_code == 200
+    assert res.json()["message"] == "n/a" and res.json()["color"] == "lightgrey"
+
+
+async def test_badge_reuses_the_status_memo(settings: Settings) -> None:
+    prometheus = FakePrometheus()
+    app = create_app(settings)
+    app.state.status_service = service(prometheus)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+        await c.get("/v1/status")
+        queries = len(prometheus.calls)
+        assert (await c.get("/v1/status/badge")).status_code == 200
+    assert len(prometheus.calls) == queries  # no new Prometheus queries
+
+
+async def test_badge_shares_the_status_rate_limit(settings: Settings) -> None:
+    ip = {"CF-Connecting-IP": "1.2.3.4"}
+    async with AsyncClient(
+        transport=ASGITransport(app=make_app(settings)), base_url="http://t"
+    ) as c:
+        for _ in range(30):
+            assert (await c.get("/v1/status", headers=ip)).status_code == 200
+            assert (await c.get("/v1/status/badge", headers=ip)).status_code == 200
+        limited = await c.get("/v1/status/badge", headers=ip)
+    assert limited.status_code == 429
+    assert limited.json()["error"]["code"] == "rate_limited"

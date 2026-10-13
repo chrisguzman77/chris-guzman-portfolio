@@ -209,6 +209,7 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
 - **Test alert email:** Grafana → Alerting → Contact points → the email contact point → Test.
 - **Analytics:** https://analytics.christopherguzman.me (Access, then the Umami login). Custom events: `resume-download`, `chat-open`, `chat-question`, `contact-sent`, `outbound-click`. Without `UMAMI_WEBSITE_ID` the site loads no tracker. `resume-download` fires only when the PDF link on `/resume` is clicked, so its `from` is always `/resume`; read where visitors came from off the `/resume` page view's referrer in Umami.
 - **Status card:** the homepage card reads `GET /v1/status` (`curl -s https://api.christopherguzman.me/v1/status`). If it shows `degraded` with every value `—`, Prometheus is usually down: `docker logs --tail 50 portfolio-prometheus-1`.
+- **Uptime badge:** the README's uptime badge is shields.io reading `GET /v1/status/badge`, the 30-day uptime from the same 60 s memo as the status card (`curl -s https://api.christopherguzman.me/v1/status/badge`). It reads `n/a` (grey) whenever the card's uptime is empty, for example while Prometheus is down.
 
 ### Memory watch
 

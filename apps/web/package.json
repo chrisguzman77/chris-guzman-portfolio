@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "perf:lighthouse": "node scripts/lighthouse-ci.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
     "format": "prettier --check .",
     "format:write": "prettier --write ."
   },

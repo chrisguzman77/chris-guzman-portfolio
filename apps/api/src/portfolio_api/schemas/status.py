@@ -15,3 +15,12 @@ class StatusResponse(BaseModel):
     p95_ms: int | None
     requests_today: int | None
     last_backup_at: str | None  # ISO 8601 UTC, e.g. 2026-10-03T07:31:12Z
+
+
+class StatusBadge(BaseModel):
+    """shields.io endpoint badge JSON: https://shields.io/badges/endpoint-badge"""
+
+    schemaVersion: Literal[1] = 1
+    label: str
+    message: str
+    color: str
