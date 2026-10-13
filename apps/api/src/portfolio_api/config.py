@@ -1,4 +1,5 @@
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -43,6 +44,16 @@ class Settings(BaseSettings):
     newsletter_daily_budget: int = Field(default=80, gt=0)
     site_url: str = "https://christopherguzman.me"
     public_api_url: str = "https://api.christopherguzman.me"
+    # Hosts besides the site's own that a chat reply may link to (the links in the content:
+    # profile, FAQ, projects); a subdomain of one is allowed too. Fixed here, never taken from
+    # retrieved sources, which could otherwise allowlist themselves.
+    chat_link_hosts: list[str] = ["github.com", "linkedin.com", "augustauniversityacm.com"]
+
+    @property
+    def chat_allowed_link_hosts(self) -> frozenset[str]:
+        """The host of site_url plus chat_link_hosts, lowercased."""
+        site = urlsplit(self.site_url).hostname  # already lowercase
+        return frozenset({h.lower() for h in self.chat_link_hosts} | ({site} if site else set()))
 
     @field_validator(
         "turnstile_secret",

@@ -28,6 +28,9 @@ fi
 export IMAGE_TAG
 DOCKER_GID="${DOCKER_GID:-$(stat -c %g /var/run/docker.sock)}"
 export DOCKER_GID
+# Grafana reads provisioning only at startup; a changed hash label makes compose recreate it.
+GRAFANA_PROVISIONING_HASH="$(cd "${ROOT}/infra/observability/grafana/provisioning" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+export GRAFANA_PROVISIONING_HASH
 
 compose() { docker compose -f "${COMPOSE_FILE}" --env-file "${env_file}" "$@"; }
 

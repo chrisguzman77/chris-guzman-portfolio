@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import time
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -30,6 +30,7 @@ from portfolio_api.services.grounding import (
     HISTORY_PAIRS,
     Exchange,
     Source,
+    blocked_reason,
     build_messages,
     cited_sources,
     normalize_citations,
@@ -128,6 +129,7 @@ class ChatService:
         hash_salt: str,
         daily_budget: int,
         min_similarity: float,
+        link_hosts: Collection[str] = (),
         clock: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._sessions = sessions
@@ -136,6 +138,7 @@ class ChatService:
         self._salt = hash_salt.encode()
         self._daily_budget = daily_budget
         self._min_similarity = min_similarity
+        self._link_hosts = link_hosts  # hosts a reply may link to; none means every link blocks
         self._clock = clock
 
     def ip_hash(self, ip: str) -> str:
@@ -155,7 +158,7 @@ class ChatService:
         return session_id, MAX_QUESTIONS
 
     async def compose(self, question: str, history: Sequence[Exchange]) -> Composed:
-        """Retrieve, ask the model, check citations. Raises the model's errors."""
+        """Retrieve, ask the model, check the reply. Raises the model's errors."""
         try:
             retrieved = await self._retriever.search(question)
         except Exception as exc:  # embedder or database failure: same outcome as a model outage
@@ -164,7 +167,11 @@ class ChatService:
             return Composed(CANNED_ANSWER, [CONTACT_SOURCE], ChatOutcome.no_match, None, 0, 0)
         reply = await self._model.complete(build_messages(question, retrieved.hits, history))
         text = normalize_citations(reply.text)
-        sources = cited_sources(text, retrieved.hits)
+        blocked = blocked_reason(text, self._link_hosts)
+        if blocked is not None:
+            # Same path as an uncited reply: the visitor gets the canned answer, raw is kept.
+            log.warning("chat.reply_blocked", reason=blocked)
+        sources = None if blocked else cited_sources(text, retrieved.hits)
         if sources is None:
             return Composed(
                 CANNED_ANSWER,

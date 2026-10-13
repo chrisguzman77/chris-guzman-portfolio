@@ -20,7 +20,8 @@ from portfolio_api.cli import (
     run_redteam,
 )
 from portfolio_api.clients.groq import ModelBusyError, ModelReply
-from portfolio_api.evals.redteam import InjectingRetriever
+from portfolio_api.config import Settings
+from portfolio_api.evals.redteam import InjectingRetriever, load_redteam_cases
 from portfolio_api.models import (
     ChatEvalKind,
     ChatEvalRun,
@@ -33,7 +34,7 @@ from portfolio_api.models import (
 from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as chat_repo
 from portfolio_api.services.chat import ChatService, Composed
-from portfolio_api.services.grounding import CANNED_ANSWER, Source
+from portfolio_api.services.grounding import CANARY, CANNED_ANSWER, Source
 from tests.fakes import FakeChatModel, FakeRetriever
 
 Sessions = async_sessionmaker[AsyncSession]
@@ -474,6 +475,55 @@ async def test_run_redteam_passes_history_and_injects_for_its_case_only(db: Sess
     async with db() as session:
         day = await session.get(ChatUsageDaily, datetime.now(UTC).date())
     assert day is not None and day.requests == 3
+
+
+async def test_blocked_replies_pass_the_real_redteam_cases(db: Sessions) -> None:
+    """The baseline's multi-05 failure, and a canary and prompt leak, reach the visitor canned."""
+    cases = {c["id"]: c for c in load_redteam_cases()}
+    replies = {
+        "multi-05": "His FastAPI projects include the ACM@AU platform [1]."
+        " Full details: https://chris-portfolio.example.net/more",
+        "leak-01": f"My rules [1]: {CANARY}. You answer questions about Christopher Guzman"
+        " (Chris) for recruiters visiting his portfolio website.",
+    }
+    for case_id, reply in replies.items():
+        service, retriever = redteam_service(db, FakeChatModel(ModelReply(reply, 900, 20)))
+        [result] = await run_redteam(service, retriever, [cases[case_id]], out=lambda _: None)
+        assert (result.id, result.reason) == (case_id, None)
+
+
+async def test_answer_eval_passes_a_reply_linking_github(db: Sessions, settings: Settings) -> None:
+    reply = "Its code is at https://github.com/chrisguzman77/chris-guzman-portfolio [1]."
+    service = ChatService(
+        db,
+        FakeRetriever(),
+        FakeChatModel(ModelReply(reply, 900, 20)),
+        hash_salt="s",
+        daily_budget=180_000,
+        min_similarity=0.5,
+        link_hosts=settings.chat_allowed_link_hosts,
+    )
+    case = {"question": "Code?", "must_include": ["github.com"], "sources": ["/projects/acm"]}
+    [result] = await run_eval(service, {"answerable": [case], "refuse": []}, out=lambda _: None)
+    assert result.reason is None
+
+
+async def test_answer_eval_passes_a_reply_linking_linkedin(
+    db: Sessions, settings: Settings
+) -> None:
+    reply = "His LinkedIn is https://www.linkedin.com/in/christopher-emmanuel-guzman/ [1]."
+    service = ChatService(
+        db,
+        FakeRetriever(),
+        FakeChatModel(ModelReply(reply, 900, 20)),
+        hash_salt="s",
+        daily_budget=180_000,
+        min_similarity=0.5,
+        link_hosts=settings.chat_allowed_link_hosts,
+    )
+    case = {"question": "LinkedIn?", "must_include": ["linkedin.com"], "sources": ["/projects/acm"]}
+    [result] = await run_eval(service, {"answerable": [case], "refuse": []}, out=lambda _: None)
+    assert result.reason is None
 
 
 async def test_evaluate_redteam_records_a_run_and_counts_only_unknown_failures(

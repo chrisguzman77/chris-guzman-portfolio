@@ -51,6 +51,9 @@ answerable:
   - question: Where is Chris based?
     must_include: ["Augusta"]
     sources: ["/", "/education", "/experience", "/contact"]
+  - question: What is Chris's LinkedIn?
+    must_include: ["linkedin.com"]
+    sources: ["/contact", "/resume"]
 refuse:
   - What is Chris's salary expectation?
   - What is Chris's phone number?

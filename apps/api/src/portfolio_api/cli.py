@@ -428,6 +428,7 @@ async def _chat_eval(
                 hash_salt=settings.chat_hash_salt or "eval",
                 daily_budget=settings.chat_daily_token_budget,
                 min_similarity=settings.chat_min_similarity,
+                link_hosts=settings.chat_allowed_link_hosts,
             )
             commit = image_commit(settings.app_version)
             if kind == ChatEvalKind.redteam:
