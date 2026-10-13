@@ -508,6 +508,24 @@ async def test_answer_eval_passes_a_reply_linking_github(db: Sessions, settings:
     assert result.reason is None
 
 
+async def test_answer_eval_passes_a_reply_linking_linkedin(
+    db: Sessions, settings: Settings
+) -> None:
+    reply = "His LinkedIn is https://www.linkedin.com/in/christopher-emmanuel-guzman/ [1]."
+    service = ChatService(
+        db,
+        FakeRetriever(),
+        FakeChatModel(ModelReply(reply, 900, 20)),
+        hash_salt="s",
+        daily_budget=180_000,
+        min_similarity=0.5,
+        link_hosts=settings.chat_allowed_link_hosts,
+    )
+    case = {"question": "LinkedIn?", "must_include": ["linkedin.com"], "sources": ["/projects/acm"]}
+    [result] = await run_eval(service, {"answerable": [case], "refuse": []}, out=lambda _: None)
+    assert result.reason is None
+
+
 async def test_evaluate_redteam_records_a_run_and_counts_only_unknown_failures(
     db: Sessions, tmp_path: Path
 ) -> None:
