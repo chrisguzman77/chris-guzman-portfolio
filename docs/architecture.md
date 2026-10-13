@@ -94,6 +94,8 @@ browser ⌘K ─> terminal ─Turnstile─> POST /v1/chat/sessions
 
 The API owns the index and chat tables in the `portfolio` database; it reads Directus with its own read-only token. `/internal/*` is reachable only from containers on the VM (secret header, and requests through the Cloudflare Tunnel are refused). See ADR 0008.
 
+Retrieval is RRF hybrid search with no reranker ([ADR 0013](adr/0013-no-reranker.md)).
+
 Quality over time: a weekly GitHub Actions job (`chat-eval.yml`, on the VM's self-hosted runner) runs `portfolio-api chat-eval --record` inside the api container. It runs the answer and refusal cases (`evals/chat_eval.yaml`) against the live model, then the golden questions (`evals/golden.yaml`) through retrieval only for hit@5 and MRR, and writes one `chat_eval_runs` row per run. A second weekly run (Wednesday, `--kind redteam`) asks the red-team cases in `evals/redteam.yaml` (ADR 0012). Grafana reads that table and `chat_usage_daily` as `grafana_chat_ro` (SELECT on those two tables only) for the Chat quality dashboard and four alerts. `chat_answer_seconds{outcome}` times every live answer.
 
 ## Monitoring, analytics and backups (Phase 6)

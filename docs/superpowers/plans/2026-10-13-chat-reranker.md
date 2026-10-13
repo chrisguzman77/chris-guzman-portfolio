@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Executed: Task 1 only. Chris chose to record the negative result (ADR 0013) instead of Tasks 2-3.**
+
 **Goal:** Grow the golden retrieval set from 16 to 40 questions and recalibrate its CI gate. Add an optional cross-encoder reranker (`API_RERANKER=off|minilm`, default `off`), so production is unchanged. Add `chat-eval --reranker` so the deployed image can measure off vs. on against the live index. PR 4b decides whether to keep it.
 
 **Architecture:**
