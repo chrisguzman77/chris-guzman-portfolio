@@ -190,6 +190,9 @@ test("blog: a mermaid block renders as a diagram that follows the theme", async 
   const diagram = page.locator("[data-mermaid-rendered] svg");
   await expect(diagram).toBeVisible();
   await expect(page.locator("pre[data-mermaid]")).toBeHidden();
+  // Dark theme is the default: axe here also covers the dim code-comment colour.
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(page.locator("pre code").getByText("// Comments are the dimmest")).toBeVisible();
   await expectNoAxeViolations(page);
 
   await page.getByRole("button", { name: "Toggle theme" }).click();
@@ -198,14 +201,6 @@ test("blog: a mermaid block renders as a diagram that follows the theme", async 
   await expect(page.locator("[data-mermaid-rendered] style")).toContainText(/#0d7a57/i);
   await expect(diagram).toBeVisible();
   await expect(page.locator("[data-mermaid-rendered]")).toHaveCount(1);
-  await expectNoAxeViolations(page);
-});
-
-test("blog: code comments stay readable in the dark theme", async ({ page }) => {
-  await page.addInitScript(() => window.localStorage.setItem("theme", "dark"));
-  await page.goto("/blog/hello-world");
-  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
-  await expect(page.locator("pre code").getByText("// Comments are the dimmest")).toBeVisible();
   await expectNoAxeViolations(page);
 });
 

@@ -12,7 +12,8 @@ for (const path of [
   "/blog/hello-world",
   "/contact",
 ]) {
-  test(`open graph: ${path} describes its own page`, async ({ page }) => {
+  test(`open graph: ${path} describes its own page`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile", "metadata is viewport-independent");
     await page.goto(path);
     const ownTitle = (await page.title()).replace(` · ${SITE}`, "");
     if (path !== "/") expect(ownTitle).not.toBe(SITE);

@@ -88,7 +88,6 @@ describe("/blog/[slug]", () => {
   });
 
   it("builds metadata from the post, and none for a missing one", async () => {
-    vi.mocked(getPost).mockResolvedValue(post);
     vi.mocked(getPost).mockResolvedValue({ ...post, excerpt: "A tour of the Compose stack. " });
     await expect(generateMetadata(params("self-hosting"))).resolves.toEqual({
       title: post.title,
