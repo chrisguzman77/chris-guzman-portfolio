@@ -1,13 +1,15 @@
 name: chat-eval
 
-# The chat answer eval, run inside the deployed api container by the VM's self-hosted
-# runner (docker.sock; see docs/adr/0006-runner-in-compose.md). Each run is recorded in
+# The chat evals (answer on Sunday, red-team on Wednesday) run inside the deployed api
+# container by the VM's self-hosted runner (docker.sock; see
+# docs/adr/0006-runner-in-compose.md). Each run is recorded in
 # chat_eval_runs (Grafana → Chat quality); alerts come from Grafana, not this job's status.
-# A red job means at least one case failed: read the summary. Scheduled runs use the
-# default branch only.
+# A red job means at least one case failed (red-team: a case not marked known_failure): read the
+# summary. Scheduled runs use the default branch only.
 on:
   schedule:
     - cron: "30 10 * * 0" # answer eval, Sunday 10:30 UTC
+    - cron: "30 10 * * 3" # red-team eval, Wednesday 10:30 UTC
   workflow_dispatch:
     inputs:
       kind:
@@ -42,6 +44,7 @@ jobs:
           if [[ "${EVENT}" == schedule ]]; then
             case "${SCHEDULE}" in
               "30 10 * * 0") kind=answer ;;
+              "30 10 * * 3") kind=redteam ;;
               *) echo "no kind for schedule '${SCHEDULE}'" >&2; exit 1 ;;
             esac
           else

@@ -104,11 +104,13 @@ class ChatEvalRun(Base):
     cases: Mapped[int] = mapped_column(Integer)
     passed: Mapped[int] = mapped_column(Integer)
     answer_pass_rate: Mapped[float | None] = mapped_column(Float)  # answerable cases only
-    refusal_pass_rate: Mapped[float | None] = mapped_column(Float)  # refuse cases (answer kind)
+    # Refuse cases (answer kind); every case (redteam kind).
+    refusal_pass_rate: Mapped[float | None] = mapped_column(Float)
     hit_at_5: Mapped[float | None] = mapped_column(Float)  # golden retrieval, live index
     mrr: Mapped[float | None] = mapped_column(Float)
     latency_p50_ms: Mapped[int] = mapped_column(Integer)  # per-case compose time
     latency_p95_ms: Mapped[int] = mapped_column(Integer)
     tokens_per_question: Mapped[float] = mapped_column(Float)
-    # [{id, category, reason}] for each failed case, all taken from the eval files.
+    # [{id, category, reason, known}] for each failed case, all taken from the eval files;
+    # known is true for a red-team case marked known_failure.
     failures: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)

@@ -1,4 +1,4 @@
-# The twelve alerts (Phase 6/7, the newsletter and chat quality). Each Prometheus rule is an
+# The thirteen alerts (Phase 6/7, the newsletter and chat quality). Each Prometheus rule is an
 # instant PromQL query (A) and a threshold (C) on it; the chat-eval rules are a SQL query on
 # the chat-readonly Postgres datasource (A, one numeric column) and a threshold (C). Grafana
 # expands environment variables in provisioning files, so no expression, query or template
@@ -11,6 +11,8 @@
 # down). execErrState: Error, so a dead Prometheus or database raises one grouped
 # DatasourceError email. The chat-eval rules carry component: chat-eval, which policies.yml
 # routes to weekly reminders (they read a weekly run); DatasourceError and DatasourceNoData stay at 4 hours.
+# Chat eval red-team is provisioned paused (isPaused: true) until the red-team hardening PR
+# records a baseline and unpauses it, so the first red-team runs don't page.
 apiVersion: 1
 
 groups:
@@ -334,6 +336,39 @@ groups:
           severity: warning
           component: chat-eval
 
+      - uid: chat-eval-redteam
+        title: Chat eval red-team
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: chat-readonly
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              editorMode: code
+              # Failed cases in the latest redteam run that are not marked known (an item without
+              # the flag counts as not known). Always one row: 0 when there is no run yet.
+              rawSql: SELECT count(*)::float8 AS failures FROM (SELECT failures FROM chat_eval_runs WHERE kind = 'redteam' ORDER BY started_at DESC LIMIT 1) AS latest CROSS JOIN LATERAL jsonb_array_elements(latest.failures) AS f WHERE NOT COALESCE((f ->> 'known')::boolean, false)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: A red-team case that is not a known failure failed in the latest chat red-team eval. See Grafana → Chat quality and the runbook (Chat quality).
+        labels:
+          severity: warning
+          component: chat-eval
+
       - uid: chat-eval-stale
         title: Chat eval stale
         condition: C
@@ -348,7 +383,7 @@ groups:
               editorMode: code
               # Hours since the last run of each kind; a kind with no run at all counts as
               # 1,000,000 hours, so the query always returns one row per kind.
-              rawSql: SELECT k.kind, COALESCE(EXTRACT(EPOCH FROM now() - max(r.started_at)) / 3600, 1000000)::float8 AS hours FROM (VALUES ('answer')) AS k(kind) LEFT JOIN chat_eval_runs AS r ON r.kind::text = k.kind GROUP BY k.kind
+              rawSql: SELECT k.kind, COALESCE(EXTRACT(EPOCH FROM now() - max(r.started_at)) / 3600, 1000000)::float8 AS hours FROM (VALUES ('answer'), ('redteam')) AS k(kind) LEFT JOIN chat_eval_runs AS r ON r.kind::text = k.kind GROUP BY k.kind
           - refId: C
             datasourceUid: __expr__
             model:

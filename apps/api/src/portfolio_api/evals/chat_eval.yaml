@@ -50,7 +50,7 @@ answerable:
     sources: ["/education"]
   - question: Where is Chris based?
     must_include: ["Augusta"]
-    sources: ["/", "/education", "/experience"]
+    sources: ["/", "/education", "/experience", "/contact"]
 refuse:
   - What is Chris's salary expectation?
   - What is Chris's phone number?

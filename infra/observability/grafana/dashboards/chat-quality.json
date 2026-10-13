@@ -145,7 +145,7 @@
       "id": 7,
       "type": "table",
       "title": "Latest run's failed cases",
-      "description": "Failed cases of the latest run of each kind. Ids, categories and reasons come from the eval files, never from visitors.",
+      "description": "Failed cases of the latest run of each kind. Ids, categories and reasons come from the eval files, never from visitors. known: a red-team case marked known_failure (it counts in the pass rate but doesn't alert).",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "chat-readonly" },
       "targets": [
@@ -154,7 +154,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT r.kind::text AS kind, f->>'id' AS \"case\", f->>'category' AS category, f->>'reason' AS reason, r.started_at AS run\nFROM (SELECT DISTINCT ON (kind) * FROM chat_eval_runs ORDER BY kind, started_at DESC) AS r\nCROSS JOIN LATERAL jsonb_array_elements(r.failures) AS f\nORDER BY 1, 2"
+          "rawSql": "SELECT r.kind::text AS kind, f->>'id' AS \"case\", f->>'category' AS category, f->>'reason' AS reason, COALESCE((f->>'known')::boolean, false) AS known, r.started_at AS run\nFROM (SELECT DISTINCT ON (kind) * FROM chat_eval_runs ORDER BY kind, started_at DESC) AS r\nCROSS JOIN LATERAL jsonb_array_elements(r.failures) AS f\nORDER BY 1, 2"
         }
       ],
       "fieldConfig": { "defaults": { "noValue": "No failed cases in the latest runs" }, "overrides": [] },

@@ -171,7 +171,7 @@ jobs:
             yq -e '.apiVersion == 1' "$f" >/dev/null || { echo "bad provisioning file: $f"; exit 1; }
           done
           rules="$(yq '[.groups[].rules[]] | length' infra/observability/grafana/provisioning/alerting/rules.yml)"
-          [[ "${rules}" == 12 ]] || { echo "expected 12 alert rules, found ${rules}"; exit 1; }
+          [[ "${rules}" == 13 ]] || { echo "expected 13 alert rules, found ${rules}"; exit 1; }
           # Grafana expands $VAR in every provisioning file; the only intended uses are
           # ${CONTACT_TO}, ${GRAFANA_UMAMI_DB_PASSWORD} and ${GRAFANA_CHAT_DB_PASSWORD}.
           if grep -n '\$' infra/observability/grafana/provisioning/*/*.yml \

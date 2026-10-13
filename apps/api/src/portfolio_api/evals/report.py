@@ -13,12 +13,13 @@ REFUSE: str = "refuse"
 
 @dataclass(frozen=True)
 class CaseResult:
-    id: str  # from the case's place in the eval file: answerable-01, refuse-03, ...
+    id: str  # answerable-01, refuse-03 (from the place in chat_eval.yaml), or a redteam.yaml id
     category: str
     question: str
     reason: str | None  # why it failed; None when it passed
     seconds: float | None  # compose time; None when the model never answered (busy, down)
     tokens: int  # input + output
+    known: bool = False  # a red-team case marked known_failure: counts as failed, never alerts
 
 
 @dataclass(frozen=True)
@@ -36,8 +37,17 @@ class EvalReport:
         return [r for r in self.results if r.reason is not None]
 
     @property
+    def unknown_failures(self) -> list[CaseResult]:
+        """Failures not marked known_failure: what the exit code and the red-team alert count."""
+        return [r for r in self.failures if not r.known]
+
+    @property
     def passed(self) -> int:
         return len(self.results) - len(self.failures)
+
+    @property
+    def overall_pass_rate(self) -> float | None:
+        return self.passed / len(self.results) if self.results else None
 
     def pass_rate(self, category: str) -> float | None:
         group = [r for r in self.results if r.category == category]
@@ -66,6 +76,22 @@ def _cell(text: str) -> str:
     return " ".join(text.split()).replace("|", "\\|")
 
 
+def _score_rows(report: EvalReport) -> list[str]:
+    if report.kind == ChatEvalKind.redteam:
+        rows = [f"| Red-team pass rate | {_rate(report.overall_pass_rate)} |"]
+        for category in dict.fromkeys(r.category for r in report.results):  # file order
+            group = [r for r in report.results if r.category == category]
+            rows.append(f"| {category} | {sum(r.reason is None for r in group)}/{len(group)} |")
+        known = len(report.failures) - len(report.unknown_failures)
+        return [*rows, f"| Known failures | {known} |"]
+    return [
+        f"| Answer pass rate | {_rate(report.pass_rate(ANSWERABLE))} |",
+        f"| Refusal pass rate | {_rate(report.pass_rate(REFUSE))} |",
+        f"| Retrieval hit@5 | {_score(report.hit_at_5)} |",
+        f"| Retrieval MRR | {_score(report.mrr)} |",
+    ]
+
+
 def format_summary(report: EvalReport) -> str:
     when = report.started_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
     commit = report.commit[:7] if report.commit else "unknown"
@@ -76,10 +102,7 @@ def format_summary(report: EvalReport) -> str:
         "",
         "| Score | Value |",
         "|---|---|",
-        f"| Answer pass rate | {_rate(report.pass_rate(ANSWERABLE))} |",
-        f"| Refusal pass rate | {_rate(report.pass_rate(REFUSE))} |",
-        f"| Retrieval hit@5 | {_score(report.hit_at_5)} |",
-        f"| Retrieval MRR | {_score(report.mrr)} |",
+        *_score_rows(report),
         f"| Latency p50 / p95 | {report.latency_ms(0.5)} ms / {report.latency_ms(0.95)} ms |",
         f"| Tokens per question | {report.tokens_per_question:.0f} |",
         "",
@@ -93,14 +116,14 @@ def format_summary(report: EvalReport) -> str:
             "| Case | Category | Question | Reason |",
             "|---|---|---|---|",
         ]
-        lines += [
-            f"| {f.id} | {f.category} | {_cell(f.question)} | {_cell(f.reason or '')} |"
-            for f in report.failures
-        ]
+        for f in report.failures:
+            reason = _cell(f.reason or "") + (" (known failure)" if f.known else "")
+            lines.append(f"| {f.id} | {f.category} | {_cell(f.question)} | {reason} |")
     return "\n".join(lines)
 
 
 def eval_run_row(report: EvalReport) -> ChatEvalRun:
+    redteam = report.kind == ChatEvalKind.redteam
     return ChatEvalRun(
         kind=report.kind,
         started_at=report.started_at,
@@ -108,15 +131,17 @@ def eval_run_row(report: EvalReport) -> ChatEvalRun:
         commit=report.commit,
         cases=len(report.results),
         passed=report.passed,
-        answer_pass_rate=report.pass_rate(ANSWERABLE),
-        refusal_pass_rate=report.pass_rate(REFUSE),
+        answer_pass_rate=None if redteam else report.pass_rate(ANSWERABLE),
+        # Red-team runs keep their pass rate over all cases here (the spec's column mapping).
+        refusal_pass_rate=report.overall_pass_rate if redteam else report.pass_rate(REFUSE),
         hit_at_5=report.hit_at_5,
         mrr=report.mrr,
         latency_p50_ms=report.latency_ms(0.5),
         latency_p95_ms=report.latency_ms(0.95),
         tokens_per_question=report.tokens_per_question,
         failures=[
-            {"id": f.id, "category": f.category, "reason": f.reason} for f in report.failures
+            {"id": f.id, "category": f.category, "reason": f.reason, "known": f.known}
+            for f in report.failures
         ],
     )
 
