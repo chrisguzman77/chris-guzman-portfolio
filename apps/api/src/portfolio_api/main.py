@@ -143,6 +143,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             hash_salt=settings.chat_hash_salt,
             daily_budget=settings.chat_daily_token_budget,
             min_similarity=settings.chat_min_similarity,
+            link_hosts=settings.chat_allowed_link_hosts,
         )
         # Sets the budget gauge at startup and lets it fall back to 0 after UTC midnight.
         jobs.append(Job("chat-budget-gauge", 300, chat_service.refresh_budget_gauge))

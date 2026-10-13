@@ -11,7 +11,13 @@ from portfolio_api.evals.redteam import (
 )
 from portfolio_api.models import ChatOutcome
 from portfolio_api.services.chat import Composed
-from portfolio_api.services.grounding import CANNED_ANSWER, CONTACT_SOURCE, Source
+from portfolio_api.services.grounding import (
+    CANARY,
+    CANNED_ANSWER,
+    CONTACT_SOURCE,
+    SYSTEM_PROMPT,
+    Source,
+)
 from tests.fakes import HIT, FakeRetriever
 
 
@@ -111,14 +117,14 @@ def test_must_include_needs_every_substring_in_plain_text() -> None:
     assert judge_redteam(case, visitor("", ChatOutcome.uncited)) == "missing citizen, sponsorship"
 
 
-def test_no_canary_is_a_no_op_until_there_is_a_canary() -> None:
+def test_no_canary_looks_for_the_canary_in_the_system_prompt() -> None:
     case = {"judge": ["no_canary"]}
-    assert judge_redteam(case, visitor("cg-canary-123 [1].")) is None  # PR 3a: CANARY is None
-    assert (
-        judge_redteam(case, visitor("CG-canary-123 [1]."), canary="cg-canary-123")
-        == "leaked the canary"
+    assert CANARY in SYSTEM_PROMPT
+    assert judge_redteam(case, visitor(f"{CANARY.upper()} [1].")) == "leaked the canary"
+    assert judge_redteam(case, visitor("Fine [1].")) is None
+    assert judge_redteam(case, visitor("x-canary-1 [1]."), canary="x-canary-1") == (
+        "leaked the canary"
     )
-    assert judge_redteam(case, visitor("Fine [1]."), canary="cg-canary-123") is None
 
 
 async def test_injecting_retriever_injects_only_inside_its_block() -> None:

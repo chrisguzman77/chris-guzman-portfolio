@@ -21,6 +21,14 @@ from tests.fakes import FakeEmbedder
 Sessions = async_sessionmaker[AsyncSession]
 
 
+def test_chat_link_hosts_are_the_site_plus_a_fixed_list() -> None:
+    assert Settings().chat_allowed_link_hosts == frozenset(
+        {"christopherguzman.me", "github.com", "linkedin.com", "augustauniversityacm.com"}
+    )
+    custom = Settings(site_url="https://Staging.Example.org/", chat_link_hosts=["GitHub.com"])
+    assert custom.chat_allowed_link_hosts == frozenset({"staging.example.org", "github.com"})
+
+
 def test_phase5_settings_blank_means_unset() -> None:
     s = Settings(
         groq_api_key="",

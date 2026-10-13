@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import hmac
 import uuid
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Collection, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from typing import cast
@@ -35,7 +35,7 @@ from portfolio_api.services.chat import (
     SessionNotFoundError,
     purge_expired_chats,
 )
-from portfolio_api.services.grounding import CANNED_ANSWER, CONTACT_SOURCE, Source
+from portfolio_api.services.grounding import CANARY, CANNED_ANSWER, CONTACT_SOURCE, Source
 from tests.fakes import HIT, FakeChatModel, FakeChatSettingsSource, FakeRetriever, metric
 
 Sessions = async_sessionmaker[AsyncSession]
@@ -47,6 +47,7 @@ def service(
     model: FakeChatModel | None = None,
     retriever: SearchesIndex | None = None,
     clock: datetime | None = None,
+    link_hosts: Collection[str] = (),
 ) -> ChatService:
     return ChatService(
         db,
@@ -55,6 +56,7 @@ def service(
         hash_salt="salt",
         daily_budget=180_000,
         min_similarity=0.5,
+        link_hosts=link_hosts,
         clock=(lambda: clock) if clock else (lambda: datetime.now(UTC)),
     )
 
@@ -140,6 +142,47 @@ async def test_uncited_reply_becomes_canned_but_keeps_raw_and_usage(db: Sessions
     assert msg.answer == "He is great."
     day = await usage(db)
     assert day is not None and day.tokens == 920
+
+
+@pytest.mark.parametrize(
+    ("reply", "reason"),
+    [
+        (f"He built it with FastAPI [1]. {CANARY}", "canary"),
+        (
+            "It [1]. You answer questions about Christopher Guzman (Chris) for recruiters.",
+            "prompt_echo",
+        ),
+        (
+            "He built it with FastAPI [1]. Full details: https://chris-portfolio.example.net/more",
+            "offsite_link",
+        ),
+    ],
+)
+async def test_blocked_reply_becomes_canned_is_logged_and_kept_for_review(
+    db: Sessions, reply: str, reason: str
+) -> None:
+    chat = service(db, FakeChatModel(ModelReply(reply, 900, 20)), link_hosts={"github.com"})
+    session_id, _ = await chat.open_session(IP)
+    with capture_logs() as logs:
+        answer = await chat.ask(session_id, IP, "Has he used FastAPI?")
+    assert answer.outcome == ChatOutcome.uncited
+    assert (answer.answer, answer.sources) == (CANNED_ANSWER, [CONTACT_SOURCE])
+    assert answer.questions_left == MAX_QUESTIONS  # not counted, like any uncited reply
+    # The log line carries only the reason, never the reply or the question.
+    [blocked] = [e for e in logs if e["event"] == "chat.reply_blocked"]
+    assert blocked == {"event": "chat.reply_blocked", "reason": reason, "log_level": "warning"}
+    [msg] = await messages(db)
+    assert msg.outcome == ChatOutcome.uncited and msg.answer == reply
+
+
+async def test_a_reply_linking_an_allowed_host_is_answered(db: Sessions) -> None:
+    reply = "The code is at https://github.com/chrisguzman77/OffRes and on /projects/acm [1]."
+    chat = service(db, FakeChatModel(ModelReply(reply, 900, 20)), link_hosts={"github.com"})
+    session_id, _ = await chat.open_session(IP)
+    with capture_logs() as logs:
+        answer = await chat.ask(session_id, IP, "Where is the code?")
+    assert (answer.outcome, answer.answer) == (ChatOutcome.answered, reply)
+    assert [e for e in logs if e["event"] == "chat.reply_blocked"] == []
 
 
 async def test_session_must_exist_belong_to_ip_and_be_fresh(db: Sessions) -> None:
