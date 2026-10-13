@@ -7,6 +7,7 @@ import { Prose } from "@/components/content/prose";
 import { getPost } from "@/lib/directus/queries";
 import { formatPostDate } from "@/lib/format";
 import { renderMarkdown, type Heading } from "@/lib/markdown";
+import { pageMetadata } from "@/lib/metadata";
 import { cn } from "@/lib/utils";
 import { outlineButton } from "@/lib/styles";
 
@@ -16,7 +17,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
   if (!post) return {};
-  return { title: post.title, description: post.excerpt };
+  return pageMetadata({
+    title: post.title,
+    description: post.excerpt,
+    path: `/blog/${post.slug}`,
+    ownImage: true,
+    article: { publishedTime: post.published_at },
+  });
 }
 
 function TableOfContents({ headings }: { headings: Heading[] }) {

@@ -14,6 +14,7 @@ import { getProject } from "@/lib/directus/queries";
 import type { Project } from "@/lib/directus/schemas";
 import { formatMonthYear } from "@/lib/format";
 import { renderMarkdown } from "@/lib/markdown";
+import { pageMetadata } from "@/lib/metadata";
 import { outlineButton } from "@/lib/styles";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -27,7 +28,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const project = await getProject(slug);
   if (!project) return {};
-  return { title: project.title, description: project.summary };
+  return pageMetadata({
+    title: project.title,
+    description: project.summary,
+    path: `/projects/${project.slug}`,
+    ownImage: true,
+  });
 }
 
 export default async function ProjectPage({ params }: Props) {

@@ -89,9 +89,19 @@ describe("/blog/[slug]", () => {
 
   it("builds metadata from the post, and none for a missing one", async () => {
     vi.mocked(getPost).mockResolvedValue(post);
+    vi.mocked(getPost).mockResolvedValue({ ...post, excerpt: "A tour of the Compose stack. " });
     await expect(generateMetadata(params("self-hosting"))).resolves.toEqual({
       title: post.title,
       description: post.excerpt,
+      openGraph: {
+        type: "article",
+        siteName: "Christopher Guzman",
+        locale: "en_US",
+        title: post.title,
+        description: post.excerpt,
+        url: "/blog/self-hosting",
+        publishedTime: "2026-10-14",
+      },
     });
 
     vi.mocked(getPost).mockResolvedValue(null);

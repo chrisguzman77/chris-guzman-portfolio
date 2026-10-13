@@ -9,6 +9,7 @@ import { SkipLink } from "@/components/layout/skip-link";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { baseOpenGraph } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site";
 
 import "./globals.css";
@@ -23,9 +24,7 @@ export const metadata: Metadata = {
   title: { default: siteConfig.name, template: `%s · ${siteConfig.name}` },
   description: siteConfig.description,
   openGraph: {
-    type: "website",
-    siteName: siteConfig.name,
-    locale: "en_US",
+    ...baseOpenGraph,
     title: siteConfig.name,
     description: siteConfig.description,
   },

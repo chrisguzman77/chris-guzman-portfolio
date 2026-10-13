@@ -8,10 +8,14 @@ import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { getResume } from "@/lib/directus/queries";
 import { formatPostDate } from "@/lib/format";
+import { pageMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = {
-  title: "Resume",
-  description: "Download the resume of Christopher Guzman as a PDF.",
+  ...pageMetadata({
+    title: "Resume",
+    description: "Download the resume of Christopher Guzman as a PDF.",
+    path: "/resume",
+  }),
   alternates: { canonical: "/resume" },
 };
 
