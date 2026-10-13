@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import structlog
 
 from portfolio_api.clients.prometheus import PrometheusClient, PrometheusError
-from portfolio_api.schemas.status import DailyUptime, StatusResponse
+from portfolio_api.schemas.status import DailyUptime, StatusBadge, StatusResponse
 
 log = structlog.get_logger()
 
@@ -33,14 +33,20 @@ FIRST_PROBE = 'min(min_over_time(timestamp(probe_success{{job="site"}})[{seconds
 # Successful probes in the `seconds` before the evaluation time. A missing sample adds
 # nothing, so time with no probes (VM or Prometheus down) counts as downtime.
 SUCCESSES = 'sum(sum_over_time(probe_success{{job="site"}}[{seconds}s]))'
-# The status card polls /v1/status itself, so its own requests are left out of both figures.
+# The status card and the README badge poll /v1/status and /v1/status/badge, so those requests
+# are left out of both figures.
 P95 = (
-    "histogram_quantile(0.95, sum by (le) (rate("
-    'http_request_duration_seconds_bucket{job="api",route!~"/v1/chat/.*|/v1/status"}[24h])))'
+    "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{"
+    'job="api",route!~"/v1/chat/.*|/v1/status(/badge)?"}[24h])))'
 )
-REQUESTS_SINCE = 'sum(increase(http_requests_total{{job="api",route!="/v1/status"}}[{seconds}s]))'
+REQUESTS_SINCE = (
+    'sum(increase(http_requests_total{{job="api",route!~"/v1/status(/badge)?"}}[{seconds}s]))'
+)
 LAST_BACKUP = "max(backup_last_success_timestamp_seconds)"
 LATEST_PROBE = 'max(probe_success{job="site"})'
+BADGE_LABEL = "uptime 30d"
+# shields.io colors for the badge, by the lowest percentage each needs; anything lower is red.
+BADGE_COLORS = ((99.5, "brightgreen"), (99.0, "green"), (95.0, "yellow"))
 
 DbPing = Callable[[], Awaitable[bool]]
 Window = tuple[float, int]  # (evaluation time, whole seconds before it)
@@ -221,3 +227,12 @@ class StatusService:
             return None
         at, seconds = window
         return sum(await self._query(SUCCESSES.format(seconds=seconds), at))
+
+
+def uptime_badge(uptime_30d: float | None) -> StatusBadge:
+    """The README's uptime badge: the 30-day uptime as a percentage, colored by threshold."""
+    if uptime_30d is None:
+        return StatusBadge(label=BADGE_LABEL, message="n/a", color="lightgrey")
+    pct = round(uptime_30d * 100, 2)
+    color = next((name for floor, name in BADGE_COLORS if pct >= floor), "red")
+    return StatusBadge(label=BADGE_LABEL, message=f"{pct:g}%", color=color)
