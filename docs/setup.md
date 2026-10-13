@@ -136,7 +136,7 @@ All three keys below are optional. Without `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCES
 
 ## Chat quality (eval history)
 
-`GRAFANA_CHAT_DB_PASSWORD` is optional for the site but needed for the Chat quality dashboard and the chat-eval alerts. Without it the read-only role isn't created, the dashboard shows errors, and the three chat-eval alerts send a DatasourceError email every 4 hours. Add it before merging the PR that ships them.
+`GRAFANA_CHAT_DB_PASSWORD` is optional for the site but needed for the Chat quality dashboard and the chat-eval alerts. Without it the read-only role isn't created, the dashboard shows errors, and the three chat-eval alerts send a DatasourceError email every 4 hours (chat-eval alerts that really fire repeat weekly). Add it before merging the PR that ships them.
 
 1. **Store the key.** Run `make secrets-edit`, add `GRAFANA_CHAT_DB_PASSWORD=<output of openssl rand -hex 24>`, save, then run `make secrets-check`. Commit the re-encrypted `infra/compose/prod.enc.env` and merge it on its own.
 2. **Ship it.** Merge the PR.

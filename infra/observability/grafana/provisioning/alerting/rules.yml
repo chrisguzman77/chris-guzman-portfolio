@@ -10,7 +10,7 @@
 # traffic yet or the condition is not met, and a missing exporter is caught by Container
 # down). execErrState: Error, so a dead Prometheus or database raises one grouped
 # DatasourceError email. The chat-eval rules carry component: chat-eval, which policies.yml
-# routes to weekly reminders (they read a weekly run).
+# routes to weekly reminders (they read a weekly run); DatasourceError and DatasourceNoData stay at 4 hours.
 apiVersion: 1
 
 groups:

@@ -7,7 +7,7 @@ name: chat-eval
 # default branch only.
 on:
   schedule:
-    - cron: "30 8 * * 0" # answer eval, Sunday 08:30 UTC
+    - cron: "30 10 * * 0" # answer eval, Sunday 10:30 UTC
   workflow_dispatch:
     inputs:
       kind:
@@ -41,7 +41,7 @@ jobs:
         run: |
           if [[ "${EVENT}" == schedule ]]; then
             case "${SCHEDULE}" in
-              "30 8 * * 0") kind=answer ;;
+              "30 10 * * 0") kind=answer ;;
               *) echo "no kind for schedule '${SCHEDULE}'" >&2; exit 1 ;;
             esac
           else

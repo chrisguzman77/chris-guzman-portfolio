@@ -13,4 +13,7 @@ policies:
       - receiver: email-chris
         object_matchers:
           - ["component", "=", "chat-eval"]
+          # A broken datasource is not a weekly condition: it keeps the root 4-hour cadence.
+          - ["alertname", "!=", "DatasourceError"]
+          - ["alertname", "!=", "DatasourceNoData"]
         repeat_interval: 168h

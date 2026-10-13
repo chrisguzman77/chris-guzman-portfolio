@@ -27,6 +27,7 @@ from portfolio_api.models import (
     ChatSession,
     ChatUsageDaily,
 )
+from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as chat_repo
 from portfolio_api.services.chat import ChatService, Composed
 from portfolio_api.services.grounding import CANNED_ANSWER, Source
@@ -380,3 +381,31 @@ def test_image_commit_is_a_git_sha_or_none() -> None:
     assert image_commit(sha) == sha
     assert image_commit("abc1234") == "abc1234"
     assert image_commit("dev") is None and image_commit("latest") is None
+
+
+class BrokenRetriever:
+    async def search(self, question: str) -> Retrieved:
+        raise RuntimeError(f"embedder down for {question}")
+
+
+async def test_evaluate_keeps_the_run_when_golden_retrieval_fails(
+    db: Sessions, tmp_path: Path
+) -> None:
+    summary = tmp_path / "chat-eval.md"
+    failed = await evaluate(
+        chat(db, FakeChatModel()),
+        BrokenRetriever(),
+        cases={"answerable": [], "refuse": ["Poem?"]},
+        golden=[{"question": "secret visitor-ish text", "expect": ["x"]}],
+        commit=None,
+        record=db,
+        summary_file=summary,
+        out=lambda _: None,
+    )
+    assert failed == 1  # the refuse case, as before
+    async with db() as session:
+        run = (await session.scalars(select(ChatEvalRun))).one()
+    assert (run.hit_at_5, run.mrr) == (None, None)
+    text = read(summary)
+    assert text.endswith("\n\nGolden retrieval failed: RuntimeError\n")
+    assert "secret" not in text and "embedder" not in text

@@ -218,7 +218,13 @@ async def evaluate(
     """
     started_at = datetime.now(UTC)
     results = await run_eval(service, cases, out=out, timer=timer)
-    ranks = [g.rank for g in await run_golden(retriever, golden)]
+    golden_error: str | None = None
+    try:
+        ranks = [g.rank for g in await run_golden(retriever, golden)]
+    except Exception as exc:  # retrieval is the embedder and the database: any failure
+        # Keep the answer results; hit@5 and MRR are recorded as NULL. Type name only.
+        golden_error = type(exc).__name__
+        ranks = []
     report = EvalReport(
         kind=ChatEvalKind.answer,
         started_at=started_at,
@@ -229,6 +235,8 @@ async def evaluate(
         mrr=mean_reciprocal_rank(ranks) if ranks else None,
     )
     summary = format_summary(report)
+    if golden_error:
+        summary += f"\n\nGolden retrieval failed: {golden_error}"
     out("")
     out(summary)
     if summary_file is not None:

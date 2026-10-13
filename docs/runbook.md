@@ -170,14 +170,14 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
   - **Latest failures:** the latest run's failed cases. Ids, categories and reasons come from the eval files, never from visitors.
   - **Visitor feedback:** thumbs up/down per day.
   - **Elsewhere:** live answer time is on "Portfolio overview" → "Chat answer time p50 / p95". Each run's score table is on GitHub → Actions → chat-eval → the run → Summary, and the eval step's log shows every answer.
-- **Schedule:** the answer eval runs every Sunday at 08:30 UTC (`.github/workflows/chat-eval.yml`).
+- **Schedule:** the answer eval runs every Sunday at 10:30 UTC (05:30 or 06:30 New York time) (`.github/workflows/chat-eval.yml`).
   - It runs on the VM's runner, inside `portfolio-api-1`, and records one `chat_eval_runs` row. Rows are kept forever.
   - It uses about a third of the day's Groq budget. Its tokens count in `chat_usage_daily`, so the budget gate still protects visitors.
   - A red job means at least one case failed.
 - **Run it now:** Actions → chat-eval → Run workflow, kind `answer`, or `gh workflow run chat-eval.yml -f kind=answer`.
   - On the VM, `make chat-eval` runs the same cases but records nothing. `docker exec portfolio-api-1 portfolio-api chat-eval --record` records too.
   - `--kind redteam` exits with an error until the red-team cases ship.
-- **Alerts** (email to `CONTACT_TO`; while firing they remind once a week, not every 4 hours):
+- **Alerts** (email to `CONTACT_TO`; while firing they remind once a week, not every 4 hours; DatasourceError emails still repeat every 4 hours):
   - **Chat eval answer low:** the latest answer run passed fewer than 85% of its answerable cases. Read the failed cases. Usual causes:
     - content changed or the index is stale: run `make reindex`, then the eval again;
     - retrieval missed: compare hit@5/MRR with earlier runs;
@@ -187,6 +187,8 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
     - Check Actions → chat-eval: did it run, did it fail before recording, is the runner offline?
     - A database error in the log usually means a migration didn't run on deploy.
   - **DatasourceError** on these rules means Grafana can't log in as `grafana_chat_ro`. Check that `GRAFANA_CHAT_DB_PASSWORD` is in the secrets and that the deploy's "Grafana read-only chat role" step printed `grafana_chat_ro: ok`.
+- **First runs:** the eval is a second process in `portfolio-api-1` with its own embedding model. Watch Grafana → "Host & containers" → api memory against its 768m limit during the first runs.
+- **After a timed-out or cancelled run:** check `docker top portfolio-api-1` for a leftover `chat-eval` process and kill it before re-running.
 - **Visitor feedback:** `make chat-feedback`, as described in Ask about Chris above.
 
 ## Monitoring and analytics
