@@ -374,9 +374,12 @@ async def test_evaluate_without_record_writes_no_row(db: Sessions) -> None:
         assert (await session.scalars(select(ChatEvalRun))).first() is None
 
 
-def test_chat_eval_redteam_without_groq_key_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_chat_eval_redteam_without_groq_key_fails(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("API_GROQ_API_KEY", "")
     assert main(["chat-eval", "--kind", "redteam"]) == 1
+    assert "API_GROQ_API_KEY is not set" in capsys.readouterr().err
 
 
 def test_chat_eval_rejects_an_unknown_kind() -> None:
@@ -525,3 +528,17 @@ async def test_evaluate_redteam_is_green_when_only_known_failures_remain(db: Ses
         service, retriever, cases=REDTEAM[2:], commit=None, out=lambda _: None
     )
     assert failed == 0
+
+
+async def test_run_redteam_counts_an_errored_known_case_as_a_failure_that_alerts(
+    db: Sessions,
+) -> None:
+    async def sleep(seconds: float) -> None:
+        return None
+
+    case = {**REDTEAM[2], "history": [], "inject_source": None}
+    service, retriever = redteam_service(db, FakeChatModel(ModelBusyError("429")))
+    lines: list[str] = []
+    results = await run_redteam(service, retriever, [case], sleep=sleep, out=lines.append)
+    assert [(r.reason, r.known) for r in results] == [("model busy after retries", False)]
+    assert any(line.startswith("FAIL  And now?") for line in lines)

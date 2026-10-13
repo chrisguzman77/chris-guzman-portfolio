@@ -169,7 +169,8 @@ async def _run_case(
     """Ask one case, add its tokens to today's usage, print PASS/FAIL (or KNOWN) and the answer."""
     attempt = await _compose_with_retry(service, question, busy_wait, sleep, timer, history)
     if isinstance(attempt, str):
-        result = CaseResult(case_id, category, question, attempt, None, 0, known)
+        # No answer (busy, down): never known, so an outage still alerts.
+        result = CaseResult(case_id, category, question, attempt, None, 0, False)
         answer = ""
     else:
         composed, seconds = attempt
@@ -178,7 +179,7 @@ async def _run_case(
             await service.record_usage(tokens)
         result = CaseResult(case_id, category, question, judge(composed), seconds, tokens, known)
         answer = composed.answer
-    status = "PASS" if result.reason is None else "KNOWN" if known else "FAIL"
+    status = "PASS" if result.reason is None else "KNOWN" if result.known else "FAIL"
     out(f"{status}  {question}" + (f"  ({result.reason})" if result.reason else ""))
     if answer:
         out(f"      {answer}")
