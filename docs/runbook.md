@@ -178,7 +178,7 @@ curl -s https://api.christopherguzman.me/v1/github/activity | head -c 200
   - **Latest failures:** the latest run's failed cases of each kind. Ids, categories and reasons come from the eval files, never from visitors. `known` is true for a red-team case marked `known_failure`: it counts in the pass rate but doesn't alert.
   - **Visitor feedback:** thumbs up/down per day.
   - **Elsewhere:** live answer time is on "Portfolio overview" → "Chat answer time p50 / p95". Each run's score table is on GitHub → Actions → chat-eval → the run → Summary, and the eval step's log shows every answer.
-- **Retrieval has no reranker by design** ([ADR 0013](adr/0013-no-reranker.md)); hit@5 and MRR cover 40 golden questions (the trend steps when the set grew from 16 to 40).
+- **Retrieval has no reranker by design** ([ADR 0013](adr/0013-no-reranker.md)); hit@5 and MRR cover 40 golden questions. The live trend stepped when the set grew from 16 to 40, and live MRR on the new questions is expected to be lower than seed (the résumé document often outranks the experience pages); a drop at that change is not a regression.
 - **Schedule:** the answer eval runs every Sunday and the red-team eval every Wednesday, both at 10:30 UTC (05:30 or 06:30 New York time) (`.github/workflows/chat-eval.yml`).
   - It runs on the VM's runner, inside `portfolio-api-1`, and records one `chat_eval_runs` row. Rows are kept forever.
   - The answer eval uses about a third of the day's Groq budget. The red-team eval uses up to about a quarter; cases the retrieval cutoff refuses use none. Their tokens count in `chat_usage_daily`, so the budget gate still protects visitors.

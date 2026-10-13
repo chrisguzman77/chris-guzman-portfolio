@@ -33,8 +33,8 @@ Against the three gates:
 - **Memory (not a spec gate):** about 334 MB at batch 1 against about 1.1 GB at the default batch of 20, which alone exceeds the api container's 768m limit.
 
 ## Alternatives considered
-- **A full trial on the VM:** skipped. The VM's CPU is no faster than the M1, and every gate had already failed by a wide margin, so a live run could not change the outcome.
-- **Rerank fewer candidates:** cuts latency roughly in proportion, but the p95 would still be several times the gate at 5 candidates, and fewer candidates leave less for the reranker to improve.
+- **A full trial on the VM:** skipped. The VM's CPU is unlikely to be faster than the M1, and every gate had already failed by a wide margin, so a live run was very unlikely to change the outcome.
+- **Rerank fewer candidates:** cuts latency roughly in proportion, but even at 5 candidates the estimated p95 stays above the gate, and fewer candidates leave less for the reranker to improve.
 - **A larger reranker such as `bge-reranker-base`:** slower and bigger than MiniLM, so it makes the latency and memory failures worse.
 - **LLM rerank through Groq:** spends free-tier quota on every question and adds a network round trip, so latency and the daily token budget both get worse.
 
