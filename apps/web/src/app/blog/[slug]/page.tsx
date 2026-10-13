@@ -42,7 +42,7 @@ function TableOfContents({ headings }: { headings: Heading[] }) {
               <li key={heading.id} className={heading.depth === 3 ? "pl-3" : undefined}>
                 <a
                   href={`#${heading.id}`}
-                  className="rounded transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+                  className="inline-flex min-h-6 items-center rounded transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
                 >
                   {label}
                 </a>

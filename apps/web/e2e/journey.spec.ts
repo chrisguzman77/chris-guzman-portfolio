@@ -209,6 +209,16 @@ test("blog: code comments stay readable in the dark theme", async ({ page }) => 
   await expectNoAxeViolations(page);
 });
 
+test("blog: table-of-contents links are at least 24px tall", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the table of contents shows from the lg breakpoint");
+  await page.goto("/blog/hello-world");
+  const links = page.getByRole("navigation", { name: "On this page" }).getByRole("link");
+  await expect(links).toHaveCount(3);
+  for (const link of await links.all()) {
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(24);
+  }
+});
+
 test("newsletter: confirm and unsubscribe links", async ({ page }) => {
   // A mail scanner opens the link and runs its scripts: the page must not call the API.
   const calls: string[] = [];
