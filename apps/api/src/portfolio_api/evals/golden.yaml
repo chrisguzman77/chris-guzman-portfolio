@@ -1,12 +1,16 @@
 # Golden retrieval questions: each should find one of its expected documents (by title
 # substring) in the top 5 results. Scored two ways, both by retrieval only (no model call):
-# - CI (tests/rag/test_golden.py) over infra/directus/seed/*.json; passing threshold 15 of 16.
+# - CI (tests/rag/test_golden.py) over infra/directus/seed/*.json plus content/posts/*.md
+#   (Directus seeds no posts). Passing threshold: 39 of 40 (measured 40/40 on 2026-10-13,
+#   minus one question).
 # - `portfolio-api chat-eval` over the live index, recorded as hit@5 and MRR.
 # Lives in the package so the CLI can read it from the image.
+# The first 16 are the original set; the other 24 were added for the reranker trial (PR 4a).
+
 - question: What is Chris studying?
-  expect: ["B.S. in Computer Science"]
+  expect: ["B.S. in Computer Science", "What are you studying"]
 - question: When does he graduate?
-  expect: ["B.S. in Computer Science", "About Christopher Guzman"]
+  expect: ["B.S. in Computer Science", "About Christopher Guzman", "What are you studying"]
 - question: Has he done any cybersecurity compliance or risk work?
   expect: ["SIEGE CyberOps"]
 - question: What machine learning experience does he have?
@@ -35,3 +39,59 @@
   expect: ["ACM@AU", "OFFRes", "This portfolio", "College of Allied Health Professions"]
 - question: Is Chris open to relocation?
   expect: ["relocate"]
+
+# Answered by the FAQ (shown on /contact), in a recruiter's words.
+- question: Where does Chris go to school?
+  expect: ["B.S. in Computer Science", "What are you studying"]
+- question: Is he looking for an internship or a full-time job?
+  expect: ["internships or full-time roles"]
+- question: What kinds of jobs is he interested in?
+  expect: ["What roles are you interested in"]
+- question: Would he need a visa to work in the US?
+  expect: ["visa sponsorship"]
+- question: Can he work remotely?
+  expect: ["relocate"]
+- question: Which languages and frameworks is he strongest in?
+  expect: ["strongest stack"]
+- question: How can I contact Chris?
+  expect: ["best way to reach you"]
+- question: Can I download his resume?
+  expect: ["Where can I get your resume", "Resume"]
+
+# Experience, paraphrased (none of these repeat the page's own words).
+- question: Tell me about the radiation therapy simulator.
+  expect: ["College of Allied Health Professions"]
+- question: Has he maintained a legacy ASP.NET application?
+  expect: ["Jubilee Farms"]
+- question: Has he built an anomaly detection model?
+  expect: ["SteelGate"]
+- question: Does he have experience with Elasticsearch and Kibana?
+  expect: ["SteelGate"]
+- question: Has he assessed the security of third-party vendors?
+  expect: ["SIEGE CyberOps"]
+- question: Has he handled regulated data like PHI or FERPA records?
+  expect: ["SIEGE CyberOps"]
+
+# Projects, paraphrased.
+- question: How does the offline device verify a payment without a server?
+  expect: ["OFFRes"]
+- question: Has he worked with Delta Lake or Databricks?
+  expect: ["Cyber Threat Lakehouse"]
+- question: Has he set up two-factor authentication?
+  expect: ["ACM@AU"]
+- question: Has he built a content management system?
+  expect: ["ACM@AU"]
+- question: Has he built a RAG system or run a local LLM?
+  expect: ["OFFRes", "How I built this site"]
+
+# Answered by the blog post "How I built this site", not by a project page.
+- question: How is the site backed up?
+  expect: ["How I built this site"]
+- question: How does he monitor the site and get alerts?
+  expect: ["How I built this site"]
+- question: Which model answers questions in the site's chat?
+  expect: ["How I built this site"]
+- question: What went wrong with the newsletter subscription confirmations?
+  expect: ["How I built this site"]
+- question: Why did he pick Directus as the CMS?
+  expect: ["How I built this site", "This portfolio"]

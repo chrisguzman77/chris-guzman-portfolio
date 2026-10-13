@@ -10,7 +10,7 @@ from portfolio_api.services.indexer import IndexService
 from tests.rag.seed import load_seed_content
 from tests.rag.test_indexer import FakeSource
 
-REQUIRED_HITS = 15
+REQUIRED_HITS = 39  # of 40: measured 40/40 on the seed, minus one question (golden.yaml)
 
 
 def _append_step_summary(text: str) -> None:

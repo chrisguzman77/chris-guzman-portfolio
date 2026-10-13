@@ -44,7 +44,8 @@ def test_percentile_is_nearest_rank() -> None:
 
 def test_golden_set_ships_in_the_package_and_is_well_formed() -> None:
     cases = load_golden()
-    assert len(cases) >= 16
+    assert len(cases) == 40
+    assert len({case["question"] for case in cases}) == 40  # no duplicates
     assert all(case["question"] and case["expect"] for case in cases)
 
 
