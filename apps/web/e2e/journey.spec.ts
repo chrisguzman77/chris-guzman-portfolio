@@ -201,6 +201,14 @@ test("blog: a mermaid block renders as a diagram that follows the theme", async 
   await expectNoAxeViolations(page);
 });
 
+test("blog: code comments stay readable in the dark theme", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  await page.goto("/blog/hello-world");
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(page.locator("pre code").getByText("// Comments are the dimmest")).toBeVisible();
+  await expectNoAxeViolations(page);
+});
+
 test("newsletter: confirm and unsubscribe links", async ({ page }) => {
   // A mail scanner opens the link and runs its scripts: the page must not call the API.
   const calls: string[] = [];
