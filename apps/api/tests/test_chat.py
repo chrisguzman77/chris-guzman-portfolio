@@ -414,6 +414,11 @@ async def test_release_survives_a_second_cancel(
     with pytest.raises(asyncio.CancelledError):
         await task
     await asyncio.wait_for(released.wait(), timeout=5)
+    # `released` is set before the shielded refund transaction commits, and the cancelled ask no
+    # longer awaits it: poll for the committed result instead of reading once.
+    async with asyncio.timeout(5):
+        while await question_count(db, session_id) != 0:  # noqa: ASYNC110 - polling the database
+            await asyncio.sleep(0.01)
     assert await question_count(db, session_id) == 0
 
 

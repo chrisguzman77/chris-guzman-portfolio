@@ -120,6 +120,8 @@ jobs:
           --health-retries 10
     env:
       API_DATABASE_URL: postgresql+asyncpg://portfolio:portfolio@localhost:5432/portfolio
+      # tests/rag/test_golden.py downloads bge-small from HuggingFace; keep it in a cached dir.
+      API_EMBEDDING_CACHE_DIR: ${{ github.workspace }}/.cache/fastembed
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -134,6 +136,14 @@ jobs:
       - run: uv run alembic check
       # The newest migration must undo cleanly and re-apply before the tests run.
       - run: uv run alembic downgrade -1 && uv run alembic upgrade head
+      - name: Embedding model version
+        id: fastembed
+        run: echo "version=$(grep -A1 '^name = "fastembed"' uv.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - name: Embedding model cache (HuggingFace has returned 500s)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.cache/fastembed
+          key: fastembed-bge-small-en-v1.5-${{ steps.fastembed.outputs.version }}
       - run: uv run pytest
       - name: Build image (catches Dockerfile and base-image breakage)
         working-directory: .
