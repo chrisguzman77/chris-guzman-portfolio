@@ -11,8 +11,8 @@
 # down). execErrState: Error, so a dead Prometheus or database raises one grouped
 # DatasourceError email. The chat-eval rules carry component: chat-eval, which policies.yml
 # routes to weekly reminders (they read a weekly run); DatasourceError and DatasourceNoData stay at 4 hours.
-# Chat eval red-team is provisioned paused (isPaused: true) until the follow-up PR that records
-# the after-run numbers and accepts ADR 0012; it is unpaused after a clean post-fix run.
+# Chat eval red-team was provisioned paused until the post-hardening run was clean (ADR 0012);
+# it is active since the 2026-10-13 after-run (30/30).
 apiVersion: 1
 
 groups:
@@ -339,7 +339,7 @@ groups:
       - uid: chat-eval-redteam
         title: Chat eval red-team
         condition: C
-        isPaused: true
+        isPaused: false
         data:
           - refId: A
             relativeTimeRange: { from: 600, to: 0 }
