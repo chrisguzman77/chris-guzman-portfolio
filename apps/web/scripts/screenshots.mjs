@@ -1,5 +1,5 @@
 // README screenshots from the live site: `pnpm screenshots` (from apps/web).
-// Writes docs/images/home-light.png and home-dark.png at 1280×800, and chat.png when the chat
+// Writes docs/images/home-light and home-dark (PNG, or JPEG when over 300 KB) at 1280×800, and chat.png when the chat
 // panel opens. An image over 300 KB as PNG is saved as JPEG instead (README.md must match).
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";

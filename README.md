@@ -18,8 +18,8 @@ The portfolio of Christopher Guzman, a CS and Cyber Operations student at August
 
 ## What's interesting here
 
-- **Self-hosted at home:** the whole stack runs in Docker Compose on a Proxmox VM with no open inbound ports, reached through a Cloudflare Tunnel and deployed by an ephemeral runner inside the VM ([ADR 0003](docs/adr/0003-cloudflare-tunnel-direct-ingress.md), [0005](docs/adr/0005-self-hosted-runner-deploys.md), [0006](docs/adr/0006-runner-in-compose.md)).
-- **"Ask about Chris" chat:** answers come from the site's published content through local embeddings and Groq, and each reply is held back until it cites a source ([ADR 0008](docs/adr/0008-rag-chat-on-groq.md)).
+- **Self-hosted at home:** the whole stack runs in Docker Compose on a Proxmox VM with no ports open to the internet, reached through a Cloudflare Tunnel and deployed by an ephemeral runner inside the VM ([ADR 0003](docs/adr/0003-cloudflare-tunnel-direct-ingress.md), [0005](docs/adr/0005-self-hosted-runner-deploys.md), [0006](docs/adr/0006-runner-in-compose.md)).
+- **"Ask about Chris" chat:** answers come from the site's published content through local embeddings and Groq, and a reply that cites no source is replaced with a fixed answer before the visitor sees it ([ADR 0008](docs/adr/0008-rag-chat-on-groq.md)).
 - **A chat that is measured:** weekly answer and red-team evals run against the live chat, which blocks leaks and off-site links, and the results and visitor feedback are tracked in Grafana ([ADR 0012](docs/adr/0012-chat-red-team.md), [ADR 0013](docs/adr/0013-no-reranker.md)).
 - **Static failover:** when the home server is unreachable, the Cloudflare Worker serves a crawled snapshot of the site from R2 with the live features hidden ([ADR 0011](docs/adr/0011-static-failover.md)).
 - **Performance budgets in CI:** a change fails CI when a page's JavaScript outgrows its budget or its median mobile Lighthouse score drops below 85 ([runbook](docs/runbook.md#performance-budget)).
@@ -73,7 +73,7 @@ Details, failure modes and the other diagrams are in [docs/architecture.md](docs
 
 - **Repo layout:** one repository for web, api and infra, each app with its own toolchain (pnpm, uv) and Dockerfile ([ADR 0001](docs/adr/0001-monorepo.md)).
 - **CMS and content:** Directus, in the same stack, is the content system of record; pages render per request from cached reads that a Directus Flow invalidates on publish ([ADR 0002](docs/adr/0002-directus-as-cms.md), [content flow](docs/architecture.md#content-flow)).
-- **Ingress:** the Cloudflare Tunnel routes each hostname straight to its container, with no reverse proxy and no open ports ([ADR 0003](docs/adr/0003-cloudflare-tunnel-direct-ingress.md)).
+- **Ingress:** the Cloudflare Tunnel routes each hostname straight to its container, with no reverse proxy and no ports open to the internet ([ADR 0003](docs/adr/0003-cloudflare-tunnel-direct-ingress.md)).
 - **Deploys:** a merge to `main` builds and Trivy-scans the images on GitHub-hosted runners, then an ephemeral runner inside the VM deploys that exact commit ([ADR 0005](docs/adr/0005-self-hosted-runner-deploys.md), [ADR 0006](docs/adr/0006-runner-in-compose.md), [runbook](docs/runbook.md#normal-deploys)).
 - **Secrets:** env files are committed encrypted with SOPS and age, and decrypted on the VM at deploy time ([ADR 0004](docs/adr/0004-sops-age-secrets.md)).
 - **Rate limits and jobs:** in-process sliding-window limits and asyncio background jobs in the single API container, with no Redis ([ADR 0007](docs/adr/0007-in-process-rate-limits-and-jobs.md)).
