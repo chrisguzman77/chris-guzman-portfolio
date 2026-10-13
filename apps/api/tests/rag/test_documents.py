@@ -166,6 +166,11 @@ def test_seed_content_builds_one_document_per_item() -> None:
     assert len(by_type(docs, "experience")) == 5
     assert len(by_type(docs, "projects")) == 4
     assert len(by_type(docs, "faq")) == 8
+
+    # content/posts/*.md: Directus seeds no posts, so the seed loader reads the post's text.
+    post = next(d for d in by_type(docs, "posts") if d.url == "/blog/how-i-built-this-site")
+    assert post.title == "How I built this site"
+    assert "Published Oct 2026." in post.markdown and "Cloudflare Tunnel" in post.markdown
     assert all(d.markdown.startswith(f"# {d.title}\n\n") for d in docs)
 
 

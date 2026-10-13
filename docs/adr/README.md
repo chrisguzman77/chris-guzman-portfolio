@@ -16,3 +16,4 @@ One file per decision, numbered, never edited after acceptance (superseded inste
 | [0010](0010-backup-encryption-and-bucket-lock.md) | Backups encrypted to a dedicated age key, stored in R2 with a 30-day bucket lock |
 | [0011](0011-static-failover.md) | Static failover: crawled R2 snapshot served by the existing Worker |
 | [0012](0012-chat-red-team.md) | Chat red-team: a weekly attack set against the live chat |
+| [0013](0013-no-reranker.md) | No reranker: keep RRF hybrid retrieval; the local trial failed all three ship gates |
