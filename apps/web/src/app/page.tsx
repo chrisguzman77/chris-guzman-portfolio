@@ -182,7 +182,7 @@ export default async function HomePage() {
       {latestPosts.length > 0 ? (
         <section className="border-t border-border py-9">
           <SectionHeading number={numbers.blog} title="Blog" href="/blog" linkLabel="all posts" />
-          <ol className="mt-2 divide-y divide-dashed divide-border">
+          <ol className="mt-4 space-y-3">
             {latestPosts.map((post) => (
               <li key={post.id}>
                 <PostListItem post={post} />
