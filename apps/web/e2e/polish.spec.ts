@@ -61,3 +61,40 @@ test("theme toggle switches the theme through the circular reveal", async ({ pag
   await page.getByRole("button", { name: "Toggle theme" }).click();
   await expect(html).toHaveClass(/\bdark\b/);
 });
+
+test("the logo shows the section you are in", async ({ page, isMobile }) => {
+  await page.goto("/");
+  const suffix = page.locator("[data-logo-suffix]");
+  await expect(suffix).toHaveText("");
+  if (isMobile) await page.getByRole("button", { name: "Open menu" }).click();
+  const nav = page.getByRole("navigation", { name: isMobile ? "Mobile" : "Main" });
+  await nav.getByRole("link", { name: "projects" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(suffix).toHaveText("/projects");
+  if (!isMobile) {
+    await expect(page.locator("[data-nav-indicator]")).toHaveCSS("opacity", "1");
+  }
+});
+
+test.describe("missing pages", () => {
+  test.use({ allowedDocumentStatus: [404] });
+
+  test("the logo shows /404 on a missing page, nested or not", async ({ page }) => {
+    for (const path of ["/nope", "/projects/does-not-exist"]) {
+      const response = await page.goto(path);
+      expect(response?.status()).toBe(404);
+      await expect(page.locator("[data-logo-suffix]")).toHaveText("/404");
+    }
+  });
+});
+
+test("the header never overflows the viewport", async ({ page }) => {
+  for (const width of [360, 800, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/experience");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(0);
+  }
+});

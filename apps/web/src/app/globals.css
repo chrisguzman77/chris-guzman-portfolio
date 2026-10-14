@@ -375,3 +375,28 @@ summary::-webkit-details-marker {
   animation: none;
   mix-blend-mode: normal;
 }
+
+/* Header logo caret. The global reduced-motion rule ends the blink after one instant cycle,
+   leaving a steady block. */
+.logo-caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.15em;
+  margin-left: 2px;
+  vertical-align: -0.25em;
+  background: var(--accent-brand);
+  animation: logo-caret-blink 1s step-end infinite;
+}
+@keyframes logo-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+/* Desktop nav underline: <MainNav> positions it; it transitions only after its first placement
+   (data-ready) so it never slides in from the left edge on load. */
+.nav-indicator[data-ready] {
+  transition:
+    transform 0.3s ease,
+    width 0.3s ease,
+    opacity 0.2s ease;
+}

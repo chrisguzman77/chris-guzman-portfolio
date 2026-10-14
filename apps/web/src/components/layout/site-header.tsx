@@ -1,9 +1,8 @@
 import Link from "next/link";
 
-import { siteConfig } from "@/lib/site";
-
+import { LogoPath } from "./logo-path";
+import { MainNav } from "./main-nav";
 import { MobileNav } from "./mobile-nav";
-import { NavLink } from "./nav-link";
 import { ThemeToggle } from "./theme-toggle";
 
 export function SiteHeader() {
@@ -14,16 +13,11 @@ export function SiteHeader() {
           href="/"
           className="shrink-0 text-accent-brand hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
         >
-          ~/chris-guzman<span className="sr-only"> (Christopher Guzman, home)</span>
+          ~/chris-guzman
+          <LogoPath /> <span className="sr-only">(Christopher Guzman, home)</span>
         </Link>
         <div className="flex items-center gap-4">
-          <nav aria-label="Main" className="hidden items-center gap-4 md:flex">
-            {siteConfig.nav.map((item) => (
-              <NavLink key={item.href} href={item.href}>
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+          <MainNav />
           <div className="flex items-center gap-1 md:border-l md:border-input md:pl-3">
             <ThemeToggle />
             <MobileNav />

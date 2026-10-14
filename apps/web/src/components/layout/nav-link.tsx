@@ -10,11 +10,13 @@ export function NavLink({
   children,
   className,
   onClick,
+  underline = true,
 }: {
   href: string;
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
+  underline?: boolean;
 }) {
   const pathname = usePathname();
   const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -26,7 +28,8 @@ export function NavLink({
       className={cn(
         "text-muted-foreground transition-colors hover:text-foreground",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand",
-        active && "text-foreground underline decoration-accent-brand underline-offset-4",
+        active && "text-foreground",
+        active && underline && "underline decoration-accent-brand underline-offset-4",
         className,
       )}
     >
