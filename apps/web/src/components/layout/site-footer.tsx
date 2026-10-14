@@ -4,6 +4,8 @@ import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { outboundProps } from "@/lib/analytics";
 import { siteConfig } from "@/lib/site";
 
+import { BuildInfo } from "./build-info";
+
 const iconLink =
   "text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 
@@ -12,6 +14,7 @@ export function SiteFooter() {
     <footer className="border-t border-border">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-6 font-mono text-[11.5px] text-muted-foreground">
         <p>{`© ${new Date().getFullYear()} ${siteConfig.name}`}</p>
+        <BuildInfo />
         <nav aria-label="Social links" className="flex items-center gap-3">
           <a
             href={siteConfig.links.github}

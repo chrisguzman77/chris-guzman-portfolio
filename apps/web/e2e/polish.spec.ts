@@ -98,3 +98,23 @@ test("the header never overflows the viewport", async ({ page }) => {
     expect(overflow, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(0);
   }
 });
+
+test("footer shows the build it was deployed from", async ({ page }) => {
+  await page.goto("/");
+  const footer = page.getByRole("contentinfo");
+  const release = process.env.NEXT_PUBLIC_APP_RELEASE;
+  if (release) {
+    const sha = process.env.NEXT_PUBLIC_APP_VERSION!.slice(0, 7);
+    await expect(footer.getByRole("link", { name: `commit ${sha} on GitHub` })).toHaveText(sha);
+    await expect(
+      footer.getByRole("link", { name: `release ${release} on GitHub` }),
+    ).toHaveAttribute(
+      "href",
+      `https://github.com/chrisguzman77/chris-guzman-portfolio/releases/tag/${release}`,
+    );
+    await expect(footer.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d\d-\d\dT/);
+  } else {
+    await expect(footer.getByText("dev", { exact: true })).toBeVisible();
+  }
+  await expectNoAxeViolations(page);
+});

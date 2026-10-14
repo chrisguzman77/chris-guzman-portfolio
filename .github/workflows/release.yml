@@ -33,6 +33,13 @@ jobs:
           - { app: backup, context: infra/backup }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # tags and history for git describe (footer build info)
+      - name: Build info
+        id: info
+        run: |
+          echo "release=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+          echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -56,6 +63,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             NEXT_PUBLIC_APP_VERSION=${{ github.sha }}
+            NEXT_PUBLIC_APP_RELEASE=${{ steps.info.outputs.release }}
+            NEXT_PUBLIC_BUILD_TIME=${{ steps.info.outputs.time }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,scope=${{ matrix.app }},mode=max
       - name: Scan for critical vulnerabilities
