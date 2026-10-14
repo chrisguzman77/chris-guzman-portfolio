@@ -54,15 +54,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { directusUrl, directusToken } = serverEnv();
   const original = `${directusUrl}/assets/${id}`;
   // A failed transform falls back to the original, so a resize problem never breaks an image.
-  const upstream =
-    (width && (await fetchAsset(`${original}?${transformQuery(width)}`, directusToken))) ||
-    (await fetchAsset(original, directusToken));
+  const resized = width
+    ? await fetchAsset(`${original}?${transformQuery(width)}`, directusToken)
+    : null;
+  const upstream = resized || (await fetchAsset(original, directusToken));
   if (!upstream) return new Response("Bad gateway", { status: 502 });
+  // A fallback for a ?w= request is cached briefly, so a transient failure is retried, not pinned.
+  const fellBack = Boolean(width) && !resized;
 
   const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
   const headers: Record<string, string> = {
     "Content-Type": contentType,
-    "Cache-Control": "public, max-age=31536000, immutable",
+    "Cache-Control": fellBack ? "public, max-age=300" : "public, max-age=31536000, immutable",
     "X-Content-Type-Options": "nosniff",
   };
   // Anything that could execute as active content (HTML, SVG, ...) must not run on the site origin.

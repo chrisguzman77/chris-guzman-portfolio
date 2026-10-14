@@ -150,6 +150,17 @@ describe("GET /cms-assets/[id]", () => {
       await expect(res.text()).resolves.toBe("<svg/>");
     });
 
+    it("caches a fallback briefly and not immutably, so the transform is retried", async () => {
+      referenced.mockResolvedValue(true);
+      fetchMock
+        .mockResolvedValueOnce(new Response("down", { status: 503 }))
+        .mockResolvedValueOnce(new Response("png", { headers: { "content-type": "image/png" } }));
+      const res = await call(ID, "?w=1200");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("cache-control")).toBe("public, max-age=300");
+      expect(res.headers.get("cache-control")).not.toContain("immutable");
+    });
+
     it("returns 502 when both the transform and the original fail", async () => {
       referenced.mockResolvedValue(true);
       fetchMock.mockResolvedValue(new Response("nope", { status: 500 }));
