@@ -4,12 +4,19 @@ import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { collectionTag, isContentCollection } from "@/lib/directus/tags";
+import { FILES_TAG, collectionTag, isContentCollection } from "@/lib/directus/tags";
 import { serverEnv } from "@/lib/env";
 
 // The Directus Flow posts { collection }. Any other fields are ignored. Only the
-// collection tag is revalidated; every list and detail query carries it.
+// collection tag is revalidated; every list and detail query carries it. File events
+// (directus_files, e.g. "Replace file") revalidate the files tag of every query that
+// carries a file version.
 const BodySchema = z.object({ collection: z.string() });
+
+function tagFor(collection: string): string | null {
+  if (collection === "directus_files") return FILES_TAG;
+  return isContentCollection(collection) ? collectionTag(collection) : null;
+}
 
 function secretMatches(given: string | null, expected: string): boolean {
   if (given === null) return false;
@@ -49,11 +56,11 @@ export async function POST(request: Request) {
   }
 
   const parsed = BodySchema.safeParse(body);
-  if (!parsed.success || !isContentCollection(parsed.data.collection)) {
+  const tag = parsed.success ? tagFor(parsed.data.collection) : null;
+  if (!parsed.success || tag === null) {
     return NextResponse.json({ error: "unknown collection" }, { status: 400 });
   }
 
-  const tag = collectionTag(parsed.data.collection);
   revalidateTag(tag, { expire: 0 });
   console.info(`revalidate: ${parsed.data.collection} -> ${tag}`);
   return NextResponse.json({ revalidated: [tag] });

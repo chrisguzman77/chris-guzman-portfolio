@@ -24,7 +24,10 @@ test("projects: list to detail", async ({ page }) => {
 
 test("resume: download link and PDF embed", async ({ page }) => {
   await page.goto("/resume");
-  await expect(page.getByRole("link", { name: /download/i })).toHaveAttribute("href", /.+/);
+  await expect(page.getByRole("link", { name: /download/i })).toHaveAttribute(
+    "href",
+    /^\/cms-assets\/[0-9a-f-]{36}\?v=\d+$/,
+  );
   await expect(page.locator("object")).toHaveCount(1);
   await expect(page.locator("object")).toBeVisible();
   await expectNoAxeViolations(page);

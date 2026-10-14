@@ -160,6 +160,37 @@ describe("content schemas", () => {
     );
   });
 
+  it("expands the resume file and project cover to an id and an upload-time version", () => {
+    const file = {
+      id: "8f14e45f-ceea-467a-9575-6d3a8b5e1c2d",
+      uploaded_on: "2026-10-14T20:23:21.523Z",
+    };
+    const expected = { id: file.id, version: "1792009401523" };
+    expect(ResumeSchema.parse({ file, version_label: null, updated_at: null }).file).toEqual(
+      expected,
+    );
+    expect(ProjectSchema.parse({ ...project, cover: file }).cover).toEqual(expected);
+  });
+
+  it("keeps a file with no readable upload time, without a version", () => {
+    const file = { id: "8f14e45f-ceea-467a-9575-6d3a8b5e1c2d", uploaded_on: null };
+    expect(ProjectSchema.parse({ ...project, cover: file }).cover).toEqual({
+      id: file.id,
+      version: null,
+    });
+  });
+
+  // Directus 12.4.1 answers fields=cover,cover.id,cover.uploaded_on with the bare id when the
+  // token cannot read directus_files, so the link falls back to the unversioned URL.
+  it("keeps a bare file id (directus_files not readable), without a version", () => {
+    const id = "8f14e45f-ceea-467a-9575-6d3a8b5e1c2d";
+    expect(ProjectSchema.parse({ ...project, cover: id }).cover).toEqual({ id, version: null });
+    expect(ResumeSchema.parse({ file: id, version_label: null, updated_at: null }).file).toEqual({
+      id,
+      version: null,
+    });
+  });
+
   it("parses an empty resume singleton", () => {
     expect(ResumeSchema.parse({ file: null, version_label: null, updated_at: null })).toEqual({
       file: null,

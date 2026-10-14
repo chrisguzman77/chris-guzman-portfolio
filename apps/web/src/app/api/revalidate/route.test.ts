@@ -118,6 +118,21 @@ describe("POST /api/revalidate", () => {
     expect(revalidateTag).toHaveBeenCalledWith("profile", { expire: 0 });
   });
 
+  // The Flow's files trigger (Directus "Replace file" emits files.upload) renders this exact body.
+  it("revalidates the files tag for the directus_files event", async () => {
+    const res = await POST(request('{"collection":"directus_files"}', SECRET));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ revalidated: ["files"] });
+    expect(revalidateTag).toHaveBeenCalledTimes(1);
+    expect(revalidateTag).toHaveBeenCalledWith("files", { expire: 0 });
+  });
+
+  it.each(["files", "directus_folders"])("still rejects %s with 400", async (collection) => {
+    const res = await POST(request(json({ collection }), SECRET));
+    expect(res.status).toBe(400);
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
   it("logs unauthorized calls at most once a minute, with the suppressed count", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2030-01-01T00:00:00Z"));

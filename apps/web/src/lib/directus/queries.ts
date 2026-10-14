@@ -1,14 +1,18 @@
 import type { z } from "zod";
 
+import { fileVersion } from "@/lib/cms-assets";
 import { sortExperience } from "@/lib/format";
 
-import { DirectusUnavailableError, directusGet } from "./client";
+import { DirectusUnavailableError, directusFiles, directusGet } from "./client";
 import {
   CertificationSchema,
   ChatSettingsSchema,
   EducationSchema,
   ExperienceSchema,
   FaqSchema,
+  FILE_FIELDS,
+  FileFieldsSchema,
+  FileSchema,
   InvolvementSchema,
   PostAssetRefSchema,
   PostSchema,
@@ -29,15 +33,28 @@ import {
   type Project,
   type Resume,
 } from "./schemas";
-import { collectionTag, itemTag, type ContentCollection } from "./tags";
+import { FILES_TAG, collectionTag, itemTag, type ContentCollection } from "./tags";
 
 // Every collection query filters on status: unlicensed Directus cannot restrict the read
 // token's permissions, so without this the site would render drafts.
 const PUBLISHED = "filter[status][_eq]=published";
 
-// Request exactly the fields the schema validates, nothing more.
+function fileKeys(schema: z.ZodObject): string[] {
+  return Object.keys(schema.shape).filter((key) => schema.shape[key] === FileSchema);
+}
+
+// Request exactly the fields the schema validates, nothing more. A file field also asks for the
+// file's id and upload time (see FileSchema).
 function fields(schema: z.ZodObject): string {
-  return Object.keys(schema.shape).join(",");
+  const files = new Set(fileKeys(schema));
+  return Object.keys(schema.shape)
+    .flatMap((key) => (files.has(key) ? [key, ...FILE_FIELDS.map((f) => `${key}.${f}`)] : [key]))
+    .join(",");
+}
+
+// A query that reads a file version is refreshed when that file is replaced, too.
+function tags(schema: z.ZodObject, ...base: string[]): string[] {
+  return fileKeys(schema).length > 0 ? [...base, FILES_TAG] : base;
 }
 
 function parseItem<S extends z.ZodType>(
@@ -82,7 +99,8 @@ function getList<S extends z.ZodObject>(
 ): Promise<z.output<S>[]> {
   return orFallback<z.output<S>[]>([], async () => {
     const path = `${collection}?fields=${fields(schema)}&${PUBLISHED}&sort=${sort}&limit=-1`;
-    return parseList(schema, await directusGet(path, [collectionTag(collection)]), collection);
+    const data = await directusGet(path, tags(schema, collectionTag(collection)));
+    return parseList(schema, data, collection);
   });
 }
 
@@ -93,7 +111,10 @@ function getBySlug<S extends z.ZodObject>(
 ): Promise<z.output<S> | null> {
   return orFallback<z.output<S> | null>(null, async () => {
     const path = `${collection}?fields=${fields(schema)}&${PUBLISHED}&filter[slug][_eq]=${encodeURIComponent(slug)}&limit=1`;
-    const data = await directusGet(path, [collectionTag(collection), itemTag(collection, slug)]);
+    const data = await directusGet(
+      path,
+      tags(schema, collectionTag(collection), itemTag(collection, slug)),
+    );
     const [item] = Array.isArray(data) ? data : [];
     return item === undefined ? null : parseItem(schema, item, `${collection}:${slug}`);
   });
@@ -104,9 +125,10 @@ function getSingleton<S extends z.ZodObject>(
   schema: S,
 ): Promise<z.output<S> | null> {
   return orFallback<z.output<S> | null>(null, async () => {
-    const data = await directusGet(`${collection}?fields=${fields(schema)}`, [
-      collectionTag(collection),
-    ]);
+    const data = await directusGet(
+      `${collection}?fields=${fields(schema)}`,
+      tags(schema, collectionTag(collection)),
+    );
     return data === null ? null : parseItem(schema, data, collection);
   });
 }
@@ -163,6 +185,25 @@ export function getChatSettings(): Promise<ChatSettings | null> {
   return getSingleton("chat_settings", ChatSettingsSchema);
 }
 
+// Versions of the files a markdown body links to (id -> version, see cmsAssetUrl), in one cached
+// query tagged files. A file that is missing, unreadable or has no upload time is left out, and
+// Directus being down gives {}: those links fall back to unversioned URLs.
+export function getFileVersions(ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) return Promise.resolve({});
+  return orFallback<Record<string, string>>({}, async () => {
+    // Sorted and de-duplicated, so a body always hits the same cache entry.
+    const list = [...new Set(ids)].sort().join(",");
+    const query = `fields=${FILE_FIELDS.join(",")}&filter[id][_in]=${list}&limit=-1`;
+    const files = parseList(FileFieldsSchema, await directusFiles(query, [FILES_TAG]), "files");
+    return Object.fromEntries(
+      files.flatMap(({ id, uploaded_on }) => {
+        const version = fileVersion(uploaded_on);
+        return version ? [[id, version]] : [];
+      }),
+    );
+  });
+}
+
 // Allow-list for /cms-assets: only files that published content points at. Resume and project
 // lookups reuse the cached (published-only) queries; posts use their own cached query
 // (getPostAssetRefs, cover and body only), fetched on first use and then served from cache.
@@ -172,9 +213,10 @@ export async function isReferencedFile(id: string): Promise<boolean> {
     getProjects(),
     getPostAssetRefs(),
   ]);
-  if (resume?.file === id) return true;
+  if (resume?.file?.id === id) return true;
   const ref = `/assets/${id}`;
-  return [...projects, ...posts].some(
-    (item) => item.cover === id || (item.body ?? "").includes(ref),
+  return (
+    projects.some((item) => item.cover?.id === id || (item.body ?? "").includes(ref)) ||
+    posts.some((item) => item.cover === id || item.body.includes(ref))
   );
 }

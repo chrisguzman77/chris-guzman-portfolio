@@ -3,7 +3,13 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CONTENT_COLLECTIONS, collectionTag, isContentCollection, itemTag } from "./tags";
+import {
+  CONTENT_COLLECTIONS,
+  FILES_TAG,
+  collectionTag,
+  isContentCollection,
+  itemTag,
+} from "./tags";
 
 describe("cache tags", () => {
   it("lists the ten content collections", () => {
@@ -27,6 +33,10 @@ describe("cache tags", () => {
 
   it("builds item tags as collection:slug", () => {
     expect(itemTag("posts", "hello-world")).toBe("posts:hello-world");
+  });
+
+  it("tags every query that carries a file version as files", () => {
+    expect(FILES_TAG).toBe("files");
   });
 
   it("recognises only known collections", () => {

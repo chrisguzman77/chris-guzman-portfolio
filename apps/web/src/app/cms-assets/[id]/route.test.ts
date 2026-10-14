@@ -93,6 +93,66 @@ describe("GET /cms-assets/[id]", () => {
     expect(res.headers.get("content-disposition")).toBeNull();
   });
 
+  describe("versioned links (?v=)", () => {
+    const AUTH = { headers: { Authorization: "Bearer tok" }, cache: "no-store" };
+    const TRANSFORM = `http://directus:8055/assets/${ID}?width=1200&fit=inside&withoutEnlargement=true&format=webp&quality=80`;
+
+    it("serves ?v= like the bare URL: v is only a cache key, never sent to Directus", async () => {
+      referenced.mockResolvedValue(true);
+      fetchMock.mockResolvedValue(
+        new Response("%PDF-1.7", { headers: { "content-type": "application/pdf" } }),
+      );
+      const res = await call(ID, "?v=1792009401523");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(`http://directus:8055/assets/${ID}`, AUTH);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    });
+
+    it.each(["?w=1200&v=1792009401523", "?v=1792009401523&w=1200"])(
+      "serves %s as the 1200px variant",
+      async (query) => {
+        referenced.mockResolvedValue(true);
+        fetchMock.mockResolvedValue(
+          new Response("webp", { headers: { "content-type": "image/webp" } }),
+        );
+        const res = await call(ID, query);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledWith(TRANSFORM, AUTH);
+        expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+      },
+    );
+
+    it("keeps the 5-minute cache for a versioned resize that fell back", async () => {
+      referenced.mockResolvedValue(true);
+      fetchMock
+        .mockResolvedValueOnce(new Response("down", { status: 503 }))
+        .mockResolvedValueOnce(new Response("png", { headers: { "content-type": "image/png" } }));
+      const res = await call(ID, "?w=1200&v=1");
+      expect(res.headers.get("cache-control")).toBe("public, max-age=300");
+    });
+
+    it.each([
+      "?v=",
+      "?v=abc",
+      "?v=12a",
+      "?v=-1",
+      "?v=1.5",
+      "?v=12345678901234",
+      "?v=%201",
+      "?v=1&v=2",
+      "?v=1&w=800",
+      "?v=1&w=1200&w=1200",
+      "?v=1&x=1",
+      "?w=1200&v=1&download",
+    ])("returns 400 for %s without touching Directus", async (query) => {
+      referenced.mockResolvedValue(true);
+      const res = await call(ID, query);
+      expect(res.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe("resized variants", () => {
     const AUTH = { headers: { Authorization: "Bearer tok" }, cache: "no-store" };
     const TRANSFORM = `http://directus:8055/assets/${ID}?width=1200&fit=inside&withoutEnlargement=true&format=webp&quality=80`;

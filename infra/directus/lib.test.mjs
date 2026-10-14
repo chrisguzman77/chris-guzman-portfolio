@@ -9,6 +9,7 @@ import {
   newsletterFlow,
   planSchema,
   planSeedOnce,
+  revalidateTrigger,
   sameJson,
   seedKeys,
 } from "./lib.mjs";
@@ -361,4 +362,13 @@ test("newsletterFlow: manual Flow on posts, send -> check -> record", () => {
   assert.equal(record.options.permissions, "$full");
   assert.equal(record.options.emitEvents, false);
   assert.deepEqual(spec.chain, { send: "check", check: "record" });
+});
+
+test("revalidateTrigger: item events on content and directus_files, plus files.upload", () => {
+  const trigger = revalidateTrigger(CONTENT_COLLECTIONS);
+  assert.equal(trigger.type, "action");
+  // Directus maps items.<event> on directus_files to files.<event> (metadata edits, deletes).
+  assert.deepEqual(trigger.collections, [...CONTENT_COLLECTIONS, "directus_files"]);
+  // "Replace file" (PATCH /files/:id with a new upload) emits only files.upload, never files.update.
+  assert.deepEqual(trigger.scope, ["items.create", "items.update", "items.delete", "files.upload"]);
 });

@@ -1,3 +1,4 @@
+import { ASSET_VERSION } from "@/lib/cms-assets";
 import { isReferencedFile } from "@/lib/directus/queries";
 import { serverEnv } from "@/lib/env";
 
@@ -22,12 +23,18 @@ function transformQuery(width: string): string {
   return `width=${width}&fit=inside&withoutEnlargement=true&format=webp&quality=80`;
 }
 
-// Undefined when there is no query, null when the query is anything but one allowed ?w=.
+// The query may hold at most one allowed ?w= and one ?v= (the file version, see cmsAssetUrl), in
+// any order. v is only a cache key: it is validated, then never sent to Directus.
+// Undefined when there is no width, null when the query has anything else.
 function requestedWidth(request: Request): string | undefined | null {
   const params = [...new URL(request.url).searchParams];
-  if (params.length === 0) return undefined;
-  const [[key, value]] = params;
-  return params.length === 1 && key === "w" && WIDTHS.has(value) ? value : null;
+  const width = params.filter(([key]) => key === "w");
+  const version = params.filter(([key]) => key === "v");
+  if (width.length + version.length !== params.length) return null;
+  if (width.length > 1 || version.length > 1) return null;
+  if (version.length === 1 && !ASSET_VERSION.test(version[0][1])) return null;
+  if (width.length === 0) return undefined;
+  return WIDTHS.has(width[0][1]) ? width[0][1] : null;
 }
 
 async function fetchAsset(url: string, token: string | undefined): Promise<Response | null> {

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getPost } from "@/lib/directus/queries";
+import { getFileVersions, getPost } from "@/lib/directus/queries";
 import type { Post } from "@/lib/directus/schemas";
-import { renderMarkdown } from "@/lib/markdown";
+import { assetIds, renderMarkdown } from "@/lib/markdown";
 
 import PostPage, { generateMetadata } from "./page";
 
-vi.mock("@/lib/directus/queries", () => ({ getPost: vi.fn() }));
-vi.mock("@/lib/markdown", () => ({ renderMarkdown: vi.fn() }));
+vi.mock("@/lib/directus/queries", () => ({ getPost: vi.fn(), getFileVersions: vi.fn() }));
+vi.mock("@/lib/markdown", () => ({ renderMarkdown: vi.fn(), assetIds: vi.fn() }));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
@@ -27,7 +27,14 @@ const post: Post = {
   cover: null,
 };
 
+const ASSET_ID = "123e4567-e89b-12d3-a456-426614174000";
+const VERSIONS = { [ASSET_ID]: "1792009401523" };
 const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
+
+beforeEach(() => {
+  vi.mocked(assetIds).mockReturnValue([ASSET_ID]);
+  vi.mocked(getFileVersions).mockResolvedValue(VERSIONS);
+});
 
 afterEach(() => {
   cleanup();
@@ -48,7 +55,9 @@ describe("/blog/[slug]", () => {
     render(await PostPage(params("self-hosting")));
 
     expect(getPost).toHaveBeenCalledWith("self-hosting");
-    expect(renderMarkdown).toHaveBeenCalledWith(post.body);
+    expect(assetIds).toHaveBeenCalledWith(post.body);
+    expect(getFileVersions).toHaveBeenCalledWith([ASSET_ID]);
+    expect(renderMarkdown).toHaveBeenCalledWith(post.body, VERSIONS);
     expect(screen.getByText("$ cat posts/self-hosting.md")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: post.title })).toBeTruthy();
     expect(screen.getByText("Oct 14, 2026")).toBeTruthy();

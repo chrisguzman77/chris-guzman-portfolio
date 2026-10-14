@@ -9,6 +9,8 @@ import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 
+import { cmsAssetUrl } from "@/lib/cms-assets";
+
 export type Heading = { id: string; text: string; depth: 2 | 3 };
 
 // "/assets/<uuid>", optionally prefixed by any origin (e.g. https://cms.christopherguzman.me).
@@ -18,6 +20,15 @@ const ASSET_URL =
 
 export function rewriteAssetUrls(md: string): string {
   return md.replace(ASSET_URL, "/cms-assets/$1");
+}
+
+const CMS_ASSET_ID =
+  /\/cms-assets\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
+
+// The (lowercased) ids of the Directus files a body links to, for getFileVersions.
+export function assetIds(md: string): string[] {
+  const ids = [...rewriteAssetUrls(md).matchAll(CMS_ASSET_ID)].map((m) => m[1].toLowerCase());
+  return [...new Set(ids)];
 }
 
 // GitHub-style sanitization, but keep rehype-slug ids as written (no "user-content-" prefix)
@@ -75,14 +86,25 @@ function lazyImages() {
 
 // A post's column is about 700 CSS px, so a CMS image is fetched as /cms-assets' 1200px WebP
 // variant (enough for 2x screens) rather than the full-size original. Links (e.g. a PDF) keep
-// the original. Any query the author wrote is replaced: the route accepts only ?w=.
+// the original. Any query the author wrote is replaced: the route accepts only ?w= and ?v=.
+// Both get the file's version (?v=, see cmsAssetUrl) when it is known; a link keeps its #hash,
+// and a link with its own query is left as written.
 const CMS_IMAGE = /^\/cms-assets\/([0-9a-f-]{36})(?:[?#].*)?$/i;
+const CMS_LINK = /^\/cms-assets\/([0-9a-f-]{36})(#.*)?$/i;
 
-function resizedCmsImages() {
-  return (tree: Root) => {
+function versionedCmsAssets(versions: Record<string, string>) {
+  const version = (id: string) => versions[id.toLowerCase()];
+  return () => (tree: Root) => {
     walk(tree, (element) => {
-      const match = element.tagName === "img" && CMS_IMAGE.exec(String(element.properties.src));
-      if (match) element.properties.src = `/cms-assets/${match[1]}?w=1200`;
+      if (element.tagName === "img") {
+        const match = CMS_IMAGE.exec(String(element.properties.src));
+        if (match) element.properties.src = cmsAssetUrl(match[1], version(match[1]), "1200");
+      } else if (element.tagName === "a") {
+        const match = CMS_LINK.exec(String(element.properties.href));
+        if (match) {
+          element.properties.href = cmsAssetUrl(match[1], version(match[1])) + (match[2] ?? "");
+        }
+      }
     });
   };
 }
@@ -98,7 +120,11 @@ function collectHeadings(headings: Heading[]) {
   };
 }
 
-export async function renderMarkdown(md: string): Promise<{ html: string; headings: Heading[] }> {
+// `versions` maps file ids to their /cms-assets version (getFileVersions(assetIds(md))).
+export async function renderMarkdown(
+  md: string,
+  versions: Record<string, string> = {},
+): Promise<{ html: string; headings: Heading[] }> {
   const headings: Heading[] = [];
   const file = await unified()
     .use(remarkParse)
@@ -110,7 +136,7 @@ export async function renderMarkdown(md: string): Promise<{ html: string; headin
     .use(collectHeadings(headings))
     .use(mermaidBlocks)
     .use(lazyImages)
-    .use(resizedCmsImages)
+    .use(versionedCmsAssets(versions))
     .use(rehypePrettyCode, prettyCodeOptions)
     .use(rehypeStringify)
     .process(rewriteAssetUrls(md));
