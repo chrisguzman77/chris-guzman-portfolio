@@ -60,6 +60,33 @@ function mermaidBlocks() {
   };
 }
 
+// Markdown images sit below a page's title and intro and are CMS originals (a post's diagram is a
+// 178 KB 2400px PNG). Fetched eagerly, Chrome gives one Medium priority next to the page's first
+// paint, which put a post's mobile LCP at 3.6 s instead of 2.7 s. Lazy, they wait for layout.
+function lazyImages() {
+  return (tree: Root) => {
+    walk(tree, (element) => {
+      if (element.tagName !== "img") return;
+      element.properties.loading = "lazy";
+      element.properties.decoding = "async";
+    });
+  };
+}
+
+// A post's column is about 700 CSS px, so a CMS image is fetched as /cms-assets' 1200px WebP
+// variant (enough for 2x screens) rather than the full-size original. Links (e.g. a PDF) keep
+// the original. Any query the author wrote is replaced: the route accepts only ?w=.
+const CMS_IMAGE = /^\/cms-assets\/([0-9a-f-]{36})(?:[?#].*)?$/i;
+
+function resizedCmsImages() {
+  return (tree: Root) => {
+    walk(tree, (element) => {
+      const match = element.tagName === "img" && CMS_IMAGE.exec(String(element.properties.src));
+      if (match) element.properties.src = `/cms-assets/${match[1]}?w=1200`;
+    });
+  };
+}
+
 function collectHeadings(headings: Heading[]) {
   return () => (tree: Root) => {
     walk(tree, (element) => {
@@ -82,6 +109,8 @@ export async function renderMarkdown(md: string): Promise<{ html: string; headin
     .use(rehypeSanitize, sanitizeSchema)
     .use(collectHeadings(headings))
     .use(mermaidBlocks)
+    .use(lazyImages)
+    .use(resizedCmsImages)
     .use(rehypePrettyCode, prettyCodeOptions)
     .use(rehypeStringify)
     .process(rewriteAssetUrls(md));
