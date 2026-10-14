@@ -49,3 +49,15 @@ test("the chat pill's mint arc spins, and stands still as a full ring with reduc
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect(await arc()).toMatchObject({ animation: "none", background: "none" });
 });
+
+test("theme toggle switches the theme through the circular reveal", async ({ page }) => {
+  await page.goto("/");
+  const html = page.locator("html");
+  await expect(html).toHaveClass(/\bdark\b/);
+  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect(html).not.toHaveClass(/\bdark\b/);
+  await page.waitForTimeout(800); // let the 650 ms reveal finish before axe reads colours
+  await expectNoAxeViolations(page);
+  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect(html).toHaveClass(/\bdark\b/);
+});

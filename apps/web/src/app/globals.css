@@ -367,3 +367,11 @@ summary::-webkit-details-marker {
     background-color: var(--accent-brand);
   }
 }
+
+/* Theme switch: <ThemeToggle> animates the new snapshot's clip-path from the button outward,
+   so the browser's default cross-fade is turned off. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
