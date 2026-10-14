@@ -32,7 +32,7 @@ export default async function BlogPage() {
       <h2 className="sr-only">All posts</h2>
       <div className="mt-4">
         {posts.length > 0 ? (
-          <ol className="divide-y divide-dashed divide-border">
+          <ol className="space-y-3">
             {posts.map((post) => (
               <li key={post.id}>
                 <PostListItem post={post} />
