@@ -7,7 +7,7 @@ import { formatPostDate } from "@/lib/format";
 
 export function PostListItem({ post }: { post: PostSummary }) {
   return (
-    <article className="rounded-[10px] border border-border bg-card p-4">
+    <article className="card-glow rounded-[10px] border border-border bg-card p-4">
       <p className="font-mono text-[11.5px] text-muted-foreground">
         <time dateTime={post.published_at}>{formatPostDate(post.published_at)}</time>
       </p>

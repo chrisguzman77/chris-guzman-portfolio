@@ -52,6 +52,12 @@
   --live: #15803d;
   --warn: #b45309;
   --destructive: #cf222e;
+
+  /* Line grid, cursor spotlight and card glow (see "Grid, spotlight, card glow" below). */
+  --grid-line: rgb(15 23 42 / 0.045);
+  --spot-strong: color-mix(in srgb, var(--accent-brand) 9%, transparent);
+  --spot-soft: color-mix(in srgb, var(--accent-brand) 4%, transparent);
+  --card-glow: color-mix(in srgb, var(--accent-brand) 8%, transparent);
 }
 
 /* Dark theme (default for first-time visitors via next-themes) */
@@ -70,6 +76,10 @@
   --live: #3fb950;
   --warn: #d29922;
   --destructive: #f85149;
+  --grid-line: rgb(148 163 184 / 0.05);
+  --spot-strong: color-mix(in srgb, var(--accent-brand) 12%, transparent);
+  --spot-soft: color-mix(in srgb, var(--accent-brand) 5%, transparent);
+  --card-glow: color-mix(in srgb, var(--accent-brand) 12%, transparent);
 }
 
 @layer base {
@@ -92,6 +102,105 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Grid, spotlight, card glow. Both page layers are fixed behind all content (z-index -1 in the
+   root stacking context paints above the canvas background that body's colour propagates to).
+   The spotlight is a 1040px disc moved with transform, so following the pointer never repaints;
+   <PointerGlow> sets --spot-x/--spot-y and data-spotlight. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+}
+body::before {
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+body::after {
+  top: 0;
+  left: 0;
+  width: 1040px;
+  height: 1040px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    var(--spot-strong),
+    var(--spot-soft) 35%,
+    transparent 70%
+  );
+  transform: translate(calc(var(--spot-x, -2000px) - 520px), calc(var(--spot-y, -2000px) - 520px));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+html[data-spotlight] body::after {
+  opacity: 1;
+}
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  body::after {
+    display: none;
+  }
+}
+
+@layer components {
+  /* Cards lift and turn mint on hover or keyboard focus; on hover a glow follows the cursor
+     (--card-x/--card-y from <PointerGlow>). isolation keeps the glow above the card's own
+     background but under its text. */
+  .card-glow {
+    position: relative;
+    isolation: isolate;
+    transition:
+      transform 0.25s ease,
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  .card-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    background: radial-gradient(
+      260px circle at var(--card-x, 50%) var(--card-y, 50%),
+      var(--card-glow),
+      transparent 60%
+    );
+  }
+  .card-glow:focus-visible,
+  .card-glow:has(:focus-visible) {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--accent-brand) 55%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent-brand) 25%, transparent),
+      0 10px 30px -12px color-mix(in srgb, var(--accent-brand) 35%, transparent);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .card-glow:hover {
+      transform: translateY(-2px);
+      border-color: color-mix(in srgb, var(--accent-brand) 55%, transparent);
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent-brand) 25%, transparent),
+        0 10px 30px -12px color-mix(in srgb, var(--accent-brand) 35%, transparent);
+    }
+    .card-glow:hover::after {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card-glow:hover,
+    .card-glow:focus-visible,
+    .card-glow:has(:focus-visible) {
+      transform: none;
+    }
   }
 }
 

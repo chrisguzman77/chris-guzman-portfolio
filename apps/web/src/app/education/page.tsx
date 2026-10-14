@@ -18,7 +18,7 @@ export const metadata: Metadata = pageMetadata({
 
 type EducationSection = "involvement" | "coursework" | "certifications";
 
-const card = "rounded-[10px] border border-border bg-card p-4";
+const card = "card-glow rounded-[10px] border border-border bg-card p-4";
 
 function SchoolCard({ school }: { school: Education }) {
   return (
