@@ -324,27 +324,46 @@ summary::-webkit-details-marker {
   display: none;
 }
 
-/* "Ask about Chris" pill: two 1 s accent glows back to back, then 10 s of rest (12 s cycle).
-   Drawn on a pseudo-element so the pill's own shadow stays; reduced motion stops it (rule above). */
-@keyframes chat-pill-glow {
-  0%,
-  8.333% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-brand) 60%, transparent);
-  }
-  4.167%,
-  12.5% {
-    box-shadow: 0 0 16px 5px color-mix(in srgb, var(--accent-brand) 45%, transparent);
-  }
-  16.667%,
-  100% {
-    box-shadow: 0 0 0 0 transparent;
+/* "Ask about Chris" pill: a mint arc circles its border every 3.5 s. The arc is a conic gradient
+   masked down to a 1.5px ring; registering --chat-arc lets the angle animate smoothly. Browsers
+   without @property show the arc standing still; reduced motion shows a full static ring. */
+@property --chat-arc {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes chat-arc-spin {
+  to {
+    --chat-arc: 360deg;
   }
 }
 .chat-pill-glow::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -1px;
+  padding: 1.5px;
   border-radius: inherit;
   pointer-events: none;
-  animation: chat-pill-glow 12s ease-out infinite;
+  background: conic-gradient(
+    from var(--chat-arc),
+    transparent 0 60%,
+    var(--accent-brand) 75%,
+    color-mix(in srgb, var(--accent-brand) 55%, white) 82%,
+    transparent 95%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: chat-arc-spin 3.5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-pill-glow::after {
+    animation: none;
+    background: none;
+    background-color: var(--accent-brand);
+  }
 }

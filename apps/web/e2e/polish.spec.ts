@@ -31,3 +31,21 @@ test("project cards lift and turn mint on hover", async ({ page, isMobile }) => 
   await card.hover();
   await expect(card).not.toHaveCSS("transform", "none");
 });
+
+test("the chat pill's mint arc spins, and stands still as a full ring with reduced motion", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const pill = page.getByRole("button", { name: /Ask about Chris/ });
+  await expect(pill).toBeVisible();
+  const arc = () =>
+    pill.evaluate((element) => {
+      const style = getComputedStyle(element, "::after");
+      return { animation: style.animationName, background: style.backgroundImage };
+    });
+  expect(await arc()).toMatchObject({ animation: "chat-arc-spin" });
+  expect((await arc()).background).toContain("conic-gradient");
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect(await arc()).toMatchObject({ animation: "none", background: "none" });
+});
