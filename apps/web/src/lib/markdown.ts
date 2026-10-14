@@ -73,6 +73,20 @@ function lazyImages() {
   };
 }
 
+// A post's column is about 700 CSS px, so a CMS image is fetched as /cms-assets' 1200px WebP
+// variant (enough for 2x screens) rather than the full-size original. Links (e.g. a PDF) keep
+// the original. Any query the author wrote is replaced: the route accepts only ?w=.
+const CMS_IMAGE = /^\/cms-assets\/([0-9a-f-]{36})(?:[?#].*)?$/i;
+
+function resizedCmsImages() {
+  return (tree: Root) => {
+    walk(tree, (element) => {
+      const match = element.tagName === "img" && CMS_IMAGE.exec(String(element.properties.src));
+      if (match) element.properties.src = `/cms-assets/${match[1]}?w=1200`;
+    });
+  };
+}
+
 function collectHeadings(headings: Heading[]) {
   return () => (tree: Root) => {
     walk(tree, (element) => {
@@ -96,6 +110,7 @@ export async function renderMarkdown(md: string): Promise<{ html: string; headin
     .use(collectHeadings(headings))
     .use(mermaidBlocks)
     .use(lazyImages)
+    .use(resizedCmsImages)
     .use(rehypePrettyCode, prettyCodeOptions)
     .use(rehypeStringify)
     .process(rewriteAssetUrls(md));

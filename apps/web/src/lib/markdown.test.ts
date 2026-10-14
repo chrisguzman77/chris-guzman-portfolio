@@ -66,14 +66,23 @@ describe("renderMarkdown", () => {
       `![one](/assets/${ID})\n\n![two](https://cms.christopherguzman.me/assets/${ID})\n`,
     );
     expect(html).not.toContain(`"/assets/${ID}`);
-    expect(html.match(new RegExp(`src="/cms-assets/${ID}"`, "g"))).toHaveLength(2);
+    expect(html.match(new RegExp(`src="/cms-assets/${ID}\\?w=1200"`, "g"))).toHaveLength(2);
   });
 
   it("lazy-loads images so they do not compete with the page's first paint", async () => {
     const { html } = await renderMarkdown(`Intro\n\n![diagram](/assets/${ID})\n`);
     expect(html).toContain(
-      `<img src="/cms-assets/${ID}" alt="diagram" loading="lazy" decoding="async">`,
+      `<img src="/cms-assets/${ID}?w=1200" alt="diagram" loading="lazy" decoding="async">`,
     );
+  });
+
+  it("asks /cms-assets for the 1200px variant of images only, never of links", async () => {
+    const { html } = await renderMarkdown(
+      `![d](https://cms.christopherguzman.me/assets/${ID}?width=800)\n\n[resume](/assets/${ID})\n\n![ext](https://example.com/a.png)\n`,
+    );
+    expect(html).toContain(`<img src="/cms-assets/${ID}?w=1200" alt="d"`);
+    expect(html).toContain(`<a href="/cms-assets/${ID}">resume</a>`);
+    expect(html).toContain('<img src="https://example.com/a.png" alt="ext"');
   });
 
   it("highlights fenced code with both Shiki themes", async () => {

@@ -12,24 +12,52 @@ const INLINE_SAFE = new Set([
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// The only resized variants anyone can ask for (?w=), so nobody can make Directus generate and
+// store arbitrary sizes. Markdown images ask for 1200.
+const WIDTHS = new Set(["1200"]);
+
+// Directus 12.4.1 asset transform query keys (ASSET_TRANSFORM_QUERY_KEYS in @directus/api).
+// Directus serves types it can't transform (SVG, GIF, PDF) as the original.
+function transformQuery(width: string): string {
+  return `width=${width}&fit=inside&withoutEnlargement=true&format=webp&quality=80`;
+}
+
+// Undefined when there is no query, null when the query is anything but one allowed ?w=.
+function requestedWidth(request: Request): string | undefined | null {
+  const params = [...new URL(request.url).searchParams];
+  if (params.length === 0) return undefined;
+  const [[key, value]] = params;
+  return params.length === 1 && key === "w" && WIDTHS.has(value) ? value : null;
+}
+
+async function fetchAsset(url: string, token: string | undefined): Promise<Response | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (res.ok && res.body) return res;
+    await res.body?.cancel();
+  } catch {}
+  return null;
+}
+
 // Public proxy for CMS files. cms.christopherguzman.me stays behind Cloudflare Access, so the
 // site serves only files that published content (or the resume singleton) points at.
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return new Response("Bad request", { status: 400 });
+  const width = requestedWidth(request);
+  if (width === null) return new Response("Bad request", { status: 400 });
   if (!(await isReferencedFile(id))) return new Response("Not found", { status: 404 });
 
   const { directusUrl, directusToken } = serverEnv();
-  let upstream: Response;
-  try {
-    upstream = await fetch(`${directusUrl}/assets/${id}`, {
-      headers: { Authorization: `Bearer ${directusToken}` },
-      cache: "no-store",
-    });
-  } catch {
-    return new Response("Bad gateway", { status: 502 });
-  }
-  if (!upstream.ok || !upstream.body) return new Response("Bad gateway", { status: 502 });
+  const original = `${directusUrl}/assets/${id}`;
+  // A failed transform falls back to the original, so a resize problem never breaks an image.
+  const upstream =
+    (width && (await fetchAsset(`${original}?${transformQuery(width)}`, directusToken))) ||
+    (await fetchAsset(original, directusToken));
+  if (!upstream) return new Response("Bad gateway", { status: 502 });
 
   const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
   const headers: Record<string, string> = {

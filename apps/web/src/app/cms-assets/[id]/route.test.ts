@@ -10,8 +10,8 @@ const ID = "123e4567-e89b-12d3-a456-426614174000";
 const fetchMock = vi.fn();
 const referenced = vi.mocked(isReferencedFile);
 
-function call(id: string) {
-  return GET(new Request(`http://localhost/cms-assets/${id}`), {
+function call(id: string, query = "") {
+  return GET(new Request(`http://localhost/cms-assets/${id}${query}`), {
     params: Promise.resolve({ id }),
   });
 }
@@ -91,5 +91,81 @@ describe("GET /cms-assets/[id]", () => {
     const res = await call(ID);
     expect(res.headers.get("content-security-policy")).toBeNull();
     expect(res.headers.get("content-disposition")).toBeNull();
+  });
+
+  describe("resized variants", () => {
+    const AUTH = { headers: { Authorization: "Bearer tok" }, cache: "no-store" };
+    const TRANSFORM = `http://directus:8055/assets/${ID}?width=1200&fit=inside&withoutEnlargement=true&format=webp&quality=80`;
+
+    it("forwards ?w=1200 as the exact Directus transform and serves the WebP", async () => {
+      referenced.mockResolvedValue(true);
+      fetchMock.mockResolvedValue(
+        new Response("webp", { headers: { "content-type": "image/webp" } }),
+      );
+      const res = await call(ID, "?w=1200");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(TRANSFORM, AUTH);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("image/webp");
+      expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      await expect(res.text()).resolves.toBe("webp");
+    });
+
+    it.each(["?w=800", "?w=", "?w=1200&w=1200", "?w=1200&h=10", "?width=1200", "?download"])(
+      "returns 400 for %s without touching Directus",
+      async (query) => {
+        referenced.mockResolvedValue(true);
+        const res = await call(ID, query);
+        expect(res.status).toBe(400);
+        expect(fetchMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it("still returns 400 for a bad id before looking at the query", async () => {
+      const res = await call("../../users/me", "?w=1200");
+      expect(res.status).toBe(400);
+      expect(referenced).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 for an unreferenced file even with an allowed width", async () => {
+      referenced.mockResolvedValue(false);
+      expect((await call(ID, "?w=1200")).status).toBe(404);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the original when Directus cannot transform the file", async () => {
+      referenced.mockResolvedValue(true);
+      fetchMock
+        .mockResolvedValueOnce(new Response("cannot transform", { status: 400 }))
+        .mockResolvedValueOnce(
+          new Response("<svg/>", { headers: { "content-type": "image/svg+xml" } }),
+        );
+      const res = await call(ID, "?w=1200");
+      expect(fetchMock).toHaveBeenNthCalledWith(1, TRANSFORM, AUTH);
+      expect(fetchMock).toHaveBeenNthCalledWith(2, `http://directus:8055/assets/${ID}`, AUTH);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("image/svg+xml");
+      expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+      await expect(res.text()).resolves.toBe("<svg/>");
+    });
+
+    it("returns 502 when both the transform and the original fail", async () => {
+      referenced.mockResolvedValue(true);
+      fetchMock.mockResolvedValue(new Response("nope", { status: 500 }));
+      expect((await call(ID, "?w=1200")).status).toBe(502);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("fetches only the original when no width is asked for", async () => {
+      referenced.mockResolvedValue(true);
+      fetchMock.mockResolvedValue(
+        new Response("png", { headers: { "content-type": "image/png" } }),
+      );
+      const res = await call(ID);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(`http://directus:8055/assets/${ID}`, AUTH);
+      expect(res.headers.get("content-type")).toBe("image/png");
+    });
   });
 });
