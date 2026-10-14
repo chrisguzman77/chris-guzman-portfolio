@@ -8,11 +8,13 @@ import { outboundProps } from "@/lib/analytics";
 import { getCertifications, getEducation, getInvolvement } from "@/lib/directus/queries";
 import type { Education } from "@/lib/directus/schemas";
 import { formatMonthYear, graduationLabel, sectionNumbers } from "@/lib/format";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Education",
   description: "Degrees, coursework, involvement, and certifications of Christopher Guzman.",
-};
+  path: "/education",
+});
 
 type EducationSection = "involvement" | "coursework" | "certifications";
 

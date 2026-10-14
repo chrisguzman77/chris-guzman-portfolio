@@ -109,6 +109,14 @@ describe("/projects/[slug]", () => {
     await expect(generateMetadata(params("offres"))).resolves.toEqual({
       title: "OFFRes / OFFPay",
       description: full.summary,
+      openGraph: {
+        type: "website",
+        siteName: "Christopher Guzman",
+        locale: "en_US",
+        title: "OFFRes / OFFPay",
+        description: full.summary,
+        url: "/projects/offres",
+      },
     });
 
     vi.mocked(getProject).mockResolvedValue(null);

@@ -6,10 +6,14 @@ import { PostListItem } from "@/components/content/post-list-item";
 import { SubscribeForm } from "@/components/newsletter/subscribe-form";
 import { getPosts } from "@/lib/directus/queries";
 import { serverEnv } from "@/lib/env";
+import { pageMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = {
-  title: "Blog",
-  description: "Writing by Christopher Guzman on software, security, and machine learning.",
+  ...pageMetadata({
+    title: "Blog",
+    description: "Writing by Christopher Guzman on software, security, and machine learning.",
+    path: "/blog",
+  }),
   alternates: { types: { "application/rss+xml": "/blog/rss.xml" } },
 };
 

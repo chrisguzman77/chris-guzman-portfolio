@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -15,9 +16,16 @@ import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus
 import { serverEnv } from "@/lib/env";
 import { lastPathSegment, sectionNumbers } from "@/lib/format";
 import { getGithubActivity } from "@/lib/github-activity";
+import { pageMetadata } from "@/lib/metadata";
 import { personJsonLd, serializeJsonLd } from "@/lib/seo";
 import { siteConfig } from "@/lib/site";
 import { focusRing, outlineButton } from "@/lib/styles";
+
+export const metadata: Metadata = {
+  ...pageMetadata({ title: siteConfig.name, description: siteConfig.description, path: "/" }),
+  // The site name alone, not run through the layout's "%s · name" template.
+  title: { absolute: siteConfig.name },
+};
 
 type HomeSection = "projects" | "experience" | "activity" | "blog";
 

@@ -190,6 +190,9 @@ test("blog: a mermaid block renders as a diagram that follows the theme", async 
   const diagram = page.locator("[data-mermaid-rendered] svg");
   await expect(diagram).toBeVisible();
   await expect(page.locator("pre[data-mermaid]")).toBeHidden();
+  // Dark theme is the default: axe here also covers the dim code-comment colour.
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(page.locator("pre code").getByText("// Comments are the dimmest")).toBeVisible();
   await expectNoAxeViolations(page);
 
   await page.getByRole("button", { name: "Toggle theme" }).click();
@@ -199,6 +202,16 @@ test("blog: a mermaid block renders as a diagram that follows the theme", async 
   await expect(diagram).toBeVisible();
   await expect(page.locator("[data-mermaid-rendered]")).toHaveCount(1);
   await expectNoAxeViolations(page);
+});
+
+test("blog: table-of-contents links are at least 24px tall", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the table of contents shows from the lg breakpoint");
+  await page.goto("/blog/hello-world");
+  const links = page.getByRole("navigation", { name: "On this page" }).getByRole("link");
+  await expect(links).toHaveCount(3);
+  for (const link of await links.all()) {
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(24);
+  }
 });
 
 test("newsletter: confirm and unsubscribe links", async ({ page }) => {
