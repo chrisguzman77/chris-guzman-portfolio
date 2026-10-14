@@ -6,11 +6,13 @@ import { ProjectCard } from "@/components/content/project-card";
 import { SectionHeading } from "@/components/content/section-heading";
 import { getProjects } from "@/lib/directus/queries";
 import { sectionNumbers } from "@/lib/format";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Projects",
   description: "Personal projects and competition entries by Christopher Guzman.",
-};
+  path: "/projects",
+});
 
 const SECTIONS = [
   { type: "personal", title: "Personal projects" },

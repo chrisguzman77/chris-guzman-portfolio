@@ -188,6 +188,11 @@
 .dark .prose-content code[data-theme] span {
   color: var(--shiki-dark);
 }
+/* github-dark-dimmed colours comments #768390: 4.46:1 on the --card code background. One step
+   lighter, #778491, is 4.53:1 (WCAG AA needs 4.5:1). Only comment tokens get that colour. */
+.dark .prose-content code[data-theme] span[style*="--shiki-dark:#768390" i] {
+  color: #778491;
+}
 /* ```mermaid blocks (see renderMarkdown). The source shows like any code block until
    <MermaidDiagrams> renders the diagram after it, and stays if rendering fails. */
 .prose-content pre.mermaid-source {

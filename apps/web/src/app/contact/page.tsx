@@ -11,11 +11,15 @@ import { getFaq, getProfile } from "@/lib/directus/queries";
 import { serverEnv } from "@/lib/env";
 import { lastPathSegmentOrNull } from "@/lib/format";
 import { renderMarkdown } from "@/lib/markdown";
+import { pageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Contact",
-  description: "Email, LinkedIn, and GitHub for Christopher Guzman.",
+  ...pageMetadata({
+    title: "Contact",
+    description: "Email, LinkedIn, and GitHub for Christopher Guzman.",
+    path: "/contact",
+  }),
   alternates: { canonical: "/contact" },
 };
 

@@ -7,6 +7,7 @@ import { Prose } from "@/components/content/prose";
 import { getPost } from "@/lib/directus/queries";
 import { formatPostDate } from "@/lib/format";
 import { renderMarkdown, type Heading } from "@/lib/markdown";
+import { pageMetadata } from "@/lib/metadata";
 import { cn } from "@/lib/utils";
 import { outlineButton } from "@/lib/styles";
 
@@ -16,7 +17,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
   if (!post) return {};
-  return { title: post.title, description: post.excerpt };
+  return pageMetadata({
+    title: post.title,
+    description: post.excerpt,
+    path: `/blog/${post.slug}`,
+    ownImage: true,
+    article: { publishedTime: post.published_at },
+  });
 }
 
 function TableOfContents({ headings }: { headings: Heading[] }) {
@@ -35,7 +42,7 @@ function TableOfContents({ headings }: { headings: Heading[] }) {
               <li key={heading.id} className={heading.depth === 3 ? "pl-3" : undefined}>
                 <a
                   href={`#${heading.id}`}
-                  className="rounded transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+                  className="inline-flex min-h-6 items-center rounded transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
                 >
                   {label}
                 </a>

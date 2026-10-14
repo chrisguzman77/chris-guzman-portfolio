@@ -6,12 +6,14 @@ import { EmptyState } from "@/components/content/empty-state";
 import { ExperienceEntry } from "@/components/content/experience-entry";
 import { PageHeader } from "@/components/content/page-header";
 import { getExperience } from "@/lib/directus/queries";
+import { pageMetadata } from "@/lib/metadata";
 import { outlineButton } from "@/lib/styles";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Experience",
   description: "Roles, internships, and leadership experience of Christopher Guzman.",
-};
+  path: "/experience",
+});
 
 export default async function ExperiencePage() {
   const entries = await getExperience();
