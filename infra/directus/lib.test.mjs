@@ -369,6 +369,6 @@ test("revalidateTrigger: item events on content and directus_files, plus files.u
   assert.equal(trigger.type, "action");
   // Directus maps items.<event> on directus_files to files.<event> (metadata edits, deletes).
   assert.deepEqual(trigger.collections, [...CONTENT_COLLECTIONS, "directus_files"]);
-  // "Replace file" (PATCH /files/:id with a new upload) emits only files.upload, never files.update.
+  // "Replace file" (PATCH /files/:id with a new upload) emits files.upload, then files.update.
   assert.deepEqual(trigger.scope, ["items.create", "items.update", "items.delete", "files.upload"]);
 });

@@ -112,7 +112,7 @@ export function bootstrapTokenFailure(status) {
 /**
  * Event trigger of the "revalidate site" Flow. Directus turns items.<event> on directus_files
  * into files.<event> (metadata edits, deletes), and "Replace file" (PATCH /files/:id with a new
- * upload) emits only files.upload. Both post {"collection":"directus_files"}, which revalidates
+ * upload) emits files.upload and then files.update. All post {"collection":"directus_files"}, which revalidates
  * the web app's files tag, so a replaced file's link (/cms-assets/<id>?v=<uploaded_on>) changes
  * within seconds. The chained reindex also re-reads a replaced resume PDF.
  */

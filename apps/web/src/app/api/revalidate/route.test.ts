@@ -118,7 +118,7 @@ describe("POST /api/revalidate", () => {
     expect(revalidateTag).toHaveBeenCalledWith("profile", { expire: 0 });
   });
 
-  // The Flow's files trigger (Directus "Replace file" emits files.upload) renders this exact body.
+  // The Flow's files trigger (Directus "Replace file" emits files.upload and files.update) renders this exact body.
   it("revalidates the files tag for the directus_files event", async () => {
     const res = await POST(request('{"collection":"directus_files"}', SECRET));
     expect(res.status).toBe(200);
