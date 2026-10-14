@@ -6,6 +6,7 @@ import { ResumeLink } from "@/components/analytics/resume-link";
 import { PdfEmbed } from "@/components/content/pdf-embed";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
+import { cmsAssetUrl } from "@/lib/cms-assets";
 import { getResume } from "@/lib/directus/queries";
 import { formatPostDate } from "@/lib/format";
 import { pageMetadata } from "@/lib/metadata";
@@ -27,7 +28,7 @@ export default async function ResumePage() {
       <PageHeader prompt="$ open resume.pdf" title="Resume" />
       {resume?.file ? (
         <ResumeViewer
-          src={`/cms-assets/${resume.file}`}
+          src={cmsAssetUrl(resume.file.id, resume.file.version)}
           versionLabel={resume.version_label}
           updatedAt={resume.updated_at}
         />

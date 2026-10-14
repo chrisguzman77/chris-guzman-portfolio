@@ -9,7 +9,11 @@ import ResumePage from "./page";
 
 vi.mock("@/lib/directus/queries", () => ({ getResume: vi.fn() }));
 
-const full: Resume = { file: "abc-123", version_label: "fall-2026", updated_at: "2026-10-01" };
+const full: Resume = {
+  file: { id: "abc-123", version: "1792009401523" },
+  version_label: "fall-2026",
+  updated_at: "2026-10-01",
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -34,10 +38,22 @@ describe("/resume", () => {
     expect(screen.getByText("version fall-2026 · updated Oct 1, 2026")).toBeTruthy();
 
     const download = screen.getByRole("link", { name: /download pdf/i });
-    expect(download.getAttribute("href")).toBe("/cms-assets/abc-123");
+    expect(download.getAttribute("href")).toBe("/cms-assets/abc-123?v=1792009401523");
     expect(download.hasAttribute("download")).toBe(true);
 
     // The embed is server-rendered at every width (phones included).
+    expect(container.querySelector("object")?.getAttribute("data")).toBe(
+      "/cms-assets/abc-123?v=1792009401523#toolbar=0&view=Fit",
+    );
+  });
+
+  it("links the unversioned PDF when the file's version is unknown", async () => {
+    vi.mocked(getResume).mockResolvedValue({ ...full, file: { id: "abc-123", version: null } });
+    const { container } = render(await ResumePage());
+
+    expect(screen.getByRole("link", { name: /download pdf/i }).getAttribute("href")).toBe(
+      "/cms-assets/abc-123",
+    );
     expect(container.querySelector("object")?.getAttribute("data")).toBe(
       "/cms-assets/abc-123#toolbar=0&view=Fit",
     );
@@ -84,7 +100,7 @@ describe("/resume", () => {
     const download = screen.getByRole("link", { name: /download pdf/i });
     expect(download.getAttribute("download")).toBe("christopher-guzman-resume.pdf");
     const fallback = container.querySelector("object a")!;
-    expect(fallback.getAttribute("href")).toBe("/cms-assets/abc-123");
+    expect(fallback.getAttribute("href")).toBe("/cms-assets/abc-123?v=1792009401523");
 
     const block = (event: Event) => event.preventDefault();
     document.addEventListener("click", block);

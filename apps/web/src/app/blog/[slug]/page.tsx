@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/content/page-header";
 import { Prose } from "@/components/content/prose";
-import { getPost } from "@/lib/directus/queries";
+import { getFileVersions, getPost } from "@/lib/directus/queries";
 import { formatPostDate } from "@/lib/format";
-import { renderMarkdown, type Heading } from "@/lib/markdown";
+import { assetIds, renderMarkdown, type Heading } from "@/lib/markdown";
 import { pageMetadata } from "@/lib/metadata";
 import { cn } from "@/lib/utils";
 import { outlineButton } from "@/lib/styles";
@@ -60,7 +60,8 @@ export default async function PostPage({ params }: Props) {
   const post = await getPost(slug);
   if (!post) notFound();
 
-  const { html, headings } = await renderMarkdown(post.body);
+  const versions = await getFileVersions(assetIds(post.body));
+  const { html, headings } = await renderMarkdown(post.body, versions);
   const hasToc = headings.length > 0;
 
   return (

@@ -10,10 +10,11 @@ import { Prose } from "@/components/content/prose";
 import { TechTags } from "@/components/content/tech-tags";
 import { GitHubIcon } from "@/components/icons/brand";
 import { outboundProps } from "@/lib/analytics";
-import { getProject } from "@/lib/directus/queries";
+import { cmsAssetUrl } from "@/lib/cms-assets";
+import { getFileVersions, getProject } from "@/lib/directus/queries";
 import type { Project } from "@/lib/directus/schemas";
 import { formatMonthYear } from "@/lib/format";
-import { renderMarkdown } from "@/lib/markdown";
+import { assetIds, renderMarkdown } from "@/lib/markdown";
 import { pageMetadata } from "@/lib/metadata";
 import { outlineButton } from "@/lib/styles";
 
@@ -41,7 +42,9 @@ export default async function ProjectPage({ params }: Props) {
   const project = await getProject(slug);
   if (!project) notFound();
 
-  const body = project.body ? await renderMarkdown(project.body) : null;
+  const body = project.body
+    ? await renderMarkdown(project.body, await getFileVersions(assetIds(project.body)))
+    : null;
   const meta = project.date
     ? `${TYPE_LABELS[project.type]} · ${formatMonthYear(project.date)}`
     : TYPE_LABELS[project.type];
@@ -95,7 +98,7 @@ export default async function ProjectPage({ params }: Props) {
           {/* unoptimized: /cms-assets already serves immutable, CDN-cached files, and the
               384 MB web container should not resize arbitrary CMS uploads with sharp. */}
           <Image
-            src={`/cms-assets/${project.cover}`}
+            src={cmsAssetUrl(project.cover.id, project.cover.version)}
             alt={`${project.title} cover image`}
             fill
             unoptimized

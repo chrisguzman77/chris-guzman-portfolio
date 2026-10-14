@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { renderMarkdown, rewriteAssetUrls } from "./markdown";
+import { assetIds, renderMarkdown, rewriteAssetUrls } from "./markdown";
 
 const ID = "123e4567-e89b-12d3-a456-426614174000";
+const ID2 = "0b5c3f0e-1111-4222-8333-444455556666";
+const V = "1792009401523";
 
 describe("rewriteAssetUrls", () => {
   it("rewrites relative and absolute Directus asset URLs to /cms-assets", () => {
@@ -18,6 +20,17 @@ describe("rewriteAssetUrls", () => {
       `https://example.com/static/assets/${ID}`,
     );
     expect(rewriteAssetUrls("/assets/not-a-uuid")).toBe("/assets/not-a-uuid");
+  });
+});
+
+describe("assetIds", () => {
+  it("lists each file a body links to once, lowercased, whatever the URL form", () => {
+    const md = `![a](/assets/${ID})\n[b](https://cms.christopherguzman.me/assets/${ID2}?x=1)\n![c](/cms-assets/${ID.toUpperCase()})\n![d](/assets/${ID})`;
+    expect(assetIds(md)).toEqual([ID, ID2]);
+  });
+
+  it("ignores URLs that are not Directus assets", () => {
+    expect(assetIds(`https://example.com/static/assets/${ID} /assets/not-a-uuid`)).toEqual([]);
   });
 });
 
@@ -83,6 +96,29 @@ describe("renderMarkdown", () => {
     expect(html).toContain(`<img src="/cms-assets/${ID}?w=1200" alt="d"`);
     expect(html).toContain(`<a href="/cms-assets/${ID}">resume</a>`);
     expect(html).toContain('<img src="https://example.com/a.png" alt="ext"');
+  });
+
+  it("adds each file's version to image and link URLs", async () => {
+    const { html } = await renderMarkdown(
+      `![d](/assets/${ID})\n\n[resume](/assets/${ID2})\n\n[page two](/assets/${ID2}#page=2)\n`,
+      { [ID]: V, [ID2]: "1700000000000" },
+    );
+    expect(html).toContain(`<img src="/cms-assets/${ID}?w=1200&#x26;v=${V}" alt="d"`);
+    expect(html).toContain(`<a href="/cms-assets/${ID2}?v=1700000000000">resume</a>`);
+    expect(html).toContain(`<a href="/cms-assets/${ID2}?v=1700000000000#page=2">page two</a>`);
+  });
+
+  it("matches versions case-insensitively on the id", async () => {
+    const { html } = await renderMarkdown(`![d](/assets/${ID.toUpperCase()})\n`, { [ID]: V });
+    expect(html).toContain(`?w=1200&#x26;v=${V}"`);
+  });
+
+  it("keeps unversioned URLs for files without a known version", async () => {
+    const { html } = await renderMarkdown(`![d](/assets/${ID})\n\n[r](/assets/${ID2})\n`, {
+      [ID2]: V,
+    });
+    expect(html).toContain(`<img src="/cms-assets/${ID}?w=1200" alt="d"`);
+    expect(html).toContain(`<a href="/cms-assets/${ID2}?v=${V}">r</a>`);
   });
 
   it("highlights fenced code with both Shiki themes", async () => {

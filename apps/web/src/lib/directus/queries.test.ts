@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
-import { DirectusUnavailableError, directusGet } from "./client";
+import { DirectusUnavailableError, directusFiles, directusGet } from "./client";
 import {
   getCertifications,
   getFaq,
   getChatSettings,
   getEducation,
   getExperience,
+  getFileVersions,
   getInvolvement,
   getPost,
   getPosts,
@@ -21,11 +22,16 @@ import type { Experience, Post, Project } from "./schemas";
 vi.mock("./client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./client")>()),
   directusGet: vi.fn(),
+  directusFiles: vi.fn(),
 }));
 
 const get = vi.mocked(directusGet);
+const files = vi.mocked(directusFiles);
 const PUBLISHED = "filter[status][_eq]=published";
 const FILE_ID = "123e4567-e89b-12d3-a456-426614174000";
+const OTHER_ID = "0b5c3f0e-1111-4222-8333-444455556666";
+const UPLOADED_ON = "2026-10-14T20:23:21.523Z";
+const VERSION = "1792009401523";
 
 function experience(overrides: Partial<Experience> = {}): Experience {
   return {
@@ -93,6 +99,7 @@ beforeEach(() => {
 
 afterEach(() => {
   get.mockReset();
+  files.mockReset();
   errorSpy.mockRestore();
 });
 
@@ -160,7 +167,17 @@ describe("list queries", () => {
     const [path, tags] = get.mock.calls[0];
     expect(path).toContain("sort=sort,-date");
     expect(path).toContain(PUBLISHED);
-    expect(tags).toEqual(["projects"]);
+    expect(tags).toEqual(["projects", "files"]);
+  });
+
+  it("getProjects expands the cover to its id and upload time, tagged files for replacements", async () => {
+    get.mockResolvedValue([{ ...project(), cover: { id: FILE_ID, uploaded_on: UPLOADED_ON } }]);
+    const [item] = await getProjects();
+    expect(item.cover).toEqual({ id: FILE_ID, version: VERSION });
+    const [path] = get.mock.calls[0];
+    expect(path.match(/fields=([^&]*)/)?.[1].split(",")).toEqual(
+      expect.arrayContaining(["cover", "cover.id", "cover.uploaded_on", "title"]),
+    );
   });
 
   it("getPosts sorts newest first", async () => {
@@ -190,7 +207,7 @@ describe("detail queries", () => {
     expect(path).toContain(PUBLISHED);
     expect(path).toContain("filter[slug][_eq]=a%20b");
     expect(path).toContain("limit=1");
-    expect(tags).toEqual(["projects", "projects:a b"]);
+    expect(tags).toEqual(["projects", "projects:a b", "files"]);
   });
 
   it("getProject returns null when nothing matches or Directus is down", async () => {
@@ -240,10 +257,17 @@ describe("singletons", () => {
     await expect(getProfile()).resolves.toMatchObject({ name: profile.name, github_url: null });
   });
 
-  it("getResume parses the singleton", async () => {
-    get.mockResolvedValue({ file: FILE_ID, version_label: "fall-2026", updated_at: "2026-10-01" });
-    await expect(getResume()).resolves.toMatchObject({ file: FILE_ID });
-    expect(get.mock.calls[0][1]).toEqual(["resume"]);
+  it("getResume parses the singleton with the file's version, tagged resume and files", async () => {
+    get.mockResolvedValue({
+      file: { id: FILE_ID, uploaded_on: UPLOADED_ON },
+      version_label: "fall-2026",
+      updated_at: "2026-10-01",
+    });
+    await expect(getResume()).resolves.toMatchObject({ file: { id: FILE_ID, version: VERSION } });
+    expect(get).toHaveBeenCalledWith(
+      "resume?fields=file,file.id,file.uploaded_on,version_label,updated_at",
+      ["resume", "files"],
+    );
   });
 
   it("getChatSettings parses the singleton and fetches only its fields", async () => {
@@ -276,12 +300,30 @@ describe("isReferencedFile", () => {
   }
 
   it("accepts the resume file", async () => {
-    serve({ resume: { file: FILE_ID, version_label: null, updated_at: null } });
+    serve({
+      resume: {
+        file: { id: FILE_ID, uploaded_on: UPLOADED_ON },
+        version_label: null,
+        updated_at: null,
+      },
+    });
     await expect(isReferencedFile(FILE_ID)).resolves.toBe(true);
   });
 
   it("accepts a published project cover", async () => {
-    serve({ projects: [project({ cover: FILE_ID })] });
+    serve({ projects: [{ ...project(), cover: { id: FILE_ID, uploaded_on: UPLOADED_ON } }] });
+    await expect(isReferencedFile(FILE_ID)).resolves.toBe(true);
+  });
+
+  it("accepts a resume file or project cover Directus returns as a bare id", async () => {
+    serve({ resume: { file: FILE_ID, version_label: null, updated_at: null } });
+    await expect(isReferencedFile(FILE_ID)).resolves.toBe(true);
+    serve({ projects: [{ ...project(), cover: OTHER_ID }] });
+    await expect(isReferencedFile(OTHER_ID)).resolves.toBe(true);
+  });
+
+  it("accepts a published post cover", async () => {
+    serve({ posts: [post({ cover: FILE_ID })] });
     await expect(isReferencedFile(FILE_ID)).resolves.toBe(true);
   });
 
@@ -315,5 +357,39 @@ describe("isReferencedFile", () => {
   it("rejects everything when Directus is unavailable", async () => {
     get.mockRejectedValue(new DirectusUnavailableError("down"));
     await expect(isReferencedFile(FILE_ID)).resolves.toBe(false);
+  });
+});
+
+describe("getFileVersions", () => {
+  it("reads the upload time of every id in one cached query tagged files", async () => {
+    files.mockResolvedValue([
+      { id: FILE_ID, uploaded_on: UPLOADED_ON },
+      { id: OTHER_ID, uploaded_on: "2026-10-10T08:00:00.000Z" },
+    ]);
+    await expect(getFileVersions([OTHER_ID, FILE_ID, OTHER_ID])).resolves.toEqual({
+      [FILE_ID]: VERSION,
+      [OTHER_ID]: String(Date.parse("2026-10-10T08:00:00.000Z")),
+    });
+    expect(files).toHaveBeenCalledTimes(1);
+    // Sorted and de-duplicated, so the same set of ids always hits the same cache entry.
+    expect(files).toHaveBeenCalledWith(
+      `fields=id,uploaded_on&filter[id][_in]=${OTHER_ID},${FILE_ID}&limit=-1`,
+      ["files"],
+    );
+  });
+
+  it("does not call Directus when the body links no files", async () => {
+    await expect(getFileVersions([])).resolves.toEqual({});
+    expect(files).not.toHaveBeenCalled();
+  });
+
+  it("leaves out files it cannot read or that have no upload time", async () => {
+    files.mockResolvedValue([{ id: FILE_ID, uploaded_on: null }]);
+    await expect(getFileVersions([FILE_ID, OTHER_ID])).resolves.toEqual({});
+  });
+
+  it("returns {} when Directus is unavailable, so links fall back to unversioned URLs", async () => {
+    files.mockRejectedValue(new DirectusUnavailableError("down"));
+    await expect(getFileVersions([FILE_ID])).resolves.toEqual({});
   });
 });

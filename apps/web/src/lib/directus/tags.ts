@@ -11,6 +11,10 @@ export const CONTENT_COLLECTIONS = [
   "chat_settings",
 ] as const;
 
+// Every query whose result carries a file version (see FileSchema) also carries this tag. The
+// revalidate Flow's directus_files trigger (e.g. "Replace file") refreshes it.
+export const FILES_TAG = "files";
+
 export type ContentCollection = (typeof CONTENT_COLLECTIONS)[number];
 
 export function collectionTag(collection: ContentCollection): string {

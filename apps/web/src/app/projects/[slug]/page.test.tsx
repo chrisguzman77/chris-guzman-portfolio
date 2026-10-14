@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getProject } from "@/lib/directus/queries";
+import { getFileVersions, getProject } from "@/lib/directus/queries";
 import type { Project } from "@/lib/directus/schemas";
-import { renderMarkdown } from "@/lib/markdown";
+import { assetIds, renderMarkdown } from "@/lib/markdown";
 
 import ProjectPage, { generateMetadata } from "./page";
 
-vi.mock("@/lib/directus/queries", () => ({ getProject: vi.fn() }));
-vi.mock("@/lib/markdown", () => ({ renderMarkdown: vi.fn() }));
+vi.mock("@/lib/directus/queries", () => ({ getProject: vi.fn(), getFileVersions: vi.fn() }));
+vi.mock("@/lib/markdown", () => ({ renderMarkdown: vi.fn(), assetIds: vi.fn() }));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
@@ -27,7 +27,7 @@ const full: Project = {
   tech: ["fastapi", "react"],
   repo_url: "https://github.com/example/offres",
   live_url: "https://offres.example.com",
-  cover: "0b5c3f0e-1111-4222-8333-444455556666",
+  cover: { id: "0b5c3f0e-1111-4222-8333-444455556666", version: "1792009401523" },
   date: "2025-10-01",
   featured: true,
 };
@@ -45,7 +45,14 @@ const minimal: Project = {
   date: null,
 };
 
+const ASSET_ID = "123e4567-e89b-12d3-a456-426614174000";
+const VERSIONS = { [ASSET_ID]: "1792009401523" };
 const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
+
+beforeEach(() => {
+  vi.mocked(assetIds).mockReturnValue([ASSET_ID]);
+  vi.mocked(getFileVersions).mockResolvedValue(VERSIONS);
+});
 
 afterEach(() => {
   cleanup();
@@ -62,7 +69,9 @@ describe("/projects/[slug]", () => {
     render(await ProjectPage(params("offres")));
 
     expect(getProject).toHaveBeenCalledWith("offres");
-    expect(renderMarkdown).toHaveBeenCalledWith(full.body);
+    expect(assetIds).toHaveBeenCalledWith(full.body);
+    expect(getFileVersions).toHaveBeenCalledWith([ASSET_ID]);
+    expect(renderMarkdown).toHaveBeenCalledWith(full.body, VERSIONS);
     expect(screen.getByText("$ cat projects/offres.md")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "OFFRes / OFFPay" })).toBeTruthy();
     expect(screen.getByText("Capital One Best Financial Hack")).toBeTruthy();
@@ -79,7 +88,7 @@ describe("/projects/[slug]", () => {
     expect(live.getAttribute("rel")).toBe("noopener noreferrer");
 
     expect(screen.getByAltText("OFFRes / OFFPay cover image").getAttribute("src")).toBe(
-      `/cms-assets/${full.cover}`,
+      "/cms-assets/0b5c3f0e-1111-4222-8333-444455556666?v=1792009401523",
     );
     expect(screen.getByText("Write-up body.")).toBeTruthy();
     expect(screen.getByRole("link", { name: /all projects/ }).getAttribute("href")).toBe(

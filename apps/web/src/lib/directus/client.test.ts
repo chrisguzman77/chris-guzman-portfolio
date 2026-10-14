@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DirectusUnavailableError, directusGet } from "./client";
+import { DirectusUnavailableError, directusFiles, directusGet } from "./client";
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
 
@@ -70,5 +70,27 @@ describe("directusGet", () => {
     const err = await directusGet("profile", ["profile"]).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(DirectusUnavailableError);
     expect((err as Error).cause).toBeInstanceOf(SyntaxError);
+  });
+});
+
+describe("directusFiles", () => {
+  it("GETs /files?<query> with the same token, cache, tags, and revalidate", async () => {
+    fetchMock.mockResolvedValue(Response.json({ data: [{ id: "a", uploaded_on: null }] }));
+    await expect(directusFiles("fields=id,uploaded_on", ["files"])).resolves.toEqual([
+      { id: "a", uploaded_on: null },
+    ]);
+    expect(connection).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("http://directus:8055/files?fields=id,uploaded_on", {
+      headers: { Authorization: "Bearer tok" },
+      cache: "force-cache",
+      next: { tags: ["files"], revalidate: 86400 },
+    });
+  });
+
+  it("throws DirectusUnavailableError on a non-2xx response", async () => {
+    fetchMock.mockResolvedValue(new Response("forbidden", { status: 403 }));
+    await expect(directusFiles("fields=id", ["files"])).rejects.toBeInstanceOf(
+      DirectusUnavailableError,
+    );
   });
 });

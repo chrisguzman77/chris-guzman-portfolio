@@ -109,6 +109,21 @@ export function bootstrapTokenFailure(status) {
   return `DIRECTUS_BOOTSTRAP_TOKEN was rejected (HTTP ${status}); regenerate it for an admin user (docs/setup.md, "Directus bootstrap token")`;
 }
 
+/**
+ * Event trigger of the "revalidate site" Flow. Directus turns items.<event> on directus_files
+ * into files.<event> (metadata edits, deletes), and "Replace file" (PATCH /files/:id with a new
+ * upload) emits files.upload and then files.update. All post {"collection":"directus_files"}, which revalidates
+ * the web app's files tag, so a replaced file's link (/cms-assets/<id>?v=<uploaded_on>) changes
+ * within seconds. The chained reindex also re-reads a replaced resume PDF.
+ */
+export function revalidateTrigger(contentCollections) {
+  return {
+    type: "action",
+    scope: ["items.create", "items.update", "items.delete", "files.upload"],
+    collections: [...contentCollections, "directus_files"],
+  };
+}
+
 const NEWSLETTER_SEND_URL = "http://api:8000/internal/newsletter/send";
 
 /**

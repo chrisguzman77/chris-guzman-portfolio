@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { fileVersion } from "@/lib/cms-assets";
+
 // Directus returns null for empty JSON list fields; normalise to [] at the boundary.
 const stringList = z
   .array(z.string())
@@ -20,6 +22,17 @@ const httpUrl = z
       return null;
     }
   });
+
+// A file field is requested as `<field>,<field>.id,<field>.uploaded_on` (see FILE_FIELDS). Directus
+// 12.4.1 returns the object when the token can read directus_files and the bare id when it
+// cannot; either way the field becomes { id, version }, with no version when it is unknown.
+export const FileFieldsSchema = z.object({ id: z.string(), uploaded_on: z.string().nullable() });
+export const FILE_FIELDS = Object.keys(FileFieldsSchema.shape);
+
+export const FileSchema = z
+  .union([FileFieldsSchema, z.string().transform((id) => ({ id, uploaded_on: null }))])
+  .transform(({ id, uploaded_on }) => ({ id, version: fileVersion(uploaded_on) }))
+  .nullable();
 
 export const ProfileSchema = z.object({
   name: z.string(),
@@ -90,7 +103,7 @@ export const ProjectSchema = z.object({
   tech: stringList,
   repo_url: httpUrl,
   live_url: httpUrl,
-  cover: z.string().nullable(),
+  cover: FileSchema,
   date: z.string().nullable(),
   featured: z.boolean(),
 });
@@ -113,7 +126,7 @@ export const PostSummarySchema = PostSchema.omit({ body: true });
 export const PostAssetRefSchema = PostSchema.pick({ cover: true, body: true });
 
 export const ResumeSchema = z.object({
-  file: z.string().nullable(),
+  file: FileSchema,
   version_label: z.string().nullable(),
   updated_at: z.string().nullable(),
 });

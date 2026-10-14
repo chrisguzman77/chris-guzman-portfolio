@@ -10,7 +10,14 @@
 // an ADMIN_EMAIL/ADMIN_PASSWORD login.
 import { readFile } from "node:fs/promises";
 
-import { DirectusClient, newsletterFlow, planSchema, planSeedOnce, sameJson } from "./lib.mjs";
+import {
+  DirectusClient,
+  newsletterFlow,
+  planSchema,
+  planSeedOnce,
+  revalidateTrigger,
+  sameJson,
+} from "./lib.mjs";
 import { BOOTSTRAP_STATE, CONTENT_COLLECTIONS, SINGLETONS, collections } from "./schema.mjs";
 
 const BASE_URL = "http://127.0.0.1:8055";
@@ -172,11 +179,7 @@ async function ensureFlow(api, secret) {
     // expose $trigger.keys, and an undefined key renders invalid JSON.
     body: '{"collection":"{{$trigger.collection}}"}',
   };
-  const triggerOptions = {
-    type: "action",
-    scope: ["items.create", "items.update", "items.delete"],
-    collections: CONTENT_COLLECTIONS,
-  };
+  const triggerOptions = revalidateTrigger(CONTENT_COLLECTIONS);
   let flow = await findOne(api, "/flows", { name: { _eq: FLOW_NAME } });
   if (!flow) {
     flow = await api.post("/flows", {

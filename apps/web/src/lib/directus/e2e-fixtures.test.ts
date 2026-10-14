@@ -54,9 +54,11 @@ describe("e2e Directus fixtures", () => {
     expect(new Set(projects.map((p) => p.id)).size).toBe(projects.length);
   });
 
-  it("singletons parse, resume has a file, chat is enabled", () => {
+  it("singletons parse, resume has a versioned file, chat is enabled", () => {
     ProfileSchema.parse(load("directus", "profile"));
-    expect(ResumeSchema.parse(load("directus", "resume")).file).toMatch(/^[0-9a-f-]{36}$/);
+    const { file } = ResumeSchema.parse(load("directus", "resume"));
+    expect(file?.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(file?.version).toMatch(/^\d+$/);
     expect(ChatSettingsSchema.parse(load("directus", "chat_settings")).enabled).toBe(true);
     expect((load("directus", "posts") as unknown[]).length).toBeGreaterThanOrEqual(1);
   });

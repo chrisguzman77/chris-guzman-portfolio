@@ -12,7 +12,7 @@ export class DirectusUnavailableError extends Error {
 const ONE_DAY = 86400;
 
 // Request-time only: connection() keeps `next build` from ever calling Directus.
-export async function directusGet(path: string, tags: string[]): Promise<unknown> {
+async function get(path: string, tags: string[]): Promise<unknown> {
   await connection();
   const { directusUrl, directusToken } = serverEnv();
   if (!directusUrl || !directusToken) {
@@ -21,7 +21,7 @@ export async function directusGet(path: string, tags: string[]): Promise<unknown
 
   let res: Response;
   try {
-    res = await fetch(`${directusUrl}/items/${path}`, {
+    res = await fetch(`${directusUrl}/${path}`, {
       headers: { Authorization: `Bearer ${directusToken}` },
       cache: "force-cache",
       next: { tags, revalidate: ONE_DAY },
@@ -40,4 +40,13 @@ export async function directusGet(path: string, tags: string[]): Promise<unknown
       cause: error,
     });
   }
+}
+
+export function directusGet(path: string, tags: string[]): Promise<unknown> {
+  return get(`items/${path}`, tags);
+}
+
+// directus_files is a system collection, which /items does not serve.
+export function directusFiles(query: string, tags: string[]): Promise<unknown> {
+  return get(`files?${query}`, tags);
 }
