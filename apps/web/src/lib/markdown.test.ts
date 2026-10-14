@@ -69,6 +69,13 @@ describe("renderMarkdown", () => {
     expect(html.match(new RegExp(`src="/cms-assets/${ID}"`, "g"))).toHaveLength(2);
   });
 
+  it("lazy-loads images so they do not compete with the page's first paint", async () => {
+    const { html } = await renderMarkdown(`Intro\n\n![diagram](/assets/${ID})\n`);
+    expect(html).toContain(
+      `<img src="/cms-assets/${ID}" alt="diagram" loading="lazy" decoding="async">`,
+    );
+  });
+
   it("highlights fenced code with both Shiki themes", async () => {
     const { html } = await renderMarkdown("```ts\nconst x: number = 1;\n```\n");
     expect(html).toContain("data-rehype-pretty-code-figure");
