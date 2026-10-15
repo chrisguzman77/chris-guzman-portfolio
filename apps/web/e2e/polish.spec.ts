@@ -173,8 +173,19 @@ test("the hero prompt types on every refresh, not on client navigation", async (
   const prompt = page.getByText("$ whoami", { exact: true });
   await expect(prompt).toHaveCSS("animation-name", "hero-type");
   await page.reload();
-  await expect(page.locator("html")).not.toHaveAttribute("data-hero-seen");
   await expect(prompt).toHaveCSS("animation-name", "hero-type");
+  // Hydrated (the logo suffix is client-rendered), and the hero stays un-seen afterwards.
+  await page.waitForFunction(() => document.querySelector("[data-logo-suffix]") !== null);
+  const html = page.locator("html");
+  await expect
+    .poll(
+      async () => {
+        await page.waitForTimeout(100);
+        return html.getAttribute("data-hero-seen");
+      },
+      { timeout: 2000 },
+    )
+    .toBeNull();
   // Leave and come back by clicking the logo: final state, no typing.
   await page.goto("/projects");
   await page.getByRole("link", { name: "~/chris-guzman (Christopher Guzman, home)" }).click();
@@ -277,4 +288,28 @@ test("cd .. goes back to the list from a project and a blog post", async ({ page
   await page.getByRole("link", { name: "cd .. (back to blog)" }).click();
   await expect(page).toHaveURL(/\/blog$/);
   await expectNoAxeViolations(page);
+});
+
+test("a long post slug wraps inside the logo and never reaches the header buttons", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "phone widths only");
+  for (const [width, height] of [
+    [360, 800],
+    [390, 844],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/blog/notes-on-self-hosting-a-portfolio-behind-a-tunnel");
+    const suffix = page.locator("[data-logo-suffix]");
+    await expect(suffix).toContainText("tunnel.md");
+    const toggle = (await page.getByRole("button", { name: "Toggle theme" }).boundingBox())!;
+    const s = (await suffix.boundingBox())!;
+    const caret = (await page.locator(".logo-caret").boundingBox())!;
+    expect(s.x + s.width).toBeLessThanOrEqual(toggle.x);
+    expect(caret.x + caret.width).toBeLessThanOrEqual(toggle.x);
+    expect(s.x).toBeGreaterThanOrEqual(0);
+    expect(s.x + s.width).toBeLessThanOrEqual(width);
+    await expectNoAxeViolations(page);
+  }
 });

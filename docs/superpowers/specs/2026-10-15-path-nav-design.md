@@ -20,7 +20,7 @@ Chris decided these on 2026-10-15, after PR #84, in a visual brainstorm. The moc
   - the file name, and the section on a section page, is the current page, so it is plain text, not a link.
 - **Accessibility:**
   - the home link's accessible name stays `~/chris-guzman (Christopher Guzman, home)`;
-  - the section link gets the name `blog` or `projects`;
+  - the section link gets the name `blog folder` or `projects folder`;
   - the typed text stays decorative where it isn't a link;
   - links have a visible focus ring.
 - **Phones:** a long path **wraps to two lines**. The header grows to fit (a minimum height instead of a fixed one), and nothing is cut off. The path stays hidden between 768 and 1023 px, as it is today, because the desktop nav shares that row. From 1024 px up the full path shows, and an unusually long slug wraps instead of overflowing.

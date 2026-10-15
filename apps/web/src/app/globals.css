@@ -411,7 +411,7 @@ summary::-webkit-details-marker {
     opacity 0.2s ease;
 }
 
-/* Home hero, first view per browser session (<HeroPrompt animate>): "$ whoami" types itself
+/* Home hero, every refresh or fresh visit (<MarkHeroSeen> switches it off otherwise): "$ whoami" types itself
    (8 monospace characters in 0.6 s) with a caret that blinks and then goes, and the buttons and
    status card fade in after it. The name, intro and photo never animate: they are the page's
    largest paint. */

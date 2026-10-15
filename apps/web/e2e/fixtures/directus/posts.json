@@ -8,5 +8,15 @@
     "body": "## Why self-host\n\nBecause running it end to end is the point.\n\n```mermaid\nflowchart LR\n  Visitor --> Tunnel[Cloudflare Tunnel] --> Proxmox\n```\n\n## A code sample\n\n```ts\n// Comments are the dimmest tokens in the dark theme.\nconst answer = 42;\n```\n\n### Details\n\nOne more heading for the table of contents.",
     "tags": ["homelab"],
     "cover": null
+  },
+  {
+    "id": 2,
+    "slug": "notes-on-self-hosting-a-portfolio-behind-a-tunnel",
+    "title": "Notes on self-hosting a portfolio behind a tunnel",
+    "published_at": "2026-09-10T12:00:00.000Z",
+    "excerpt": "Short notes on running a portfolio behind a Cloudflare Tunnel.",
+    "body": "## Short notes\n\nA tunnel means no open inbound ports.",
+    "tags": ["homelab"],
+    "cover": null
   }
 ]

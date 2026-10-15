@@ -11,14 +11,19 @@ const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : us
 // The prompt types on a refresh or a fresh visit: the first mount in a document that the browser
 // loaded at "/". Reaching home by clicking a link (the document was loaded at another path) or
 // coming back to it later renders the final state instead.
-export function shouldAnimateHero(initialPath: string | null, alreadyPlayed: boolean): boolean {
-  if (alreadyPlayed) return false;
+export function shouldAnimateHero(
+  initialPath: string | null,
+  alreadyPlayed: boolean,
+  navigationType: string | null = null,
+): boolean {
+  if (alreadyPlayed || navigationType === "back_forward") return false;
   return initialPath === null || initialPath === "/";
 }
 
-function initialDocumentPath(): string | null {
+function initialDocument(): { path: string | null; type: string | null } {
   const [entry] = performance.getEntriesByType?.("navigation") ?? [];
-  return entry ? new URL(entry.name).pathname : null;
+  const nav = entry as PerformanceNavigationTiming | undefined;
+  return nav ? { path: new URL(nav.name).pathname, type: nav.type } : { path: null, type: null };
 }
 
 export function MarkHeroSeen() {
@@ -27,7 +32,8 @@ export function MarkHeroSeen() {
     if (decided.current) return;
     decided.current = true;
     // Before paint, so a remount never shows a frame of the animation.
-    if (!shouldAnimateHero(initialDocumentPath(), played)) {
+    const { path, type } = initialDocument();
+    if (!shouldAnimateHero(path, played, type)) {
       document.documentElement.dataset.heroSeen = "";
     }
     played = true;

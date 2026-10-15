@@ -25,6 +25,9 @@ describe("shouldAnimateHero", () => {
     expect(shouldAnimateHero("/", true)).toBe(false); // back/forward or a later visit in the tab
     expect(shouldAnimateHero("/projects", false)).toBe(false); // arrived at / by clicking a link
     expect(shouldAnimateHero(null, false)).toBe(true); // no Navigation Timing: treat as a load
+    expect(shouldAnimateHero("/", false, "back_forward")).toBe(false); // restored by Back/Forward
+    expect(shouldAnimateHero("/", false, "reload")).toBe(true);
+    expect(shouldAnimateHero("/", false, "navigate")).toBe(true);
   });
 });
 

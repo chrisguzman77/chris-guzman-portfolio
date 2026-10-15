@@ -15,7 +15,7 @@ import { logoCrumb, logoSuffix, nextFrame } from "@/lib/logo-path";
 
 const TYPE_MS = 35;
 const HOME_LINK =
-  "text-accent-brand hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
+  "text-accent-brand underline decoration-dotted decoration-1 underline-offset-4 decoration-muted-foreground/60 hover:decoration-solid hover:decoration-accent-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand";
 
 // A 404 under a real section (/projects/nope) can't be told apart by its path, so the
 // not-found page flags itself through this tiny store while it is mounted.
@@ -124,14 +124,14 @@ export function LogoPath() {
               // Removal from the DOM can fire blur too; only a real focus move clears the flag.
               if (e.currentTarget.isConnected) sectionFocused.current = false;
             }}
-            className="hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+            className="underline decoration-dotted decoration-1 underline-offset-4 decoration-muted-foreground/60 hover:decoration-solid hover:decoration-accent-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
           >
             {linked}
           </Link>
         ) : null}
         <span aria-hidden="true">
           {breakable(rest.slice(0, lastSlash))}
-          <span className="whitespace-nowrap">{rest.slice(lastSlash)}</span>
+          <span className="inline-block max-w-full">{rest.slice(lastSlash)}</span>
         </span>
       </span>
       <span aria-hidden="true" className="logo-caret" />
