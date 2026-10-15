@@ -141,24 +141,19 @@ test("footer shows the build it was deployed from", async ({ page }) => {
   await expectNoAxeViolations(page);
 });
 
-test("the hero prompt types once per browser session", async ({ page }) => {
+test("the hero prompt types on every refresh, not on client navigation", async ({ page }) => {
   await page.goto("/");
   const prompt = page.getByText("$ whoami", { exact: true });
-  await expect(prompt).toHaveClass(/hero-type/);
-  // The actions fade in after the typing; the cookie is written on mount.
-  const actions = page
-    .getByRole("link", { name: "Download resume" })
-    .locator("xpath=ancestor::*[contains(@class,'hero-fade')][1]");
-  await expect
-    .poll(() => actions.evaluate((element) => getComputedStyle(element).opacity))
-    .toBe("1");
-  await expect
-    .poll(async () => (await page.context().cookies()).some((c) => c.name === "cg-hero-seen"))
-    .toBe(true);
+  await expect(prompt).toHaveCSS("animation-name", "hero-type");
   await page.reload();
-  await expect(prompt).not.toHaveClass(/hero-type/);
-  await expect(page.locator(".hero-fade")).toHaveCount(0);
-  await expectNoAxeViolations(page);
+  await expect(page.locator("html")).not.toHaveAttribute("data-hero-seen");
+  await expect(prompt).toHaveCSS("animation-name", "hero-type");
+  // Leave and come back by clicking the logo: final state, no typing.
+  await page.goto("/projects");
+  await page.getByRole("link", { name: "~/chris-guzman (Christopher Guzman, home)" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("html")).toHaveAttribute("data-hero-seen", "");
+  await expect(page.getByText("$ whoami", { exact: true })).toHaveCSS("animation-name", "none");
 });
 
 test.describe("reduced motion", () => {

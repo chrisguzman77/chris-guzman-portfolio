@@ -460,8 +460,8 @@ summary::-webkit-details-marker {
     transform: translateY(4px);
   }
 }
-/* A later mount in the same page session (back/forward reuses the cached first-view payload):
-   <MarkHeroSeen> sets data-hero-seen so the hero renders final instead of typing again. */
+/* A later mount, or arriving at home by client navigation: <MarkHeroSeen> sets data-hero-seen so
+   the hero renders final. */
 html[data-hero-seen] .hero-type,
 html[data-hero-seen] .hero-fade {
   animation: none;

@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { cookies } from "next/headers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus/queries";
@@ -16,8 +15,6 @@ vi.mock("@/lib/directus/queries", () => ({
   getExperience: vi.fn(),
   getPosts: vi.fn(),
 }));
-
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
 vi.mock("@/lib/github-activity", () => ({ getGithubActivity: vi.fn() }));
 
@@ -127,9 +124,6 @@ beforeEach(() => {
   vi.mocked(getExperience).mockResolvedValue(experience);
   vi.mocked(getPosts).mockResolvedValue(posts);
   vi.mocked(getGithubActivity).mockResolvedValue(null);
-  vi.mocked(cookies).mockResolvedValue({ has: () => false } as unknown as Awaited<
-    ReturnType<typeof cookies>
-  >);
 });
 
 afterEach(() => {
@@ -226,20 +220,11 @@ describe("HomePage hero", () => {
     );
   });
 
-  it("types the hero prompt and fades in the actions on the first view of the session", async () => {
+  it("types the hero prompt and fades in the actions", async () => {
     render(await HomePage());
     expect(screen.getByText("$ whoami").className).toContain("hero-type");
     expect(document.querySelectorAll(".hero-fade").length).toBe(3);
     expect(screen.getByRole("heading", { level: 1 }).closest(".hero-fade")).toBeNull();
-  });
-
-  it("renders the hero in its final state once the session has seen it", async () => {
-    vi.mocked(cookies).mockResolvedValue({
-      has: (name: string) => name === "cg-hero-seen",
-    } as unknown as Awaited<ReturnType<typeof cookies>>);
-    render(await HomePage());
-    expect(screen.getByText("$ whoami").className).not.toContain("hero-type");
-    expect(document.querySelectorAll(".hero-fade").length).toBe(0);
   });
 });
 
