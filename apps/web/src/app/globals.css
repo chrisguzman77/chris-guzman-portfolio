@@ -460,8 +460,8 @@ summary::-webkit-details-marker {
     transform: translateY(4px);
   }
 }
-/* The global reduced-motion rule shortens durations but keeps delays, which would leave the
-   faded blocks invisible for 0.65 s, so switch these off outright. */
+/* A later mount in the same page session (back/forward reuses the cached first-view payload):
+   <MarkHeroSeen> sets data-hero-seen so the hero renders final instead of typing again. */
 html[data-hero-seen] .hero-type,
 html[data-hero-seen] .hero-fade {
   animation: none;
@@ -469,6 +469,8 @@ html[data-hero-seen] .hero-fade {
 html[data-hero-seen] .hero-caret {
   display: none;
 }
+/* The global reduced-motion rule shortens durations but keeps delays, which would leave the
+   faded blocks invisible for 0.65 s, so switch these off outright. */
 @media (prefers-reduced-motion: reduce) {
   .hero-type,
   .hero-fade {
@@ -482,7 +484,8 @@ html[data-hero-seen] .hero-caret {
 /* /experience timeline (<Timeline>). ::before is the track, ::after the mint fill scaled by
    --timeline-progress; each entry's ::before is its dot. Until data-timeline-ready is set (no JS,
    reduced motion) the fill is full and every dot lit. --timeline-end ends the line at the last
-   dot; the fill spans first dot to last dot. Transitions wait for data-timeline-animate. Dots sit 24px below each entry's top (DOT_CENTER in timeline.tsx). */
+   dot; the fill spans first dot to last dot. Transitions wait for data-timeline-animate. Dots sit
+   24px below each entry's top (DOT_CENTER in timeline.tsx). */
 .timeline {
   position: relative;
   padding-left: 1.75rem;
