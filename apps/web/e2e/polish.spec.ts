@@ -168,4 +168,24 @@ test.describe("reduced motion", () => {
         .evaluate((element) => getComputedStyle(element.closest(".hero-fade")!).opacity),
     ).toBe("1");
   });
+
+  test("the experience timeline is full and lit", async ({ page }) => {
+    await page.goto("/experience");
+    const list = page.locator("ol.timeline");
+    await expect(list.locator("li").first()).toBeVisible();
+    await expect(list).not.toHaveAttribute("data-timeline-ready");
+    const fill = await list.evaluate((element) => getComputedStyle(element, "::after").transform);
+    expect(fill === "none" || fill === "matrix(1, 0, 0, 1, 0, 0)").toBe(true);
+  });
+});
+
+test("the experience timeline lights each entry as you scroll", async ({ page }) => {
+  await page.goto("/experience");
+  const list = page.locator("ol.timeline");
+  await expect(list).toHaveAttribute("data-timeline-ready", "");
+  await expect(list.locator(":scope > li").first()).toHaveAttribute("data-lit", "");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(list.locator(":scope > li").last()).toHaveAttribute("data-lit", "");
+  await expect(list).toHaveCSS("--timeline-progress", "1");
+  await expectNoAxeViolations(page);
 });

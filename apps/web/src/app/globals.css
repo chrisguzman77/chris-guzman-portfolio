@@ -471,3 +471,58 @@ summary::-webkit-details-marker {
     display: none;
   }
 }
+
+/* /experience timeline (<Timeline>). ::before is the track, ::after the mint fill scaled by
+   --timeline-progress; each entry's ::before is its dot. Until data-timeline-ready is set (no JS,
+   reduced motion) the fill is full and every dot lit. --timeline-end ends the line at the last
+   dot. Dots sit 24px below each entry's top (DOT_CENTER in timeline.tsx). */
+.timeline {
+  position: relative;
+  padding-left: 1.75rem;
+}
+.timeline::before,
+.timeline::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 24px;
+  bottom: var(--timeline-end, 2rem);
+  width: 2px;
+  border-radius: 1px;
+}
+.timeline::before {
+  background: var(--border);
+}
+.timeline::after {
+  background: linear-gradient(
+    var(--accent-brand),
+    color-mix(in srgb, var(--accent-brand) 40%, transparent)
+  );
+  transform-origin: top;
+  transform: scaleY(var(--timeline-progress, 1));
+  transition: transform 0.15s linear;
+}
+.timeline > li {
+  position: relative;
+}
+.timeline > li::before {
+  content: "";
+  position: absolute;
+  left: calc(-1.75rem + 1px);
+  top: 19px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-brand);
+  background: var(--accent-brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-brand) 18%, transparent);
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.timeline[data-timeline-ready] > li:not([data-lit])::before {
+  border-color: var(--input);
+  background: var(--background);
+  box-shadow: none;
+}
