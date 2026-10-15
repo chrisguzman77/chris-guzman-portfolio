@@ -34,6 +34,14 @@ describe("PageHeader", () => {
   });
 });
 
+describe("PageHeader without a prompt", () => {
+  it("renders the h1 and no paragraph", () => {
+    const { container } = render(<PageHeader title="How I built this site" />);
+    expect(screen.getByRole("heading", { level: 1, name: "How I built this site" })).toBeTruthy();
+    expect(container.querySelectorAll("p")).toHaveLength(0);
+  });
+});
+
 describe("SectionHeading", () => {
   it("renders an h2 with a decorative number", () => {
     render(<SectionHeading number="01" title="Featured projects" id="featured" />);

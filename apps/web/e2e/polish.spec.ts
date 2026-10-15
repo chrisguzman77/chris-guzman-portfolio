@@ -240,3 +240,14 @@ test("the GitHub heatmap ripples in when it scrolls into view", async ({ page })
   // The oldest column's first cell pops last (delay grows with weeks back): settled after ~1.6 s.
   await expect(grid.locator("span").first()).toHaveCSS("opacity", "1", { timeout: 4000 });
 });
+
+test("cd .. goes back to the list from a project and a blog post", async ({ page }) => {
+  await page.goto("/projects/this-portfolio");
+  await expect(page.getByText(/\$ cat/)).toHaveCount(0);
+  await page.getByRole("link", { name: "cd .. (back to projects)" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await page.goto("/blog/hello-world");
+  await page.getByRole("link", { name: "cd .. (back to blog)" }).click();
+  await expect(page).toHaveURL(/\/blog$/);
+  await expectNoAxeViolations(page);
+});

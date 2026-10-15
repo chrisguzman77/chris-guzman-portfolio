@@ -4,12 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { outlineButton } from "./styles";
 
-const pages = [
-  "app/page.tsx",
-  "app/experience/page.tsx",
-  "app/projects/[slug]/page.tsx",
-  "app/blog/[slug]/page.tsx",
-];
+const pages = ["app/page.tsx", "app/experience/page.tsx"];
 
 describe("outlineButton", () => {
   it("includes the focus ring", () => {

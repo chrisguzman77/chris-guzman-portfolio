@@ -580,3 +580,41 @@ html[data-hero-seen] .hero-caret {
     animation: none;
   }
 }
+
+/* Back link (<BackLink>): a mint arrow beside a keyboard-key box reading "cd ..". Hover turns
+   the key mint and nudges the arrow left; keyboard focus rings the key. */
+.back-key-box {
+  display: inline-block;
+  border: 1px solid var(--input);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 3px 10px;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.back-key-arrow {
+  display: inline-block;
+  font-size: 15px;
+  transition: transform 0.15s ease;
+}
+.back-key:hover .back-key-box {
+  border-color: var(--accent-brand);
+  color: var(--accent-brand);
+}
+.back-key:hover .back-key-arrow,
+.back-key:focus-visible .back-key-arrow {
+  transform: translateX(-3px);
+}
+.back-key:focus-visible .back-key-box {
+  outline: 2px solid var(--accent-brand);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .back-key:hover .back-key-arrow,
+  .back-key:focus-visible .back-key-arrow {
+    transform: none;
+  }
+}
