@@ -79,7 +79,6 @@ test("theme toggle switches the theme through the circular reveal", async ({ pag
   await expect(html).toHaveClass(/\bdark\b/);
   await page.getByRole("button", { name: "Toggle theme" }).click();
   await expect(html).not.toHaveClass(/\bdark\b/);
-  await page.waitForTimeout(800); // let the 650 ms reveal finish before axe reads colours
   await expectNoAxeViolations(page);
   await page.getByRole("button", { name: "Toggle theme" }).click();
   await expect(html).toHaveClass(/\bdark\b/);
@@ -146,7 +145,16 @@ test("the hero prompt types once per browser session", async ({ page }) => {
   await page.goto("/");
   const prompt = page.getByText("$ whoami", { exact: true });
   await expect(prompt).toHaveClass(/hero-type/);
-  await expect(page.getByRole("link", { name: "Download resume" })).toHaveCSS("opacity", "1");
+  // The actions fade in after the typing; the cookie is written on mount.
+  const actions = page
+    .getByRole("link", { name: "Download resume" })
+    .locator("xpath=ancestor::*[contains(@class,'hero-fade')][1]");
+  await expect
+    .poll(() => actions.evaluate((element) => getComputedStyle(element).opacity))
+    .toBe("1");
+  await expect
+    .poll(async () => (await page.context().cookies()).some((c) => c.name === "cg-hero-seen"))
+    .toBe(true);
   await page.reload();
   await expect(prompt).not.toHaveClass(/hero-type/);
   await expect(page.locator(".hero-fade")).toHaveCount(0);
@@ -234,6 +242,6 @@ test("the GitHub heatmap ripples in when it scrolls into view", async ({ page })
   await expect(grid).toHaveAttribute("data-ripple", "armed");
   await grid.scrollIntoViewIfNeeded();
   await expect(grid).toHaveAttribute("data-ripple", "play");
-  // The last cell to pop has settled once the wave is done (~1.6 s).
-  await expect(grid.locator("span").last()).toHaveCSS("opacity", "1", { timeout: 4000 });
+  // The oldest column's first cell pops last (delay grows with weeks back): settled after ~1.6 s.
+  await expect(grid.locator("span").first()).toHaveCSS("opacity", "1", { timeout: 4000 });
 });

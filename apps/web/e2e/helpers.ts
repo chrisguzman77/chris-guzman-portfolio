@@ -76,6 +76,16 @@ export const test = base.extend<Gates>({
 export { expect };
 
 export async function expectNoAxeViolations(page: Page) {
+  // axe reads computed colours: let running finite animations (hero fade, theme reveal) end first.
+  // Paused ones (armed ripple cells) would never finish; infinite ones (chat arc, logo caret) never do.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
   const { violations } = await new AxeBuilder({ page }).analyze();
   const summary = violations.map(
     (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
