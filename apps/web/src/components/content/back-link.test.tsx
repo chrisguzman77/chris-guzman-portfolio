@@ -13,6 +13,6 @@ describe("BackLink", () => {
     expect(link.getAttribute("href")).toBe("/blog");
     expect(link.textContent).toBe("←cd ..");
     expect(link.querySelector(".back-key-box")?.textContent).toBe("cd ..");
-    expect(link.className).toContain("focus-visible:outline");
+    expect(link.classList.contains("back-key")).toBe(true);
   });
 });

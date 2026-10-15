@@ -71,6 +71,29 @@ describe("LogoPath", () => {
     expect(suffix(container)).toBe("/projects");
   });
 
+  it("keeps the section link on the first frame after leaving a document", () => {
+    stubReducedMotion(false);
+    nav.pathname = "/projects/x";
+    const { rerender } = render(<LogoPath />);
+    nav.pathname = "/projects";
+    rerender(<LogoPath />);
+    expect(screen.getByRole("link", { name: "projects folder" })).toBeTruthy();
+  });
+
+  it("moves focus to the home link when the focused section link goes away", () => {
+    stubReducedMotion(false);
+    nav.pathname = "/projects/x";
+    const { rerender } = render(<LogoPath />);
+    act(() => screen.getByRole("link", { name: "projects folder" }).focus());
+    nav.pathname = "/projects";
+    rerender(<LogoPath />);
+    act(() => vi.advanceTimersByTime(35 * 20));
+    expect(screen.queryByRole("link", { name: /folder/ })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("link", { name: "~/chris-guzman (Christopher Guzman, home)" }),
+    );
+  });
+
   it("jumps straight to the new section with reduced motion", () => {
     stubReducedMotion(true);
     nav.pathname = "/blog";

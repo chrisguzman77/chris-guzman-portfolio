@@ -7,7 +7,7 @@ export function BackLink({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       aria-label={`cd .. (back to ${label})`}
-      className="back-key group inline-flex items-center gap-2 font-mono text-[13px] focus-visible:outline-none"
+      className="back-key inline-flex items-center gap-2 font-mono text-[13px] focus-visible:outline-none"
     >
       <span aria-hidden="true" className="back-key-arrow text-accent-brand">
         ←
