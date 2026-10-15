@@ -410,3 +410,64 @@ summary::-webkit-details-marker {
     width 0.3s ease,
     opacity 0.2s ease;
 }
+
+/* Home hero, first view per browser session (<HeroPrompt animate>): "$ whoami" types itself
+   (8 monospace characters in 0.6 s) with a caret that blinks and then goes, and the buttons and
+   status card fade in after it. The name, intro and photo never animate: they are the page's
+   largest paint. */
+.hero-type {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+  animation: hero-type 0.6s steps(8, end) both;
+}
+@keyframes hero-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 8ch;
+  }
+}
+.hero-caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.15em;
+  margin-left: 2px;
+  vertical-align: -0.25em;
+  background: var(--accent-brand);
+  animation: hero-caret 1.6s step-end both;
+}
+@keyframes hero-caret {
+  0%,
+  45%,
+  75% {
+    opacity: 1;
+  }
+  30%,
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+.hero-fade {
+  animation: hero-fade 0.4s ease 0.65s both;
+}
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+/* The global reduced-motion rule shortens durations but keeps delays, which would leave the
+   faded blocks invisible for 0.65 s, so switch these off outright. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-type,
+  .hero-fade {
+    animation: none;
+  }
+  .hero-caret {
+    display: none;
+  }
+}

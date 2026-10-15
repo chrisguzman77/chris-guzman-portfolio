@@ -141,3 +141,31 @@ test("footer shows the build it was deployed from", async ({ page }) => {
   }
   await expectNoAxeViolations(page);
 });
+
+test("the hero prompt types once per browser session", async ({ page }) => {
+  await page.goto("/");
+  const prompt = page.getByText("$ whoami", { exact: true });
+  await expect(prompt).toHaveClass(/hero-type/);
+  await expect(page.getByRole("link", { name: "Download resume" })).toHaveCSS("opacity", "1");
+  await page.reload();
+  await expect(prompt).not.toHaveClass(/hero-type/);
+  await expect(page.locator(".hero-fade")).toHaveCount(0);
+  await expectNoAxeViolations(page);
+});
+
+test.describe("reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("the hero shows its final state immediately", async ({ page }) => {
+    await page.goto("/");
+    const prompt = page.getByText("$ whoami", { exact: true });
+    await expect(prompt).toHaveCSS("animation-name", "none");
+    await expect(page.locator(".hero-caret")).toBeHidden();
+    // No 0.65 s delay: the actions are fully visible at once.
+    expect(
+      await page
+        .getByRole("link", { name: "Download resume" })
+        .evaluate((element) => getComputedStyle(element.closest(".hero-fade")!).opacity),
+    ).toBe("1");
+  });
+});

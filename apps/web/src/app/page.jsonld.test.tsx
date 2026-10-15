@@ -29,6 +29,7 @@ vi.mock("@/lib/directus/queries", () => ({
   getResume: vi.fn(async () => null),
   isReferencedFile: vi.fn(async () => false),
 }));
+vi.mock("next/headers", () => ({ cookies: vi.fn(async () => ({ has: () => false })) }));
 vi.mock("@/lib/github-activity", () => ({ getGithubActivity: vi.fn(async () => null) }));
 vi.mock("@/components/content/status-card", () => ({
   StatusCard: () => <p>status</p>,
