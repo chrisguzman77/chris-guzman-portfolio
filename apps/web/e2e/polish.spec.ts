@@ -177,6 +177,13 @@ test.describe("reduced motion", () => {
     const fill = await list.evaluate((element) => getComputedStyle(element, "::after").transform);
     expect(fill === "none" || fill === "matrix(1, 0, 0, 1, 0, 0)").toBe(true);
   });
+
+  test("the heatmap is simply there", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await page.goto("/");
+    const grid = page.getByRole("img", { name: /GitHub contributions in the last year/ });
+    await expect(grid).not.toHaveAttribute("data-ripple");
+  });
 });
 
 test("the experience timeline lights each entry as you scroll", async ({ page }) => {
@@ -218,4 +225,15 @@ test.describe("404 terminal", () => {
     await expect(page).toHaveURL(/\/projects$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Projects");
   });
+});
+
+test("the GitHub heatmap ripples in when it scrolls into view", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 500 }); // keep the heatmap below the fold
+  await page.goto("/");
+  const grid = page.getByRole("img", { name: /GitHub contributions in the last year/ });
+  await expect(grid).toHaveAttribute("data-ripple", "armed");
+  await grid.scrollIntoViewIfNeeded();
+  await expect(grid).toHaveAttribute("data-ripple", "play");
+  // The last cell to pop has settled once the wave is done (~1.6 s).
+  await expect(grid.locator("span").last()).toHaveCSS("opacity", "1", { timeout: 4000 });
 });

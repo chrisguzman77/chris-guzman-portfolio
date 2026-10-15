@@ -526,3 +526,43 @@ summary::-webkit-details-marker {
   background: var(--background);
   box-shadow: none;
 }
+
+/* Heatmap ripple (<RippleGrid>): once armed the cells wait at their "from" frame; on "play" they
+   pop in as a diagonal wave, newest week first: delay = (weeks back + row) × 20 ms. --col is set
+   per week column in github-activity.tsx; rows come from the cell's position in its column. */
+.ripple-grid[data-ripple] > div > span {
+  animation: heat-pop 0.45s ease both paused;
+  animation-delay: calc((var(--col, 0) + var(--row, 0)) * 20ms);
+}
+.ripple-grid[data-ripple="play"] > div > span {
+  animation-play-state: running;
+}
+.ripple-grid > div > span:nth-child(2) {
+  --row: 1;
+}
+.ripple-grid > div > span:nth-child(3) {
+  --row: 2;
+}
+.ripple-grid > div > span:nth-child(4) {
+  --row: 3;
+}
+.ripple-grid > div > span:nth-child(5) {
+  --row: 4;
+}
+.ripple-grid > div > span:nth-child(6) {
+  --row: 5;
+}
+.ripple-grid > div > span:nth-child(7) {
+  --row: 6;
+}
+@keyframes heat-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ripple-grid[data-ripple] > div > span {
+    animation: none;
+  }
+}

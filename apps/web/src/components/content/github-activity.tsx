@@ -1,7 +1,11 @@
+import type { CSSProperties } from "react";
+
 import { outboundProps } from "@/lib/analytics";
 import { formatPostDate } from "@/lib/format";
 import type { Activity, ActivityDay } from "@/lib/github-activity";
 import { cn } from "@/lib/utils";
+
+import { RippleGrid } from "./ripple-grid";
 
 export const MOBILE_WEEKS = 22;
 
@@ -102,16 +106,13 @@ export function GitHubActivity({
           </span>
         ))}
       </div>
-      <div
-        role="img"
-        aria-label={`${totalText} GitHub ${plural(total)} in the last year`}
-        className="flex gap-[3px]"
-      >
+      <RippleGrid label={`${totalText} GitHub ${plural(total)} in the last year`}>
         {/* ~370 cells: shared classes sit on the column and keys are slot indexes, so each
             cell stays small in both the HTML and the inlined RSC payload. */}
         {weeks.map((week, index) => (
           <div
             key={week.days[0]?.date ?? index}
+            style={{ "--col": weeks.length - 1 - index } as CSSProperties}
             className={cn(
               "flex flex-1 flex-col gap-[3px] *:aspect-square *:rounded-[2px]",
               olderThanMobile(index) && "hidden md:flex",
@@ -130,7 +131,7 @@ export function GitHubActivity({
             )}
           </div>
         ))}
-      </div>
+      </RippleGrid>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <p className="font-mono text-[11px] text-muted-foreground">
           {`${totalText} ${plural(total)} in the last year · updated hourly`}
