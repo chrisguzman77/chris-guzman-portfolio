@@ -1,27 +1,36 @@
 import { expect, expectNoAxeViolations, test } from "./helpers";
 
-test("grid behind every page; spotlight follows a mouse but never a touch screen", async ({
+test("grid and spotlight behind the home hero only; the spotlight never shows on touch", async ({
   page,
   isMobile,
 }) => {
-  await page.goto("/projects");
-  const grid = await page.evaluate(
-    () => getComputedStyle(document.body, "::before").backgroundImage,
-  );
-  expect(grid).toContain("linear-gradient");
+  await page.goto("/");
+  const hero = page.locator("section.hero-glow");
+  await expect(hero).toHaveCount(1);
+  const layer = (pseudo: "::before" | "::after", prop: "backgroundImage" | "opacity") =>
+    hero.evaluate((element, [p, k]) => getComputedStyle(element, p)[k as "opacity"], [
+      pseudo,
+      prop,
+    ] as const);
+  expect(await layer("::before", "backgroundImage")).toContain("linear-gradient");
 
-  await page.mouse.move(200, 300);
-  await page.mouse.move(240, 320);
-  const html = page.locator("html");
+  const box = (await hero.boundingBox())!;
+  await page.mouse.move(box.x + 100, box.y + 80);
+  await page.mouse.move(box.x + 140, box.y + 120);
   if (isMobile) {
-    await expect(html).not.toHaveAttribute("data-spotlight");
-    const display = await page.evaluate(() => getComputedStyle(document.body, "::after").display);
-    expect(display).toBe("none");
+    expect(await layer("::after", "opacity")).toBe("0");
   } else {
-    await expect(html).toHaveAttribute("data-spotlight", "");
-    await expect(html).toHaveCSS("--spot-x", "240px");
+    await expect(hero).toHaveCSS("--hero-x", "140px");
+    await expect.poll(() => layer("::after", "opacity")).toBe("1");
   }
   await expectNoAxeViolations(page);
+
+  // Other pages are plain: no hero layer and no page-wide grid.
+  await page.goto("/projects");
+  await expect(page.locator(".hero-glow")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => getComputedStyle(document.body, "::before").backgroundImage),
+  ).toBe("none");
 });
 
 test("project cards lift and turn mint on hover", async ({ page, isMobile }) => {

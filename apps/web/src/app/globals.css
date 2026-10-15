@@ -53,8 +53,8 @@
   --warn: #b45309;
   --destructive: #cf222e;
 
-  /* Line grid, cursor spotlight and card glow (see "Grid, spotlight, card glow" below). */
-  --grid-line: rgb(15 23 42 / 0.045);
+  /* Home hero grid + spotlight and card glow (see "Hero grid" and .card-glow below). */
+  --grid-line: rgb(15 23 42 / 0.07);
   --spot-strong: color-mix(in srgb, var(--accent-brand) 9%, transparent);
   --spot-soft: color-mix(in srgb, var(--accent-brand) 4%, transparent);
   --card-glow: color-mix(in srgb, var(--accent-brand) 8%, transparent);
@@ -76,7 +76,7 @@
   --live: #3fb950;
   --warn: #d29922;
   --destructive: #f85149;
-  --grid-line: rgb(148 163 184 / 0.05);
+  --grid-line: rgb(148 163 184 / 0.09);
   --spot-strong: color-mix(in srgb, var(--accent-brand) 12%, transparent);
   --spot-soft: color-mix(in srgb, var(--accent-brand) 5%, transparent);
   --card-glow: color-mix(in srgb, var(--accent-brand) 12%, transparent);
@@ -105,47 +105,45 @@
   }
 }
 
-/* Grid, spotlight, card glow. Both page layers are fixed behind all content (z-index -1 in the
-   root stacking context paints above the canvas background that body's colour propagates to).
-   The spotlight is a 1040px disc moved with transform (compositor-friendly) rather than by
-   redrawing its gradient;
-   <PointerGlow> sets --spot-x/--spot-y and data-spotlight. */
-body::before,
-body::after {
+/* Hero grid: a line grid and a cursor spotlight behind the home hero only (<section
+   class="hero-glow">). Both are absolutely positioned under the hero's content (isolation keeps
+   z-index -1 inside the section) and masked to fade out well before the section's edges, so
+   neither shows a hard border. <PointerGlow> sets --hero-x/--hero-y relative to the section. */
+.hero-glow {
+  position: relative;
+  isolation: isolate;
+}
+.hero-glow::before,
+.hero-glow::after {
   content: "";
-  position: fixed;
+  position: absolute;
+  inset: 0;
   z-index: -1;
   pointer-events: none;
 }
-body::before {
-  inset: 0;
+.hero-glow::before {
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 30% 40%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 70% at 30% 40%, #000 30%, transparent 75%);
 }
-body::after {
-  top: 0;
-  left: 0;
-  width: 1040px;
-  height: 1040px;
-  border-radius: 50%;
+.hero-glow::after {
   background: radial-gradient(
-    closest-side,
+    520px circle at var(--hero-x, 50%) var(--hero-y, 50%),
     var(--spot-strong),
     var(--spot-soft) 35%,
     transparent 70%
   );
-  transform: translate(calc(var(--spot-x, -2000px) - 520px), calc(var(--spot-y, -2000px) - 520px));
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 35%, transparent 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
-html[data-spotlight] body::after {
-  opacity: 1;
-}
-@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
-  body::after {
-    display: none;
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .hero-glow:hover::after {
+    opacity: 1;
   }
 }
 
