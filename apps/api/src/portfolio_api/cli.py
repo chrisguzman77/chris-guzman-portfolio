@@ -196,15 +196,21 @@ async def run_eval(
     timer: Callable[[], float] = time.perf_counter,
 ) -> list[CaseResult]:
     """Ask every case, print PASS/FAIL with the answer, return each case's result."""
-    work: list[tuple[str, str, str, Callable[[Composed], str | None]]] = [
-        (f"{ANSWERABLE}-{i:02d}", ANSWERABLE, c["question"], partial(judge_answerable, c))
+    work: list[tuple[str, str, str, Callable[[Composed], str | None], list[Exchange]]] = [
+        (
+            f"{ANSWERABLE}-{i:02d}",
+            ANSWERABLE,
+            c["question"],
+            partial(judge_answerable, c),
+            [Exchange(h["question"], h["answer"]) for h in c.get("history", [])],
+        )
         for i, c in enumerate(cases["answerable"], start=1)
     ] + [
-        (f"{REFUSE}-{i:02d}", REFUSE, q, judge_refusal)
+        (f"{REFUSE}-{i:02d}", REFUSE, q, judge_refusal, [])
         for i, q in enumerate(cases["refuse"], start=1)
     ]
     results: list[CaseResult] = []
-    for case_id, category, question, judge in work:
+    for case_id, category, question, judge, history in work:
         results.append(
             await _run_case(
                 service,
@@ -212,6 +218,7 @@ async def run_eval(
                 category,
                 question,
                 judge,
+                history=history,
                 busy_wait=busy_wait,
                 sleep=sleep,
                 out=out,

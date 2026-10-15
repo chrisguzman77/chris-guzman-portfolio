@@ -1,6 +1,8 @@
 # Answer-quality cases: run weekly and recorded by .github/workflows/chat-eval.yml, or by hand (`make chat-eval`).
 # answerable: the answer must be "answered", contain every must_include string
 # (case-insensitive), and cite at least one of the listed source URLs.
+# An answerable case may also have history: a list of {question, answer} asked earlier in the
+# same chat, with the answers as the chat stored them (their [n] included).
 # refuse: the chat must not answer (outcome no_match or uncited).
 answerable:
   - question: What is Chris studying?
@@ -54,6 +56,16 @@ answerable:
   - question: What is Chris's LinkedIn?
     must_include: ["linkedin.com"]
     sources: ["/contact", "/resume"]
+  # 2026-10-15 regression: asked third in a chat this came back uncited (history had its [n]
+  # stripped and the model stopped citing). History answers are verbatim from production.
+  - question: What projects has Chris built?
+    history:
+      - question: What has Chris done with AI and Machine Learning
+        answer: He integrated a local LLM (TinyLlama 1.1B) with BM25-based retrieval-augmented generation for a disaster-knowledge base [2]. He built a Cyber Threat Lakehouse pipeline using Python, PySpark, Databricks and scikit-learn, tuning models to raise intrusion-alert precision from 77 % to 84 % [2]. His technical skill set includes deep-learning frameworks such as PyTorch and TensorFlow [3].
+      - question: What's Chris's technical background
+        answer: Christopher Guzman is studying Computer Science and Cyber Operations at Augusta University, graduating in May 2027, with a minor in Mathematics [1]. He has experience with many programming languages (Python, Java, C#, C/C++, JavaScript/TypeScript) and technologies including PyTorch, TensorFlow, scikit-learn, Apache Spark, Databricks, React, FastAPI, Docker and Kubernetes [1].
+    must_include: ["Lakehouse"]
+    sources: ["/projects/cyber-threat-lakehouse", "/projects/offres-offpay", "/resume", "/"]
 refuse:
   - What is Chris's salary expectation?
   - What is Chris's phone number?

@@ -6,6 +6,7 @@ from portfolio_api.repositories.rag import ChunkHit
 from portfolio_api.services.grounding import (
     CANARY,
     CANNED_ANSWER,
+    CITE_REMINDER,
     HISTORY_PAIRS,
     NO_ANSWER,
     SYSTEM_PROMPT,
@@ -182,3 +183,14 @@ def test_quoting_the_real_content_never_trips_a_block(settings: Settings) -> Non
     assert len(texts) > 20
     hosts = settings.chat_allowed_link_hosts
     assert [t[:60] for t in texts if blocked_reason(t, hosts) is not None] == []
+
+
+def test_follow_up_reminds_the_model_to_cite() -> None:
+    history = [Exchange("What has he done with ML?", "Built a lakehouse [1].")]
+    last = build_messages("What projects has he built?", HITS, history)[-1].content
+    assert last.endswith(f"Question: What projects has he built?\n\n{CITE_REMINDER}")
+
+
+def test_first_question_has_no_reminder() -> None:
+    last = build_messages("What projects has he built?", HITS, [])[-1].content
+    assert CITE_REMINDER not in last
