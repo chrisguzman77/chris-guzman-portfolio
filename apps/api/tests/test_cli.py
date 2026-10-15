@@ -152,6 +152,26 @@ async def test_run_eval_reports_and_records_usage(db: Sessions) -> None:
     assert day is not None and day.requests == 3
 
 
+async def test_run_eval_replays_an_answerable_cases_history(db: Sessions) -> None:
+    model = FakeChatModel()
+    cases = {
+        "answerable": [
+            {
+                "question": "What projects has Chris built?",
+                "must_include": ["lakehouse"],
+                "sources": ["/projects/acm"],
+                "history": [
+                    {"question": "q1", "answer": "a1 [1]."},
+                    {"question": "q2", "answer": "a2 [1]."},
+                ],
+            }
+        ],
+        "refuse": [],
+    }
+    await run_eval(chat(db, model), cases, out=lambda _: None)
+    assert [t.content for t in model.calls[0][1:5]] == ["q1", "a1.", "q2", "a2."]
+
+
 async def test_run_eval_waits_and_retries_when_busy(db: Sessions) -> None:
     waits: list[float] = []
 
