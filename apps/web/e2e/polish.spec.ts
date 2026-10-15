@@ -98,6 +98,15 @@ test("the logo shows the section you are in", async ({ page, isMobile }) => {
   }
 });
 
+test("on a document the logo shows its full path, and its folder is a link", async ({ page }) => {
+  await page.goto("/projects/this-portfolio");
+  const suffix = page.locator("[data-logo-suffix]");
+  await expect(suffix).toHaveText("/projects/this-portfolio.md");
+  await page.getByRole("link", { name: "projects folder" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(suffix).toHaveText("/projects");
+});
+
 test.describe("missing pages", () => {
   test.use({ allowedDocumentStatus: [404] });
 
@@ -113,12 +122,30 @@ test.describe("missing pages", () => {
 test("the header never overflows the viewport", async ({ page }) => {
   for (const width of [360, 800, 1024, 1280]) {
     await page.setViewportSize({ width, height: 800 });
-    await page.goto("/experience");
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(overflow, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(0);
+    for (const path of ["/experience", "/projects/this-portfolio", "/blog/hello-world"]) {
+      await page.goto(path);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow, `horizontal overflow at ${width}px on ${path}`).toBeLessThanOrEqual(0);
+    }
   }
+});
+
+test("on a phone a long logo path wraps instead of being cut off", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/projects/this-portfolio");
+  await expect(page.locator("[data-logo-suffix]")).toHaveText("/projects/this-portfolio.md");
+  // Two lines of 12px mono text: taller than one line (~16px), though the row's 56px minimum hides it.
+  const logoHeight = await page
+    .locator("[data-logo-suffix]")
+    .evaluate((el) => el.parentElement!.getBoundingClientRect().height);
+  expect(logoHeight).toBeGreaterThan(24);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(page.locator("[data-logo-suffix]")).toBeInViewport({ ratio: 1 });
 });
 
 test("footer shows the build it was deployed from", async ({ page }) => {
@@ -141,24 +168,30 @@ test("footer shows the build it was deployed from", async ({ page }) => {
   await expectNoAxeViolations(page);
 });
 
-test("the hero prompt types once per browser session", async ({ page }) => {
+test("the hero prompt types on every refresh, not on client navigation", async ({ page }) => {
   await page.goto("/");
   const prompt = page.getByText("$ whoami", { exact: true });
-  await expect(prompt).toHaveClass(/hero-type/);
-  // The actions fade in after the typing; the cookie is written on mount.
-  const actions = page
-    .getByRole("link", { name: "Download resume" })
-    .locator("xpath=ancestor::*[contains(@class,'hero-fade')][1]");
-  await expect
-    .poll(() => actions.evaluate((element) => getComputedStyle(element).opacity))
-    .toBe("1");
-  await expect
-    .poll(async () => (await page.context().cookies()).some((c) => c.name === "cg-hero-seen"))
-    .toBe(true);
+  await expect(prompt).toHaveCSS("animation-name", "hero-type");
   await page.reload();
-  await expect(prompt).not.toHaveClass(/hero-type/);
-  await expect(page.locator(".hero-fade")).toHaveCount(0);
-  await expectNoAxeViolations(page);
+  await expect(prompt).toHaveCSS("animation-name", "hero-type");
+  // Hydrated (the logo suffix is client-rendered), and the hero stays un-seen afterwards.
+  await page.waitForFunction(() => document.querySelector("[data-logo-suffix]") !== null);
+  const html = page.locator("html");
+  await expect
+    .poll(
+      async () => {
+        await page.waitForTimeout(100);
+        return html.getAttribute("data-hero-seen");
+      },
+      { timeout: 2000 },
+    )
+    .toBeNull();
+  // Leave and come back by clicking the logo: final state, no typing.
+  await page.goto("/projects");
+  await page.getByRole("link", { name: "~/chris-guzman (Christopher Guzman, home)" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("html")).toHaveAttribute("data-hero-seen", "");
+  await expect(page.getByText("$ whoami", { exact: true })).toHaveCSS("animation-name", "none");
 });
 
 test.describe("reduced motion", () => {
@@ -244,4 +277,39 @@ test("the GitHub heatmap ripples in when it scrolls into view", async ({ page })
   await expect(grid).toHaveAttribute("data-ripple", "play");
   // The oldest column's first cell pops last (delay grows with weeks back): settled after ~1.6 s.
   await expect(grid.locator("span").first()).toHaveCSS("opacity", "1", { timeout: 4000 });
+});
+
+test("cd .. goes back to the list from a project and a blog post", async ({ page }) => {
+  await page.goto("/projects/this-portfolio");
+  await expect(page.getByText(/\$ cat/)).toHaveCount(0);
+  await page.getByRole("link", { name: "cd .. (back to projects)" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await page.goto("/blog/hello-world");
+  await page.getByRole("link", { name: "cd .. (back to blog)" }).click();
+  await expect(page).toHaveURL(/\/blog$/);
+  await expectNoAxeViolations(page);
+});
+
+test("a long post slug wraps inside the logo and never reaches the header buttons", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "phone widths only");
+  for (const [width, height] of [
+    [360, 800],
+    [390, 844],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/blog/notes-on-self-hosting-a-portfolio-behind-a-tunnel");
+    const suffix = page.locator("[data-logo-suffix]");
+    await expect(suffix).toContainText("tunnel.md");
+    const toggle = (await page.getByRole("button", { name: "Toggle theme" }).boundingBox())!;
+    const s = (await suffix.boundingBox())!;
+    const caret = (await page.locator(".logo-caret").boundingBox())!;
+    expect(s.x + s.width).toBeLessThanOrEqual(toggle.x);
+    expect(caret.x + caret.width).toBeLessThanOrEqual(toggle.x);
+    expect(s.x).toBeGreaterThanOrEqual(0);
+    expect(s.x + s.width).toBeLessThanOrEqual(width);
+    await expectNoAxeViolations(page);
+  }
 });

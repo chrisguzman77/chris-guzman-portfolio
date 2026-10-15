@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BackLink } from "@/components/content/back-link";
 import { AwardBadge } from "@/components/content/award-badge";
 import { PageHeader } from "@/components/content/page-header";
 import { ProjectTabs } from "@/components/content/project-tabs";
@@ -14,7 +14,6 @@ import type { Project } from "@/lib/directus/schemas";
 import { formatMonthYear } from "@/lib/format";
 import { assetIds, renderMarkdown } from "@/lib/markdown";
 import { pageMetadata } from "@/lib/metadata";
-import { outlineButton } from "@/lib/styles";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -51,7 +50,10 @@ export default async function ProjectPage({ params }: Props) {
     <article className="mx-auto max-w-5xl px-6 py-10">
       <ProjectTabs slug={project.slug} repoUrl={project.repo_url} liveUrl={project.live_url} />
       <div className="mt-6">
-        <PageHeader prompt={`$ cat projects/${project.slug}.md`} title={project.title} />
+        <BackLink href="/projects" label="projects" />
+        <div className="mt-5">
+          <PageHeader title={project.title} />
+        </div>
       </div>
       {project.award ? (
         <div className="mt-3">
@@ -85,12 +87,6 @@ export default async function ProjectPage({ params }: Props) {
           <Prose html={body.html} />
         </div>
       ) : null}
-
-      <div className="mt-10 border-t border-border pt-4">
-        <Link href="/projects" className={outlineButton}>
-          ← all projects
-        </Link>
-      </div>
     </article>
   );
 }

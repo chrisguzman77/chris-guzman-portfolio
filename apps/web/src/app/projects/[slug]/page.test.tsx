@@ -72,7 +72,7 @@ describe("/projects/[slug]", () => {
     expect(assetIds).toHaveBeenCalledWith(full.body);
     expect(getFileVersions).toHaveBeenCalledWith([ASSET_ID]);
     expect(renderMarkdown).toHaveBeenCalledWith(full.body, VERSIONS);
-    expect(screen.getByText("$ cat projects/offres.md")).toBeTruthy();
+    expect(screen.queryByText(/\$ cat/)).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "OFFRes / OFFPay" })).toBeTruthy();
     expect(screen.getByText("Capital One Best Financial Hack")).toBeTruthy();
     expect(screen.getByText("Competition · Oct 2025")).toBeTruthy();
@@ -91,9 +91,10 @@ describe("/projects/[slug]", () => {
       "/cms-assets/0b5c3f0e-1111-4222-8333-444455556666?v=1792009401523",
     );
     expect(screen.getByText("Write-up body.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /all projects/ }).getAttribute("href")).toBe(
-      "/projects",
-    );
+    expect(
+      screen.getByRole("link", { name: "cd .. (back to projects)" }).getAttribute("href"),
+    ).toBe("/projects");
+    expect(screen.queryByRole("link", { name: /all posts|all projects/ })).toBeNull();
   });
 
   it("omits the badge, links, cover, date, and body when they are not set", async () => {

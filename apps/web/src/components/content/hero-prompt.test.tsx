@@ -1,41 +1,66 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HERO_SEEN_COOKIE } from "@/lib/hero";
+function stubInitialUrl(url: string | null) {
+  vi.spyOn(performance, "getEntriesByType").mockReturnValue(
+    url === null ? [] : ([{ name: url }] as unknown as PerformanceEntryList),
+  );
+}
 
-import { HeroPrompt } from "./hero-prompt";
+beforeEach(() => {
+  vi.resetModules(); // fresh module state (the "played" flag) per test
+});
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   delete document.documentElement.dataset.heroSeen;
-  document.cookie = `${HERO_SEEN_COOKIE}=; path=/; max-age=0`;
+});
+
+describe("shouldAnimateHero", () => {
+  it("animates only for the first mount of a document loaded at /", async () => {
+    const { shouldAnimateHero } = await import("./mark-hero-seen");
+    expect(shouldAnimateHero("/", false)).toBe(true);
+    expect(shouldAnimateHero("/", true)).toBe(false); // back/forward or a later visit in the tab
+    expect(shouldAnimateHero("/projects", false)).toBe(false); // arrived at / by clicking a link
+    expect(shouldAnimateHero(null, false)).toBe(true); // no Navigation Timing: treat as a load
+    expect(shouldAnimateHero("/", false, "back_forward")).toBe(false); // restored by Back/Forward
+    expect(shouldAnimateHero("/", false, "reload")).toBe(true);
+    expect(shouldAnimateHero("/", false, "navigate")).toBe(true);
+  });
 });
 
 describe("HeroPrompt", () => {
-  it("types the prompt with a caret on the first view and remembers it for the session", () => {
-    const { container } = render(<HeroPrompt animate />);
+  it("types on a fresh load of the home page", async () => {
+    stubInitialUrl("https://christopherguzman.me/");
+    const { HeroPrompt } = await import("./hero-prompt");
+    const { container } = render(<HeroPrompt />);
     expect(screen.getByText("$ whoami").className).toContain("hero-type");
     expect(container.querySelector(".hero-caret")?.getAttribute("aria-hidden")).toBe("true");
-    expect(document.cookie).toContain(`${HERO_SEEN_COOKIE}=1`);
+    expect(document.documentElement.dataset.heroSeen).toBeUndefined();
   });
 
-  it("renders the prompt in its final state on later views", () => {
-    const { container } = render(<HeroPrompt animate={false} />);
-    expect(screen.getByText("$ whoami").className).not.toContain("hero-type");
-    expect(container.querySelector(".hero-caret")).toBeNull();
-    expect(document.cookie).not.toContain(HERO_SEEN_COOKIE);
+  it("renders final when home is reached by client navigation", async () => {
+    stubInitialUrl("https://christopherguzman.me/projects");
+    const { HeroPrompt } = await import("./hero-prompt");
+    render(<HeroPrompt />);
+    expect(document.documentElement.dataset.heroSeen).toBe("");
   });
-});
 
-describe("HeroPrompt remounted in the same page session", () => {
-  it("is switched to its final state before paint (back/forward replay)", async () => {
-    vi.resetModules(); // fresh module-level "played" flag
-    const { HeroPrompt: Fresh } = await import("./hero-prompt");
-    render(<Fresh animate />);
-    expect(document.documentElement.hasAttribute("data-hero-seen")).toBe(false);
+  it("renders final on a second mount in the same document", async () => {
+    stubInitialUrl("https://christopherguzman.me/");
+    const { HeroPrompt } = await import("./hero-prompt");
+    render(<HeroPrompt />);
     cleanup();
-    render(<Fresh animate />);
-    expect(document.documentElement.hasAttribute("data-hero-seen")).toBe(true);
+    render(<HeroPrompt />);
+    expect(document.documentElement.dataset.heroSeen).toBe("");
+  });
+
+  it("sets no cookie", async () => {
+    stubInitialUrl("https://christopherguzman.me/");
+    const { HeroPrompt } = await import("./hero-prompt");
+    render(<HeroPrompt />);
+    expect(document.cookie).not.toContain("cg-hero-seen");
   });
 });

@@ -411,7 +411,7 @@ summary::-webkit-details-marker {
     opacity 0.2s ease;
 }
 
-/* Home hero, first view per browser session (<HeroPrompt animate>): "$ whoami" types itself
+/* Home hero, every refresh or fresh visit (<MarkHeroSeen> switches it off otherwise): "$ whoami" types itself
    (8 monospace characters in 0.6 s) with a caret that blinks and then goes, and the buttons and
    status card fade in after it. The name, intro and photo never animate: they are the page's
    largest paint. */
@@ -460,8 +460,8 @@ summary::-webkit-details-marker {
     transform: translateY(4px);
   }
 }
-/* A later mount in the same page session (back/forward reuses the cached first-view payload):
-   <MarkHeroSeen> sets data-hero-seen so the hero renders final instead of typing again. */
+/* A later mount, or arriving at home by client navigation: <MarkHeroSeen> sets data-hero-seen so
+   the hero renders final. */
 html[data-hero-seen] .hero-type,
 html[data-hero-seen] .hero-fade {
   animation: none;
@@ -578,5 +578,43 @@ html[data-hero-seen] .hero-caret {
 @media (prefers-reduced-motion: reduce) {
   .ripple-grid[data-ripple] > div > span {
     animation: none;
+  }
+}
+
+/* Back link (<BackLink>): a mint arrow beside a keyboard-key box reading "cd ..". Hover turns
+   the key mint and nudges the arrow left; keyboard focus rings the key. */
+.back-key-box {
+  display: inline-block;
+  border: 1px solid var(--input);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 3px 10px;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.back-key-arrow {
+  display: inline-block;
+  font-size: 15px;
+  transition: transform 0.15s ease;
+}
+.back-key:hover .back-key-box {
+  border-color: var(--accent-brand);
+  color: var(--accent-brand);
+}
+.back-key:hover .back-key-arrow,
+.back-key:focus-visible .back-key-arrow {
+  transform: translateX(-3px);
+}
+.back-key:focus-visible .back-key-box {
+  outline: 2px solid var(--accent-brand);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .back-key:hover .back-key-arrow,
+  .back-key:focus-visible .back-key-arrow {
+    transform: none;
   }
 }

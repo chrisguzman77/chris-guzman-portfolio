@@ -58,7 +58,7 @@ describe("/blog/[slug]", () => {
     expect(assetIds).toHaveBeenCalledWith(post.body);
     expect(getFileVersions).toHaveBeenCalledWith([ASSET_ID]);
     expect(renderMarkdown).toHaveBeenCalledWith(post.body, VERSIONS);
-    expect(screen.getByText("$ cat posts/self-hosting.md")).toBeTruthy();
+    expect(screen.queryByText(/\$ cat/)).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: post.title })).toBeTruthy();
     expect(screen.getByText("Oct 14, 2026")).toBeTruthy();
     expect(screen.getByText("infra")).toBeTruthy();
@@ -78,7 +78,10 @@ describe("/blog/[slug]", () => {
     expect(details.closest("li")!.className).toContain("pl-3");
     expect(screen.getByRole("link", { name: "2. Wrap up" }).getAttribute("href")).toBe("#wrap-up");
 
-    expect(screen.getByRole("link", { name: /all posts/ }).getAttribute("href")).toBe("/blog");
+    expect(screen.getByRole("link", { name: "cd .. (back to blog)" }).getAttribute("href")).toBe(
+      "/blog",
+    );
+    expect(screen.queryByRole("link", { name: /all posts|all projects/ })).toBeNull();
   });
 
   it("omits the table of contents when the body has no headings", async () => {

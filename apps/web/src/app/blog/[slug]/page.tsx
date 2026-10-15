@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BackLink } from "@/components/content/back-link";
 import { PageHeader } from "@/components/content/page-header";
 import { Prose } from "@/components/content/prose";
 import { getFileVersions, getPost } from "@/lib/directus/queries";
@@ -9,7 +9,6 @@ import { formatPostDate } from "@/lib/format";
 import { assetIds, renderMarkdown, type Heading } from "@/lib/markdown";
 import { pageMetadata } from "@/lib/metadata";
 import { cn } from "@/lib/utils";
-import { outlineButton } from "@/lib/styles";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -66,7 +65,10 @@ export default async function PostPage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-5xl px-6 py-10">
-      <PageHeader prompt={`$ cat posts/${post.slug}.md`} title={post.title} />
+      <BackLink href="/blog" label="blog" />
+      <div className="mt-5">
+        <PageHeader title={post.title} />
+      </div>
       <div className="mt-3 flex flex-wrap items-center gap-1.5 font-mono text-xs text-muted-foreground">
         <time dateTime={post.published_at}>{formatPostDate(post.published_at)}</time>
         {post.tags.length > 0 ? (
@@ -88,12 +90,6 @@ export default async function PostPage({ params }: Props) {
           <Prose html={html} />
         </div>
         {hasToc ? <TableOfContents headings={headings} /> : null}
-      </div>
-
-      <div className="mt-10 border-t border-border pt-4">
-        <Link href="/blog" className={outlineButton}>
-          ← all posts
-        </Link>
       </div>
     </article>
   );

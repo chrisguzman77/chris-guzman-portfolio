@@ -1,8 +1,10 @@
-export function PageHeader({ prompt, title }: { prompt: string; title: string }) {
+import { cn } from "@/lib/utils";
+
+export function PageHeader({ prompt, title }: { prompt?: string; title: string }) {
   return (
     <div>
-      <p className="font-mono text-xs text-accent-brand">{prompt}</p>
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight">{title}</h1>
+      {prompt ? <p className="font-mono text-xs text-accent-brand">{prompt}</p> : null}
+      <h1 className={cn("text-3xl font-semibold tracking-tight", prompt && "mt-4")}>{title}</h1>
     </div>
   );
 }

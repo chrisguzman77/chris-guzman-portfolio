@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -18,12 +17,10 @@ import { getExperience, getPosts, getProfile, getProjects } from "@/lib/directus
 import { serverEnv } from "@/lib/env";
 import { lastPathSegment, sectionNumbers } from "@/lib/format";
 import { getGithubActivity } from "@/lib/github-activity";
-import { HERO_SEEN_COOKIE } from "@/lib/hero";
 import { pageMetadata } from "@/lib/metadata";
 import { personJsonLd, serializeJsonLd } from "@/lib/seo";
 import { siteConfig } from "@/lib/site";
 import { focusRing, outlineButton } from "@/lib/styles";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   ...pageMetadata({ title: siteConfig.name, description: siteConfig.description, path: "/" }),
@@ -45,8 +42,6 @@ export default async function HomePage() {
     getPosts(),
     getGithubActivity(),
   ]);
-
-  const animateHero = !(await cookies()).has(HERO_SEEN_COOKIE);
 
   const name = profile?.name ?? siteConfig.name;
   const githubUrl = profile?.github_url ?? siteConfig.links.github;
@@ -74,7 +69,7 @@ export default async function HomePage() {
             photo between the name and the intro. md+: a normal left column beside the photo. */}
         <div className="contents md:block">
           <div className="order-1">
-            <HeroPrompt animate={animateHero} />
+            <HeroPrompt />
             <h1 className="mt-2.5 text-4xl font-semibold leading-[1.05] tracking-tight md:text-[46px]">
               {name}
             </h1>
@@ -88,7 +83,7 @@ export default async function HomePage() {
                 {profile.intro}
               </p>
             ) : null}
-            <div className={cn("flex flex-wrap items-center gap-2.5", animateHero && "hero-fade")}>
+            <div className="flex flex-wrap items-center gap-2.5 hero-fade">
               <Link href="/resume" className={primaryButton}>
                 Download resume
               </Link>
@@ -96,9 +91,7 @@ export default async function HomePage() {
                 Get in touch
               </Link>
             </div>
-            <div
-              className={cn("mt-2 flex flex-wrap items-center gap-2.5", animateHero && "hero-fade")}
-            >
+            <div className="mt-2 flex flex-wrap items-center gap-2.5 hero-fade">
               <a
                 href={githubUrl}
                 target="_blank"
@@ -120,7 +113,7 @@ export default async function HomePage() {
                 LinkedIn
               </a>
             </div>
-            <div className={cn("mt-5", animateHero && "hero-fade")}>
+            <div className="mt-5 hero-fade">
               {/* Streams in: a slow or down API never delays the rest of the page. */}
               <Suspense fallback={<StatusCardSkeleton />}>
                 <StatusCard />
