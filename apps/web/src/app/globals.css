@@ -126,8 +126,8 @@
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 30% 40%, #000 30%, transparent 75%);
-  mask-image: radial-gradient(ellipse 80% 70% at 30% 40%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(closest-side at 35% 45%, #000 25%, transparent 100%);
+  mask-image: radial-gradient(closest-side at 35% 45%, #000 25%, transparent 100%);
 }
 .hero-glow::after {
   background: radial-gradient(
