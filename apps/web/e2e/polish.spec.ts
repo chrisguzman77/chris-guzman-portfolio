@@ -200,3 +200,22 @@ test("project pages open with editor tabs", async ({ page }) => {
   await expect(page.getByRole("link", { name: /Source code|Live site/ })).toHaveCount(0);
   await expectNoAxeViolations(page);
 });
+
+test.describe("404 terminal", () => {
+  test.use({ allowedDocumentStatus: [404] });
+
+  test("cd projects goes to the projects page", async ({ page }) => {
+    const response = await page.goto("/nope");
+    expect(response?.status()).toBe(404);
+    await expect(page.getByText("bash: /nope: No such file or directory (404)")).toBeVisible();
+    await expectNoAxeViolations(page);
+    const input = page.getByRole("textbox", { name: /terminal command/i });
+    await input.fill("help");
+    await input.press("Enter");
+    await expect(page.getByText("cd <page>", { exact: false })).toBeVisible();
+    await input.fill("cd projects");
+    await input.press("Enter");
+    await expect(page).toHaveURL(/\/projects$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Projects");
+  });
+});
