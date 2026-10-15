@@ -57,6 +57,7 @@ export function LogoPath() {
   }, [target]);
 
   return (
+    // Hidden at 768-1023px: the six desktop nav links share the row there and a long path would overflow.
     <span aria-hidden="true" className="md:max-lg:hidden">
       <span data-logo-suffix="" className="text-foreground">
         {shown}

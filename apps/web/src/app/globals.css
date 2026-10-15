@@ -107,7 +107,8 @@
 
 /* Grid, spotlight, card glow. Both page layers are fixed behind all content (z-index -1 in the
    root stacking context paints above the canvas background that body's colour propagates to).
-   The spotlight is a 1040px disc moved with transform, so following the pointer never repaints;
+   The spotlight is a 1040px disc moved with transform (compositor-friendly) rather than by
+   redrawing its gradient;
    <PointerGlow> sets --spot-x/--spot-y and data-spotlight. */
 body::before,
 body::after {
@@ -175,33 +176,44 @@ html[data-spotlight] body::after {
       transparent 60%
     );
   }
-  .card-glow:focus-visible,
-  .card-glow:has(:focus-visible) {
+}
+
+/* Card hover/focus state. Unlayered on purpose: cards also carry the border-border utility
+   (@layer utilities), which would beat these if they lived in @layer components. */
+.card-glow:focus-visible,
+.card-glow:has(:focus-visible) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent-brand) 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-brand) 25%, transparent),
+    0 10px 30px -12px color-mix(in srgb, var(--accent-brand) 35%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .card-glow:hover {
     transform: translateY(-2px);
     border-color: color-mix(in srgb, var(--accent-brand) 55%, transparent);
     box-shadow:
       0 0 0 1px color-mix(in srgb, var(--accent-brand) 25%, transparent),
       0 10px 30px -12px color-mix(in srgb, var(--accent-brand) 35%, transparent);
   }
-  @media (hover: hover) and (pointer: fine) {
-    .card-glow:hover {
-      transform: translateY(-2px);
-      border-color: color-mix(in srgb, var(--accent-brand) 55%, transparent);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--accent-brand) 25%, transparent),
-        0 10px 30px -12px color-mix(in srgb, var(--accent-brand) 35%, transparent);
-    }
-    .card-glow:hover::after {
-      opacity: 1;
-    }
+  .card-glow:hover::after {
+    opacity: 1;
   }
-  @media (prefers-reduced-motion: reduce) {
-    .card-glow:hover,
-    .card-glow:focus-visible,
-    .card-glow:has(:focus-visible) {
-      transform: none;
-    }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-glow:hover,
+  .card-glow:focus-visible,
+  .card-glow:has(:focus-visible) {
+    transform: none;
   }
+}
+
+/* Before the nav indicator is placed (no JS, or before hydration) the current link carries its
+   own underline; once the bar is ready it takes over. */
+nav:has(> [data-nav-indicator]:not([data-ready])) a[aria-current="page"] {
+  text-decoration: underline;
+  text-decoration-color: var(--accent-brand);
+  text-underline-offset: 4px;
 }
 
 /* Markdown bodies rendered by <Prose>. Tailwind preflight resets element styles, so restore them

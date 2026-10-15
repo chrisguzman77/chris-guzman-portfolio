@@ -11,8 +11,10 @@ function stubMatchMedia(matches: boolean) {
   );
 }
 
-function move(target: EventTarget, clientX: number, clientY: number) {
+// jsdom's MouseEvent has no pointerType, so add it.
+function move(target: EventTarget, clientX: number, clientY: number, pointerType = "mouse") {
   const event = new MouseEvent("pointermove", { bubbles: true, clientX, clientY });
+  Object.defineProperty(event, "pointerType", { value: pointerType });
   target.dispatchEvent(event);
 }
 
@@ -64,6 +66,34 @@ describe("PointerGlow", () => {
     render(<PointerGlow />);
     move(document.body, 10, 10);
     document.documentElement.dispatchEvent(new MouseEvent("pointerleave"));
+    expect(document.documentElement.dataset.spotlight).toBeUndefined();
+  });
+
+  it("ignores touch and pen pointers", () => {
+    stubMatchMedia(true);
+    render(<PointerGlow />);
+    move(document.body, 120, 340, "touch");
+    move(document.body, 120, 340, "pen");
+    expect(document.documentElement.style.getPropertyValue("--spot-x")).toBe("");
+    expect(document.documentElement.dataset.spotlight).toBeUndefined();
+  });
+
+  it("cancels a pending frame when the pointer leaves, so the spotlight stays hidden", () => {
+    stubMatchMedia(true);
+    const queued: FrameRequestCallback[] = [];
+    const cancel = vi.fn((id: number) => {
+      queued[id - 1] = () => {};
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      queued.push(callback);
+      return queued.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", cancel);
+    render(<PointerGlow />);
+    move(document.body, 10, 10);
+    document.documentElement.dispatchEvent(new MouseEvent("pointerleave"));
+    expect(cancel).toHaveBeenCalled();
+    for (const callback of queued) callback(0);
     expect(document.documentElement.dataset.spotlight).toBeUndefined();
   });
 

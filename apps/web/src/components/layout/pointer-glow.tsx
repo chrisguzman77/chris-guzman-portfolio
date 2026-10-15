@@ -18,22 +18,29 @@ export function PointerGlow() {
     function paint() {
       frame = 0;
       if (!last) return;
+      // Measure before writing anything so the reads don't force a style recalc mid-paint.
+      const card =
+        last.target instanceof Element ? last.target.closest<HTMLElement>(".card-glow") : null;
+      const rect = card?.getBoundingClientRect();
       root.style.setProperty("--spot-x", `${last.clientX}px`);
       root.style.setProperty("--spot-y", `${last.clientY}px`);
       root.dataset.spotlight = "";
-      const card =
-        last.target instanceof Element ? last.target.closest<HTMLElement>(".card-glow") : null;
-      if (card) {
-        const rect = card.getBoundingClientRect();
+      if (card && rect) {
         card.style.setProperty("--card-x", `${last.clientX - rect.left}px`);
         card.style.setProperty("--card-y", `${last.clientY - rect.top}px`);
       }
     }
     function onMove(event: PointerEvent) {
+      if (event.pointerType !== "mouse") return;
       last = event;
       if (!frame) frame = window.requestAnimationFrame(paint);
     }
     function onLeave() {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      last = null;
       delete root.dataset.spotlight;
     }
 

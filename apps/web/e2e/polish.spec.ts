@@ -28,8 +28,22 @@ test("project cards lift and turn mint on hover", async ({ page, isMobile }) => 
   test.skip(isMobile, "hover effects are mouse-only");
   await page.goto("/projects");
   const card = page.getByRole("link", { name: /^This portfolio/ });
+  const border = () => card.evaluate((element) => getComputedStyle(element).borderTopColor);
+  const resting = await border();
   await card.hover();
   await expect(card).not.toHaveCSS("transform", "none");
+  await expect.poll(border).not.toBe(resting);
+});
+
+test("project cards turn mint on keyboard focus", async ({ page, isMobile }) => {
+  test.skip(isMobile, "keyboard focus ring is checked on desktop");
+  await page.goto("/projects");
+  const card = page.getByRole("link", { name: /^This portfolio/ });
+  const border = () => card.evaluate((element) => getComputedStyle(element).borderTopColor);
+  const resting = await border();
+  await page.keyboard.press("Tab"); // switch to keyboard modality so :focus-visible applies
+  await card.focus();
+  await expect.poll(border).not.toBe(resting);
 });
 
 test("the chat pill's mint arc spins, and stands still as a full ring with reduced motion", async ({
