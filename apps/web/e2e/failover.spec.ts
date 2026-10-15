@@ -81,7 +81,9 @@ for (const [route, features] of PAGES) {
       const footer = await page.locator("footer").boundingBox();
       const bar = await banner.boundingBox();
       expect(footer && bar, "footer and banner boxes").toBeTruthy();
-      expect(footer!.y + footer!.height).toBeLessThanOrEqual(bar!.y);
+      // 1px of slack: fractional line heights (11.5px footer text) against a whole-pixel scroll
+      // position can leave the boxes overlapping by a fraction of a pixel.
+      expect(footer!.y + footer!.height).toBeLessThanOrEqual(bar!.y + 1);
     }
 
     for (const combo of ["Control+k", "Meta+k"]) {

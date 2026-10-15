@@ -70,6 +70,9 @@ jobs:
       - run: pnpm build
         env:
           NEXT_TELEMETRY_DISABLED: 1
+          NEXT_PUBLIC_APP_VERSION: 0123456789abcdef0123456789abcdef01234567
+          NEXT_PUBLIC_APP_RELEASE: v9.9.9
+          NEXT_PUBLIC_BUILD_TIME: "2026-01-01T00:00:00Z"
       - name: Playwright browser cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -80,6 +83,9 @@ jobs:
         env:
           CI: true
           NEXT_TELEMETRY_DISABLED: 1
+          NEXT_PUBLIC_APP_VERSION: 0123456789abcdef0123456789abcdef01234567
+          NEXT_PUBLIC_APP_RELEASE: v9.9.9
+          NEXT_PUBLIC_BUILD_TIME: "2026-01-01T00:00:00Z"
       # Soft gate: median of 3 mobile runs per page, fails only below 85 (runner speed varies).
       # --serve starts the standalone build and fake backend like playwright.config.ts does.
       - run: pnpm perf:lighthouse --serve

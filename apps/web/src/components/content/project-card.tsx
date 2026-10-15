@@ -9,7 +9,7 @@ export function ProjectCard({ project }: { project: Project }) {
   return (
     <Link
       href={`/projects/${project.slug}`}
-      className="flex h-full flex-col rounded-[10px] border border-border bg-card p-4 transition-colors hover:border-input focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
+      className="card-glow flex h-full flex-col rounded-[10px] border border-border bg-card p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
     >
       <h3 className="mb-1.5 text-[15px] font-semibold">{project.title}</h3>
       <p className="mb-2.5 text-[13px] leading-normal text-muted-foreground">{project.summary}</p>

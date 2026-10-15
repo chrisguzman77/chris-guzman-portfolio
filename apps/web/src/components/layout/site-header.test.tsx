@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { siteConfig } from "@/lib/site";
 
@@ -8,7 +8,17 @@ import { SiteHeader } from "./site-header";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/projects/offres" }));
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: false })),
+  );
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("SiteHeader", () => {
   it("links the ~/chris-guzman logo home with an accessible name", () => {
@@ -51,5 +61,21 @@ describe("SiteHeader", () => {
     render(<SiteHeader />);
     expect(screen.getByRole("button", { name: /toggle theme/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open menu" })).toBeTruthy();
+  });
+
+  it("shows the current section after the logo without changing its accessible name", () => {
+    render(<SiteHeader />);
+    const home = screen.getByRole("link", { name: "~/chris-guzman (Christopher Guzman, home)" });
+    expect(home.querySelector("[data-logo-suffix]")?.textContent).toBe("/projects");
+  });
+
+  it("draws one decorative underline indicator in the desktop nav", () => {
+    render(<SiteHeader />);
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    const bars = nav.querySelectorAll("[data-nav-indicator]");
+    expect(bars).toHaveLength(1);
+    expect(bars[0].getAttribute("aria-hidden")).toBe("true");
+    expect((bars[0] as HTMLElement).style.opacity).toBe("1");
+    expect(screen.getByRole("link", { name: "projects" }).className).not.toContain("underline");
   });
 });
