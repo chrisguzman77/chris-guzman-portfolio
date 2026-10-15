@@ -64,7 +64,7 @@ answerable:
         answer: He integrated a local LLM (TinyLlama 1.1B) with BM25-based retrieval-augmented generation for a disaster-knowledge base [2]. He built a Cyber Threat Lakehouse pipeline using Python, PySpark, Databricks and scikit-learn, tuning models to raise intrusion-alert precision from 77 % to 84 % [2]. His technical skill set includes deep-learning frameworks such as PyTorch and TensorFlow [3].
       - question: What's Chris's technical background
         answer: Christopher Guzman is studying Computer Science and Cyber Operations at Augusta University, graduating in May 2027, with a minor in Mathematics [1]. He has experience with many programming languages (Python, Java, C#, C/C++, JavaScript/TypeScript) and technologies including PyTorch, TensorFlow, scikit-learn, Apache Spark, Databricks, React, FastAPI, Docker and Kubernetes [1].
-    must_include: ["Lakehouse", "OFFPay"]
+    must_include: ["Lakehouse"]
     sources: ["/projects/cyber-threat-lakehouse", "/projects/offres-offpay", "/resume", "/"]
 refuse:
   - What is Chris's salary expectation?

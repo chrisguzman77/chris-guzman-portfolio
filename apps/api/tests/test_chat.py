@@ -199,14 +199,19 @@ async def test_blocked_reply_is_not_retried(db: Sessions) -> None:
     assert len(model.calls) == 1
 
 
-async def test_a_model_error_on_the_retry_is_a_model_error(db: Sessions) -> None:
+async def test_a_model_error_on_the_retry_falls_back_to_the_first_reply(db: Sessions) -> None:
     model = FakeChatModel(ModelReply("He built a lakehouse.", 900, 20), ModelBusyError("busy"))
     chat = service(db, model)
     session_id, _ = await chat.open_session(IP)
-    with pytest.raises(ModelBusyError):
-        await chat.ask(session_id, IP, "What projects has he built?")
+    answer = await chat.ask(session_id, IP, "What projects has he built?")
+    assert answer.outcome == ChatOutcome.uncited
+    assert (answer.answer, answer.sources) == (CANNED_ANSWER, [CONTACT_SOURCE])
+    assert answer.questions_left == MAX_QUESTIONS
     [msg] = await messages(db)
-    assert msg.outcome == ChatOutcome.error
+    assert msg.outcome == ChatOutcome.uncited and msg.answer == "He built a lakehouse."
+    day = await usage(db)
+    assert day is not None and day.tokens == 900 + 20
+    assert len(model.calls) == 2
 
 
 async def test_follow_up_reminder_reaches_the_model(db: Sessions) -> None:

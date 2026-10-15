@@ -175,14 +175,19 @@ class ChatService:
         sources = None if blocked else cited_sources(text, retrieved.hits)
         if sources is None and blocked is None and text.strip() and NO_ANSWER not in text:
             # A real answer without usable [n] (typical on follow-ups): ask once to add them.
-            retry = await self._model.complete(
-                [*messages, ChatTurn("assistant", text), ChatTurn("user", CITE_RETRY)]
-            )
-            text = normalize_citations(retry.text)
-            input_tokens += retry.input_tokens
-            output_tokens += retry.output_tokens
-            blocked = blocked_reason(text, self._link_hosts)
-            sources = None if blocked else cited_sources(text, retrieved.hits)
+            try:
+                retry = await self._model.complete(
+                    [*messages, ChatTurn("assistant", text), ChatTurn("user", CITE_RETRY)]
+                )
+            except (ModelBusyError, ModelUnavailableError) as exc:
+                # Keep the first reply (uncited) rather than failing the whole question.
+                log.warning("chat.retry_failed", error=str(exc))
+            else:
+                text = normalize_citations(retry.text)
+                input_tokens += retry.input_tokens
+                output_tokens += retry.output_tokens
+                blocked = blocked_reason(text, self._link_hosts)
+                sources = None if blocked else cited_sources(text, retrieved.hits)
         if blocked is not None:
             # Same path as an uncited reply: the visitor gets the canned answer, raw is kept.
             log.warning("chat.reply_blocked", reason=blocked)

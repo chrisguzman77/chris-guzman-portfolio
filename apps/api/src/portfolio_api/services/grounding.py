@@ -22,7 +22,8 @@ CITE_REMINDER = (
 CITE_RETRY = (
     "Your answer has no source numbers. Give the same answer again, citing every fact with the"
     " number of its source from the sources above in square brackets, like [1]. If the sources"
-    f" do not support it, reply with exactly {NO_ANSWER}."
+    " do not support it, or the question is not about Chris's background, skills, experience,"
+    f" education, or projects, reply with exactly {NO_ANSWER}."
 )
 
 SYSTEM_PROMPT = "\n".join(
