@@ -410,3 +410,173 @@ summary::-webkit-details-marker {
     width 0.3s ease,
     opacity 0.2s ease;
 }
+
+/* Home hero, first view per browser session (<HeroPrompt animate>): "$ whoami" types itself
+   (8 monospace characters in 0.6 s) with a caret that blinks and then goes, and the buttons and
+   status card fade in after it. The name, intro and photo never animate: they are the page's
+   largest paint. */
+.hero-type {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+  animation: hero-type 0.6s steps(8, end) both;
+}
+@keyframes hero-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 8ch;
+  }
+}
+.hero-caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.15em;
+  margin-left: 2px;
+  vertical-align: -0.25em;
+  background: var(--accent-brand);
+  animation: hero-caret 1.6s step-end both;
+}
+@keyframes hero-caret {
+  0%,
+  45%,
+  75% {
+    opacity: 1;
+  }
+  30%,
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+.hero-fade {
+  animation: hero-fade 0.4s ease 0.65s both;
+}
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+/* A later mount in the same page session (back/forward reuses the cached first-view payload):
+   <MarkHeroSeen> sets data-hero-seen so the hero renders final instead of typing again. */
+html[data-hero-seen] .hero-type,
+html[data-hero-seen] .hero-fade {
+  animation: none;
+}
+html[data-hero-seen] .hero-caret {
+  display: none;
+}
+/* The global reduced-motion rule shortens durations but keeps delays, which would leave the
+   faded blocks invisible for 0.65 s, so switch these off outright. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-type,
+  .hero-fade {
+    animation: none;
+  }
+  .hero-caret {
+    display: none;
+  }
+}
+
+/* /experience timeline (<Timeline>). ::before is the track, ::after the mint fill scaled by
+   --timeline-progress; each entry's ::before is its dot. Until data-timeline-ready is set (no JS,
+   reduced motion) the fill is full and every dot lit. --timeline-end ends the line at the last
+   dot; the fill spans first dot to last dot. Transitions wait for data-timeline-animate. Dots sit
+   24px below each entry's top (DOT_CENTER in timeline.tsx). */
+.timeline {
+  position: relative;
+  padding-left: 1.75rem;
+}
+.timeline::before,
+.timeline::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 24px;
+  bottom: var(--timeline-end, 2rem);
+  width: 2px;
+  border-radius: 1px;
+}
+.timeline::before {
+  background: var(--border);
+}
+.timeline::after {
+  background: linear-gradient(
+    var(--accent-brand),
+    color-mix(in srgb, var(--accent-brand) 40%, transparent)
+  );
+  transform-origin: top;
+  transform: scaleY(var(--timeline-progress, 1));
+}
+.timeline[data-timeline-animate]::after {
+  transition: transform 0.15s linear;
+}
+.timeline > li {
+  position: relative;
+}
+.timeline > li::before {
+  content: "";
+  position: absolute;
+  left: calc(-1.75rem + 1px);
+  top: 19px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-brand);
+  background: var(--accent-brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-brand) 18%, transparent);
+}
+.timeline[data-timeline-animate] > li::before {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.timeline[data-timeline-ready] > li:not([data-lit])::before {
+  border-color: var(--input);
+  background: var(--background);
+  box-shadow: none;
+}
+
+/* Heatmap ripple (<RippleGrid>): once armed the cells wait at their "from" frame; on "play" they
+   pop in as a diagonal wave, newest week first: delay = (weeks back + row) × 20 ms. --col is set
+   per week column in github-activity.tsx; rows come from the cell's position in its column. */
+.ripple-grid[data-ripple] > div > span {
+  animation: heat-pop 0.45s ease both paused;
+  animation-delay: calc((var(--col, 0) + var(--row, 0)) * 20ms);
+}
+.ripple-grid[data-ripple="play"] > div > span {
+  animation-play-state: running;
+}
+.ripple-grid > div > span:nth-child(2) {
+  --row: 1;
+}
+.ripple-grid > div > span:nth-child(3) {
+  --row: 2;
+}
+.ripple-grid > div > span:nth-child(4) {
+  --row: 3;
+}
+.ripple-grid > div > span:nth-child(5) {
+  --row: 4;
+}
+.ripple-grid > div > span:nth-child(6) {
+  --row: 5;
+}
+.ripple-grid > div > span:nth-child(7) {
+  --row: 6;
+}
+@keyframes heat-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ripple-grid[data-ripple] > div > span {
+    animation: none;
+  }
+}

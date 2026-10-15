@@ -1,4 +1,3 @@
-import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -6,10 +5,9 @@ import { notFound } from "next/navigation";
 
 import { AwardBadge } from "@/components/content/award-badge";
 import { PageHeader } from "@/components/content/page-header";
+import { ProjectTabs } from "@/components/content/project-tabs";
 import { Prose } from "@/components/content/prose";
 import { TechTags } from "@/components/content/tech-tags";
-import { GitHubIcon } from "@/components/icons/brand";
-import { outboundProps } from "@/lib/analytics";
 import { cmsAssetUrl } from "@/lib/cms-assets";
 import { getFileVersions, getProject } from "@/lib/directus/queries";
 import type { Project } from "@/lib/directus/schemas";
@@ -51,7 +49,10 @@ export default async function ProjectPage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-5xl px-6 py-10">
-      <PageHeader prompt={`$ cat projects/${project.slug}.md`} title={project.title} />
+      <ProjectTabs slug={project.slug} repoUrl={project.repo_url} liveUrl={project.live_url} />
+      <div className="mt-6">
+        <PageHeader prompt={`$ cat projects/${project.slug}.md`} title={project.title} />
+      </div>
       {project.award ? (
         <div className="mt-3">
           <AwardBadge award={project.award} />
@@ -61,35 +62,6 @@ export default async function ProjectPage({ params }: Props) {
       {project.tech.length > 0 ? (
         <div className="mt-2">
           <TechTags tags={project.tech} />
-        </div>
-      ) : null}
-
-      {project.repo_url || project.live_url ? (
-        <div className="mt-5 flex flex-wrap gap-2.5">
-          {project.repo_url ? (
-            <a
-              href={project.repo_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={outlineButton}
-              {...outboundProps("repo")}
-            >
-              <GitHubIcon className="size-4" aria-hidden="true" />
-              Source code
-            </a>
-          ) : null}
-          {project.live_url ? (
-            <a
-              href={project.live_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={outlineButton}
-              {...outboundProps("live")}
-            >
-              <ExternalLink className="size-4" aria-hidden="true" />
-              Live site
-            </a>
-          ) : null}
         </div>
       ) : null}
 

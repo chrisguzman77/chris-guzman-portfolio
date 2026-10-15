@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/content/empty-state";
 import { ExperienceEntry } from "@/components/content/experience-entry";
 import { PageHeader } from "@/components/content/page-header";
+import { Timeline } from "@/components/content/timeline";
 import { getExperience } from "@/lib/directus/queries";
 import { pageMetadata } from "@/lib/metadata";
 import { outlineButton } from "@/lib/styles";
@@ -24,13 +25,13 @@ export default async function ExperiencePage() {
       <h2 className="sr-only">All roles</h2>
       <div className="mt-4">
         {entries.length > 0 ? (
-          <ol className="divide-y divide-dashed divide-border">
+          <Timeline>
             {entries.map((entry) => (
               <li key={entry.id}>
                 <ExperienceEntry entry={entry} />
               </li>
             ))}
-          </ol>
+          </Timeline>
         ) : (
           <EmptyState>No roles published yet.</EmptyState>
         )}

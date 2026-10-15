@@ -158,13 +158,28 @@ test.describe("404", () => {
 });
 
 test("light theme: pages stay accessible", async ({ page }) => {
+  // Five pages, each waiting for animations to settle before axe: more than the 30 s default
+  // on a busy runner.
+  test.setTimeout(60_000);
   await page.addInitScript(() => window.localStorage.setItem("theme", "light"));
-  for (const path of ["/", "/projects", "/contact"]) {
+  for (const path of ["/", "/projects", "/contact", "/experience", "/projects/this-portfolio"]) {
     const response = await page.goto(path);
     expect(response?.ok()).toBe(true);
     await expect(page.locator("html")).toHaveClass(/\blight\b/);
     await expectNoAxeViolations(page);
   }
+});
+
+test.describe("404 in the light theme", () => {
+  test.use({ allowedDocumentStatus: [404] });
+
+  test("light theme: the 404 page stays accessible", async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem("theme", "light"));
+    const response = await page.goto("/nope");
+    expect(response?.status()).toBe(404);
+    await expect(page.locator("html")).toHaveClass(/\blight\b/);
+    await expectNoAxeViolations(page);
+  });
 });
 
 test("headers: nonce CSP and static security headers", async ({ request }) => {
