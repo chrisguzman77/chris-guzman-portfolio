@@ -32,6 +32,9 @@ describe("SiteHeader", () => {
     expect(screen.getByRole("link", { name: /^~\/chris-guzman/ }).className).toContain(
       "focus-visible:outline",
     );
+    expect(screen.getByRole("link", { name: "projects folder" }).className).toContain(
+      "focus-visible:outline",
+    );
     const nav = screen.getByRole("navigation", { name: "Main" });
     for (const link of nav.querySelectorAll("a")) {
       expect(link.className).toContain("focus-visible:outline");
@@ -66,7 +69,11 @@ describe("SiteHeader", () => {
   it("shows the current section after the logo without changing its accessible name", () => {
     render(<SiteHeader />);
     const home = screen.getByRole("link", { name: "~/chris-guzman (Christopher Guzman, home)" });
-    expect(home.querySelector("[data-logo-suffix]")?.textContent).toBe("/projects");
+    expect(home.getAttribute("href")).toBe("/");
+    expect(document.querySelector("[data-logo-suffix]")?.textContent).toBe("/projects/offres.md");
+    expect(screen.getByRole("link", { name: "projects folder" }).getAttribute("href")).toBe(
+      "/projects",
+    );
   });
 
   it("draws one decorative underline indicator in the desktop nav", () => {

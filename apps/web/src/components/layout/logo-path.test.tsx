@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LogoPath, MarkNotFound } from "./logo-path";
@@ -31,12 +31,32 @@ afterEach(() => {
 });
 
 describe("LogoPath", () => {
-  it("renders the current section straight away and hides it from screen readers", () => {
+  it("renders the current path straight away", () => {
     stubReducedMotion(false);
     nav.pathname = "/projects/offres-offpay";
     const { container } = render(<LogoPath />);
-    expect(suffix(container)).toBe("/projects");
-    expect(container.firstElementChild?.getAttribute("aria-hidden")).toBe("true");
+    expect(suffix(container)).toBe("/projects/offres-offpay.md");
+  });
+
+  it("links home and, on a document, its section; the rest is decorative", () => {
+    stubReducedMotion(false);
+    nav.pathname = "/blog/how-i-built-this-site";
+    render(<LogoPath />);
+    const home = screen.getByRole("link", { name: "~/chris-guzman (Christopher Guzman, home)" });
+    expect(home.getAttribute("href")).toBe("/");
+    const section = screen.getByRole("link", { name: "blog folder" });
+    expect(section.getAttribute("href")).toBe("/blog");
+    expect(section.textContent).toBe("/blog");
+    expect(document.querySelector("[data-logo-suffix]")?.textContent).toBe(
+      "/blog/how-i-built-this-site.md",
+    );
+  });
+
+  it("has no section link on a section page", () => {
+    stubReducedMotion(false);
+    nav.pathname = "/projects";
+    render(<LogoPath />);
+    expect(screen.queryByRole("link", { name: /folder/ })).toBeNull();
   });
 
   it("deletes back to the shared prefix, then types the new section", () => {

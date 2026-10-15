@@ -98,6 +98,15 @@ test("the logo shows the section you are in", async ({ page, isMobile }) => {
   }
 });
 
+test("on a document the logo shows its full path, and its folder is a link", async ({ page }) => {
+  await page.goto("/projects/this-portfolio");
+  const suffix = page.locator("[data-logo-suffix]");
+  await expect(suffix).toHaveText("/projects/this-portfolio.md");
+  await page.getByRole("link", { name: "projects folder" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(suffix).toHaveText("/projects");
+});
+
 test.describe("missing pages", () => {
   test.use({ allowedDocumentStatus: [404] });
 
@@ -113,12 +122,30 @@ test.describe("missing pages", () => {
 test("the header never overflows the viewport", async ({ page }) => {
   for (const width of [360, 800, 1024, 1280]) {
     await page.setViewportSize({ width, height: 800 });
-    await page.goto("/experience");
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(overflow, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(0);
+    for (const path of ["/experience", "/projects/this-portfolio", "/blog/hello-world"]) {
+      await page.goto(path);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow, `horizontal overflow at ${width}px on ${path}`).toBeLessThanOrEqual(0);
+    }
   }
+});
+
+test("on a phone a long logo path wraps instead of being cut off", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/projects/this-portfolio");
+  await expect(page.locator("[data-logo-suffix]")).toHaveText("/projects/this-portfolio.md");
+  // Two lines of 12px mono text: taller than one line (~16px), though the row's 56px minimum hides it.
+  const logoHeight = await page
+    .locator("[data-logo-suffix]")
+    .evaluate((el) => el.parentElement!.getBoundingClientRect().height);
+  expect(logoHeight).toBeGreaterThan(24);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(page.locator("[data-logo-suffix]")).toBeInViewport({ ratio: 1 });
 });
 
 test("footer shows the build it was deployed from", async ({ page }) => {

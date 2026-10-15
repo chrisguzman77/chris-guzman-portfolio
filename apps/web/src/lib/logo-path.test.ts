@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { logoSuffix, nextFrame } from "./logo-path";
+import { logoCrumb, logoSuffix, nextFrame } from "./logo-path";
 
 describe("logoSuffix", () => {
   it("is empty at home", () => {
@@ -9,14 +9,28 @@ describe("logoSuffix", () => {
 
   it("shows the first path segment of a known section", () => {
     expect(logoSuffix("/projects")).toBe("/projects");
-    expect(logoSuffix("/projects/offres-offpay")).toBe("/projects");
-    expect(logoSuffix("/blog/hello-world")).toBe("/blog");
+    expect(logoSuffix("/projects/offres-offpay")).toBe("/projects/offres-offpay.md");
+    expect(logoSuffix("/blog/hello-world")).toBe("/blog/hello-world.md");
     expect(logoSuffix("/newsletter/confirm")).toBe("/newsletter");
+  });
+
+  it("keeps the section for deeper paths", () => {
+    expect(logoSuffix("/blog/a/b")).toBe("/blog");
   });
 
   it("shows /404 for an unknown section", () => {
     expect(logoSuffix("/nope")).toBe("/404");
     expect(logoSuffix("/nope/deeper")).toBe("/404");
+  });
+});
+
+describe("logoCrumb", () => {
+  it("is the section prefix on a detail path only", () => {
+    expect(logoCrumb("/blog/how-i-built-this-site.md")).toBe("/blog");
+    expect(logoCrumb("/projects/this-portfolio.md")).toBe("/projects");
+    expect(logoCrumb("/projects")).toBeNull();
+    expect(logoCrumb("/404")).toBeNull();
+    expect(logoCrumb("")).toBeNull();
   });
 });
 
