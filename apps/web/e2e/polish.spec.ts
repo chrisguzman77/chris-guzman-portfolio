@@ -189,3 +189,14 @@ test("the experience timeline lights each entry as you scroll", async ({ page })
   await expect(list).toHaveCSS("--timeline-progress", "1");
   await expectNoAxeViolations(page);
 });
+
+test("project pages open with editor tabs", async ({ page }) => {
+  await page.goto("/projects/this-portfolio");
+  const tabs = page.getByRole("navigation", { name: "Project links" });
+  await expect(tabs.getByRole("link", { name: "README.md" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page.getByRole("link", { name: /Source code|Live site/ })).toHaveCount(0);
+  await expectNoAxeViolations(page);
+});

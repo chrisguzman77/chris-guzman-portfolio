@@ -78,11 +78,11 @@ describe("/projects/[slug]", () => {
     expect(screen.getByText("Competition · Oct 2025")).toBeTruthy();
     expect(screen.getByText(/fastapi/)).toBeTruthy();
 
-    const repo = screen.getByRole("link", { name: /Source code/ });
+    const repo = screen.getByRole("link", { name: "repo (opens in a new tab)" });
     expect(repo.getAttribute("href")).toBe(full.repo_url);
     expect(repo.getAttribute("target")).toBe("_blank");
     expect(repo.getAttribute("rel")).toBe("noopener noreferrer");
-    const live = screen.getByRole("link", { name: /Live site/ });
+    const live = screen.getByRole("link", { name: "live (opens in a new tab)" });
     expect(live.getAttribute("href")).toBe(full.live_url);
     expect(live.getAttribute("target")).toBe("_blank");
     expect(live.getAttribute("rel")).toBe("noopener noreferrer");
@@ -102,8 +102,9 @@ describe("/projects/[slug]", () => {
 
     expect(screen.getByText("Personal project")).toBeTruthy();
     expect(screen.queryByText("Capital One Best Financial Hack")).toBeNull();
-    expect(screen.queryByRole("link", { name: /Source code/ })).toBeNull();
-    expect(screen.queryByRole("link", { name: /Live site/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^repo/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^live/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "README.md" })).toBeTruthy();
     expect(screen.queryByRole("img")).toBeNull();
     expect(renderMarkdown).not.toHaveBeenCalled();
   });
@@ -137,10 +138,10 @@ describe("/projects/[slug]", () => {
     vi.mocked(renderMarkdown).mockResolvedValue({ html: "", headings: [] });
     render(await ProjectPage(params("offres")));
 
-    const repo = screen.getByRole("link", { name: /Source code/ });
+    const repo = screen.getByRole("link", { name: "repo (opens in a new tab)" });
     expect(repo.getAttribute("data-umami-event")).toBe("outbound-click");
     expect(repo.getAttribute("data-umami-event-to")).toBe("repo");
-    const live = screen.getByRole("link", { name: /Live site/ });
+    const live = screen.getByRole("link", { name: "live (opens in a new tab)" });
     expect(live.getAttribute("data-umami-event")).toBe("outbound-click");
     expect(live.getAttribute("data-umami-event-to")).toBe("live");
   });
