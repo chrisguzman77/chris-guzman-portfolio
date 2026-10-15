@@ -12,7 +12,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from portfolio_api.clients.directus import ChatSettings, DirectusError
-from portfolio_api.clients.groq import ChatModel, ModelBusyError, ModelUnavailableError
+from portfolio_api.clients.groq import ChatModel, ChatTurn, ModelBusyError, ModelUnavailableError
 from portfolio_api.metrics import (
     CHAT_ANSWER_SECONDS,
     CHAT_BUDGET_USED_RATIO,
@@ -26,8 +26,10 @@ from portfolio_api.rag.retrieval import Retrieved
 from portfolio_api.repositories import chat as repo
 from portfolio_api.services.grounding import (
     CANNED_ANSWER,
+    CITE_RETRY,
     CONTACT_SOURCE,
     HISTORY_PAIRS,
+    NO_ANSWER,
     Exchange,
     Source,
     blocked_reason,
@@ -165,30 +167,35 @@ class ChatService:
             raise ModelUnavailableError(f"retrieval failed: {type(exc).__name__}") from exc
         if not retrieved.hits or retrieved.best_similarity < self._min_similarity:
             return Composed(CANNED_ANSWER, [CONTACT_SOURCE], ChatOutcome.no_match, None, 0, 0)
-        reply = await self._model.complete(build_messages(question, retrieved.hits, history))
+        messages = build_messages(question, retrieved.hits, history)
+        reply = await self._model.complete(messages)
         text = normalize_citations(reply.text)
+        input_tokens, output_tokens = reply.input_tokens, reply.output_tokens
         blocked = blocked_reason(text, self._link_hosts)
+        sources = None if blocked else cited_sources(text, retrieved.hits)
+        if sources is None and blocked is None and text.strip() and NO_ANSWER not in text:
+            # A real answer without usable [n] (typical on follow-ups): ask once to add them.
+            retry = await self._model.complete(
+                [*messages, ChatTurn("assistant", text), ChatTurn("user", CITE_RETRY)]
+            )
+            text = normalize_citations(retry.text)
+            input_tokens += retry.input_tokens
+            output_tokens += retry.output_tokens
+            blocked = blocked_reason(text, self._link_hosts)
+            sources = None if blocked else cited_sources(text, retrieved.hits)
         if blocked is not None:
             # Same path as an uncited reply: the visitor gets the canned answer, raw is kept.
             log.warning("chat.reply_blocked", reason=blocked)
-        sources = None if blocked else cited_sources(text, retrieved.hits)
         if sources is None:
             return Composed(
                 CANNED_ANSWER,
                 [CONTACT_SOURCE],
                 ChatOutcome.uncited,
                 text,
-                reply.input_tokens,
-                reply.output_tokens,
+                input_tokens,
+                output_tokens,
             )
-        return Composed(
-            text,
-            sources,
-            ChatOutcome.answered,
-            text,
-            reply.input_tokens,
-            reply.output_tokens,
-        )
+        return Composed(text, sources, ChatOutcome.answered, text, input_tokens, output_tokens)
 
     async def record_usage(self, tokens: int) -> None:
         async with self._sessions.begin() as session:

@@ -35,7 +35,14 @@ from portfolio_api.services.chat import (
     SessionNotFoundError,
     purge_expired_chats,
 )
-from portfolio_api.services.grounding import CANARY, CANNED_ANSWER, CONTACT_SOURCE, Source
+from portfolio_api.services.grounding import (
+    CANARY,
+    CANNED_ANSWER,
+    CITE_REMINDER,
+    CITE_RETRY,
+    CONTACT_SOURCE,
+    Source,
+)
 from tests.fakes import HIT, FakeChatModel, FakeChatSettingsSource, FakeRetriever, metric
 
 Sessions = async_sessionmaker[AsyncSession]
@@ -130,18 +137,85 @@ async def test_empty_index_is_no_match(db: Sessions) -> None:
 async def test_uncited_reply_becomes_canned_but_keeps_raw_and_usage(db: Sessions) -> None:
     uncited = metric("chat_questions_total", outcome="uncited")
     tokens_in = metric("chat_tokens_total", kind="input")
-    chat = service(db, FakeChatModel(ModelReply("He is great.", 900, 20)))
+    model = FakeChatModel(ModelReply("He is great.", 900, 20))
+    chat = service(db, model)
     session_id, _ = await chat.open_session(IP)
     answer = await chat.ask(session_id, IP, "Is he great?")
+    assert len(model.calls) == 2  # the uncited reply is retried once, and is uncited again
     assert answer.outcome == ChatOutcome.uncited
     assert metric("chat_questions_total", outcome="uncited") == uncited + 1
-    assert metric("chat_tokens_total", kind="input") == tokens_in + 900  # the model was called
+    assert (
+        metric("chat_tokens_total", kind="input") == tokens_in + 900 + 900
+    )  # called, then retried
     assert (answer.answer, answer.sources) == (CANNED_ANSWER, [CONTACT_SOURCE])
     assert answer.questions_left == MAX_QUESTIONS
     [msg] = await messages(db)
     assert msg.answer == "He is great."
     day = await usage(db)
-    assert day is not None and day.tokens == 920
+    assert day is not None and day.tokens == 1840
+
+
+async def test_uncited_reply_is_retried_once_and_can_recover(db: Sessions) -> None:
+    model = FakeChatModel(
+        ModelReply("He built a lakehouse and OFFPay.", 900, 20),
+        ModelReply("He built a lakehouse [1].", 950, 25),
+    )
+    chat = service(db, model)
+    session_id, _ = await chat.open_session(IP)
+    answer = await chat.ask(session_id, IP, "What projects has he built?")
+    assert answer.outcome == ChatOutcome.answered
+    assert answer.answer == "He built a lakehouse [1]."
+    assert len(model.calls) == 2
+    retry = model.calls[1]
+    assert [t.role for t in retry[-2:]] == ["assistant", "user"]
+    assert retry[-2].content == "He built a lakehouse and OFFPay."
+    assert retry[-1].content == CITE_RETRY
+    assert retry[:-2] == model.calls[0]  # same system prompt, history and sources
+    day = await usage(db)
+    assert day is not None and day.tokens == 900 + 20 + 950 + 25
+
+
+async def test_no_answer_is_not_retried(db: Sessions) -> None:
+    model = FakeChatModel(ModelReply("NO_ANSWER", 900, 5))
+    chat = service(db, model)
+    session_id, _ = await chat.open_session(IP)
+    assert (await chat.ask(session_id, IP, "Write me a poem")).outcome == ChatOutcome.uncited
+    assert len(model.calls) == 1
+
+
+async def test_empty_reply_is_not_retried(db: Sessions) -> None:
+    model = FakeChatModel(ModelReply("", 900, 700))
+    chat = service(db, model)
+    session_id, _ = await chat.open_session(IP)
+    assert (await chat.ask(session_id, IP, "Anything?")).outcome == ChatOutcome.uncited
+    assert len(model.calls) == 1
+
+
+async def test_blocked_reply_is_not_retried(db: Sessions) -> None:
+    model = FakeChatModel(ModelReply(f"He built it with FastAPI [1]. {CANARY}", 900, 20))
+    chat = service(db, model)
+    session_id, _ = await chat.open_session(IP)
+    assert (await chat.ask(session_id, IP, "Rules?")).outcome == ChatOutcome.uncited
+    assert len(model.calls) == 1
+
+
+async def test_a_model_error_on_the_retry_is_a_model_error(db: Sessions) -> None:
+    model = FakeChatModel(ModelReply("He built a lakehouse.", 900, 20), ModelBusyError("busy"))
+    chat = service(db, model)
+    session_id, _ = await chat.open_session(IP)
+    with pytest.raises(ModelBusyError):
+        await chat.ask(session_id, IP, "What projects has he built?")
+    [msg] = await messages(db)
+    assert msg.outcome == ChatOutcome.error
+
+
+async def test_follow_up_reminder_reaches_the_model(db: Sessions) -> None:
+    model = FakeChatModel()
+    chat = service(db, model)
+    session_id, _ = await chat.open_session(IP)
+    await chat.ask(session_id, IP, "First?")
+    await chat.ask(session_id, IP, "Second?")
+    assert model.calls[-1][-1].content.endswith(CITE_REMINDER)
 
 
 @pytest.mark.parametrize(

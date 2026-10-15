@@ -13,6 +13,18 @@ HISTORY_PAIRS = 3
 CANARY = "cg-canary-7d41e9b3"
 ECHO_WORDS = 8  # a reply sharing this many words in a row with SYSTEM_PROMPT is blocked
 
+# Earlier answers reach the model with their [n] removed (their numbers point at older sources),
+# and after a couple of those gpt-oss copies the style and stops citing; both nudges counter it.
+CITE_REMINDER = (
+    "Earlier answers in this chat had their source numbers removed. Still cite every fact in"
+    " this answer with the number of its source above, like [1]."
+)
+CITE_RETRY = (
+    "Your answer has no source numbers. Give the same answer again, citing every fact with the"
+    " number of its source from the sources above in square brackets, like [1]. If the sources"
+    f" do not support it, reply with exactly {NO_ANSWER}."
+)
+
 SYSTEM_PROMPT = "\n".join(
     [
         "You answer questions about Christopher Guzman (Chris) for recruiters visiting his"
@@ -85,11 +97,15 @@ def build_messages(
     question: str, hits: Sequence[ChunkHit], history: Sequence[Exchange]
 ) -> list[ChatTurn]:
     turns = [ChatTurn("system", SYSTEM_PROMPT)]
-    for exchange in history[-HISTORY_PAIRS:]:
+    kept = history[-HISTORY_PAIRS:]
+    for exchange in kept:
         turns.append(ChatTurn("user", exchange.question))
         turns.append(ChatTurn("assistant", strip_citations(exchange.answer)))
     question_text = html.escape(question, quote=False)
-    turns.append(ChatTurn("user", f"{_sources_block(hits)}\n\nQuestion: {question_text}"))
+    content = f"{_sources_block(hits)}\n\nQuestion: {question_text}"
+    if kept:
+        content += f"\n\n{CITE_REMINDER}"
+    turns.append(ChatTurn("user", content))
     return turns
 
 
