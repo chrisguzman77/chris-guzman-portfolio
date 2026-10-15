@@ -462,6 +462,13 @@ summary::-webkit-details-marker {
 }
 /* The global reduced-motion rule shortens durations but keeps delays, which would leave the
    faded blocks invisible for 0.65 s, so switch these off outright. */
+html[data-hero-seen] .hero-type,
+html[data-hero-seen] .hero-fade {
+  animation: none;
+}
+html[data-hero-seen] .hero-caret {
+  display: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .hero-type,
   .hero-fade {
@@ -475,7 +482,7 @@ summary::-webkit-details-marker {
 /* /experience timeline (<Timeline>). ::before is the track, ::after the mint fill scaled by
    --timeline-progress; each entry's ::before is its dot. Until data-timeline-ready is set (no JS,
    reduced motion) the fill is full and every dot lit. --timeline-end ends the line at the last
-   dot. Dots sit 24px below each entry's top (DOT_CENTER in timeline.tsx). */
+   dot; the fill spans first dot to last dot. Transitions wait for data-timeline-animate. Dots sit 24px below each entry's top (DOT_CENTER in timeline.tsx). */
 .timeline {
   position: relative;
   padding-left: 1.75rem;
@@ -500,6 +507,8 @@ summary::-webkit-details-marker {
   );
   transform-origin: top;
   transform: scaleY(var(--timeline-progress, 1));
+}
+.timeline[data-timeline-animate]::after {
   transition: transform 0.15s linear;
 }
 .timeline > li {
@@ -516,6 +525,8 @@ summary::-webkit-details-marker {
   border: 2px solid var(--accent-brand);
   background: var(--accent-brand);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-brand) 18%, transparent);
+}
+.timeline[data-timeline-animate] > li::before {
   transition:
     background-color 0.3s ease,
     border-color 0.3s ease,

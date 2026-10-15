@@ -55,7 +55,7 @@ export function NotFoundTerminal() {
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
-          className="min-w-0 flex-1 rounded-sm bg-transparent px-1 text-foreground caret-accent-brand focus-visible:outline-2 focus-visible:outline-accent-brand"
+          className="min-w-0 flex-1 rounded-sm text-base sm:text-[13px] bg-transparent px-1 text-foreground caret-accent-brand focus-visible:outline-2 focus-visible:outline-accent-brand"
         />
       </form>
     </section>

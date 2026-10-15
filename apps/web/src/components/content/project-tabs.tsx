@@ -41,7 +41,10 @@ export function ProjectTabs({
       <Link
         href={`/projects/${slug}`}
         aria-current="page"
-        className={cn(tab, "bg-card text-foreground shadow-[inset_0_2px_0_var(--accent-brand)]")}
+        className={cn(
+          tab,
+          "bg-card text-foreground forced-colors:underline shadow-[inset_0_2px_0_var(--accent-brand)]",
+        )}
       >
         README.md
       </Link>
