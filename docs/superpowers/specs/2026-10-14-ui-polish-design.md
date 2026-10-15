@@ -23,17 +23,17 @@ Make christopherguzman.me feel more crafted and memorable to recruiters and engi
 
 ## PR 1: site-wide look
 
-### B. Line grid + cursor spotlight + card glow (whole site)
+### B. Line grid + cursor spotlight (home hero) + card glow (whole site)
+- **Grid and spotlight scope:** changed by Chris on 2026-10-15 from the whole site to the home hero only (mockup option 1). Other pages have a plain background.
 - **Grid:**
-  - a faint line grid fixed behind every page: a `body::before` or app-shell layer, `position: fixed`, `pointer-events: none`, below all content;
-  - about 32 px squares, with a line colour token of roughly `rgba(148,163,184,.05)` in dark, and an equivalent subtle token in light;
+  - a line grid behind the home hero (`section.hero-glow::before`), about 32 px squares, `pointer-events: none`, under the hero's content;
+  - masked with a radial fade so it has no hard edge;
   - text contrast is unaffected (axe passes).
 - **Spotlight:**
-  - a soft mint radial glow, about 520 px, two-stop fade to transparent, that follows the pointer anywhere on the page;
-  - one small client component listens to `pointermove` on `window` and writes `--spot-x`/`--spot-y` once per animation frame;
-  - the glow layer is a fixed CSS element;
-  - it never clips to an element box (the mockup bug Chris spotted must not exist);
-  - off for touch and reduced motion.
+  - a soft mint radial glow, about 520 px, two-stop fade, that follows the pointer while it is over the hero (`section.hero-glow::after`, shown on `:hover`);
+  - `<PointerGlow>` writes `--hero-x`/`--hero-y` relative to the hero once per animation frame;
+  - it is masked to fade out before the hero's edges, so it never shows a clipped border;
+  - off for touch, non-mouse pointers and reduced motion.
 - **Card hover:**
   - the existing card class (project cards, post cards, involvement and certification cards, the status card) lifts 2 px, and its border turns mint;
   - an inner glow follows the cursor inside the card, using the same pointer-variable approach scoped to the hovered card;

@@ -63,7 +63,7 @@ export default async function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(personJsonLd(profile)) }}
       />
-      <section className="grid gap-6 py-12 md:grid-cols-[1.35fr_1fr] md:items-center md:gap-8 md:py-16">
+      <section className="hero-glow grid gap-6 py-12 md:grid-cols-[1.35fr_1fr] md:items-center md:gap-8 md:py-16">
         {/* Narrow screens: `contents` lifts these blocks into the grid so order-1/2/3 puts the
             photo between the name and the intro. md+: a normal left column beside the photo. */}
         <div className="contents md:block">

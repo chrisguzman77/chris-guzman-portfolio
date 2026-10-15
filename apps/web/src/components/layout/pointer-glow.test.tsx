@@ -30,21 +30,32 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  const root = document.documentElement;
-  root.removeAttribute("style");
-  delete root.dataset.spotlight;
   document.body.innerHTML = "";
 });
 
+function withRect(element: HTMLElement, left: number, top: number) {
+  element.getBoundingClientRect = () => ({ left, top }) as DOMRect;
+}
+
+function hero() {
+  const section = document.createElement("section");
+  section.className = "hero-glow";
+  const inner = document.createElement("span");
+  section.append(inner);
+  document.body.append(section);
+  withRect(section, 40, 100);
+  return { section, inner };
+}
+
 describe("PointerGlow", () => {
-  it("moves the spotlight to the pointer", () => {
+  it("moves the hero spotlight relative to the hero", () => {
     stubMatchMedia(true);
+    const { section, inner } = hero();
     render(<PointerGlow />);
-    move(document.body, 120, 340);
-    const root = document.documentElement;
-    expect(root.style.getPropertyValue("--spot-x")).toBe("120px");
-    expect(root.style.getPropertyValue("--spot-y")).toBe("340px");
-    expect(root.dataset.spotlight).toBe("");
+    move(inner, 120, 340);
+    expect(section.style.getPropertyValue("--hero-x")).toBe("80px");
+    expect(section.style.getPropertyValue("--hero-y")).toBe("240px");
+    expect(document.documentElement.style.getPropertyValue("--spot-x")).toBe("");
   });
 
   it("tracks the pointer inside the card under it", () => {
@@ -54,54 +65,66 @@ describe("PointerGlow", () => {
     const inner = document.createElement("span");
     card.append(inner);
     document.body.append(card);
-    card.getBoundingClientRect = () => ({ left: 100, top: 300 }) as DOMRect;
+    withRect(card, 100, 300);
     render(<PointerGlow />);
     move(inner, 130, 345);
     expect(card.style.getPropertyValue("--card-x")).toBe("30px");
     expect(card.style.getPropertyValue("--card-y")).toBe("45px");
   });
 
-  it("hides the spotlight when the pointer leaves the page", () => {
+  it("updates both the hero and a card inside it", () => {
     stubMatchMedia(true);
+    const { section } = hero();
+    const card = document.createElement("div");
+    card.className = "card-glow";
+    const inner = document.createElement("span");
+    card.append(inner);
+    section.append(card);
+    withRect(card, 100, 300);
     render(<PointerGlow />);
-    move(document.body, 10, 10);
-    document.documentElement.dispatchEvent(new MouseEvent("pointerleave"));
-    expect(document.documentElement.dataset.spotlight).toBeUndefined();
+    move(inner, 130, 345);
+    expect(section.style.getPropertyValue("--hero-x")).toBe("90px");
+    expect(section.style.getPropertyValue("--hero-y")).toBe("245px");
+    expect(card.style.getPropertyValue("--card-x")).toBe("30px");
+    expect(card.style.getPropertyValue("--card-y")).toBe("45px");
+  });
+
+  it("ignores moves outside the hero and cards", () => {
+    stubMatchMedia(true);
+    const plain = document.createElement("div");
+    document.body.append(plain);
+    render(<PointerGlow />);
+    move(plain, 120, 340);
+    expect(plain.getAttribute("style")).toBeNull();
+    expect(document.documentElement.getAttribute("style")).toBeNull();
   });
 
   it("ignores touch and pen pointers", () => {
     stubMatchMedia(true);
+    const { section, inner } = hero();
     render(<PointerGlow />);
-    move(document.body, 120, 340, "touch");
-    move(document.body, 120, 340, "pen");
-    expect(document.documentElement.style.getPropertyValue("--spot-x")).toBe("");
-    expect(document.documentElement.dataset.spotlight).toBeUndefined();
-  });
-
-  it("cancels a pending frame when the pointer leaves, so the spotlight stays hidden", () => {
-    stubMatchMedia(true);
-    const queued: FrameRequestCallback[] = [];
-    const cancel = vi.fn((id: number) => {
-      queued[id - 1] = () => {};
-    });
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      queued.push(callback);
-      return queued.length;
-    });
-    vi.stubGlobal("cancelAnimationFrame", cancel);
-    render(<PointerGlow />);
-    move(document.body, 10, 10);
-    document.documentElement.dispatchEvent(new MouseEvent("pointerleave"));
-    expect(cancel).toHaveBeenCalled();
-    for (const callback of queued) callback(0);
-    expect(document.documentElement.dataset.spotlight).toBeUndefined();
+    move(inner, 120, 340, "touch");
+    move(inner, 120, 340, "pen");
+    expect(section.style.getPropertyValue("--hero-x")).toBe("");
   });
 
   it("does nothing on touch screens or with reduced motion", () => {
     stubMatchMedia(false);
+    const { section, inner } = hero();
     render(<PointerGlow />);
-    move(document.body, 120, 340);
-    expect(document.documentElement.style.getPropertyValue("--spot-x")).toBe("");
-    expect(document.documentElement.dataset.spotlight).toBeUndefined();
+    move(inner, 120, 340);
+    expect(section.style.getPropertyValue("--hero-x")).toBe("");
+  });
+
+  it("cancels a pending frame on unmount", () => {
+    stubMatchMedia(true);
+    const cancel = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", () => 7);
+    vi.stubGlobal("cancelAnimationFrame", cancel);
+    const { inner } = hero();
+    const { unmount } = render(<PointerGlow />);
+    move(inner, 10, 10);
+    unmount();
+    expect(cancel).toHaveBeenCalledWith(7);
   });
 });
