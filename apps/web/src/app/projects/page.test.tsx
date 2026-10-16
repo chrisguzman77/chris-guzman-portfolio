@@ -60,6 +60,10 @@ describe("/projects", () => {
     const { container } = render(await ProjectsPage());
 
     expect(screen.getByText("$ ls projects/")).toBeTruthy();
+
+    expect(screen.getByRole("link", { name: "cd .. (back to home)" }).getAttribute("href")).toBe(
+      "/",
+    );
     expect(screen.getByRole("heading", { level: 1, name: "Projects" })).toBeTruthy();
     expect(numberedHeadings()).toEqual([
       expect.stringMatching(/^01Personalprojects/),

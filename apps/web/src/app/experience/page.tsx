@@ -2,6 +2,7 @@ import { Download } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BackLink } from "@/components/content/back-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { ExperienceEntry } from "@/components/content/experience-entry";
 import { PageHeader } from "@/components/content/page-header";
@@ -21,7 +22,10 @@ export default async function ExperiencePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <PageHeader prompt="$ cat experience.log" title="Experience" />
+      <BackLink href="/" label="home" />
+      <div className="mt-5">
+        <PageHeader prompt="$ cat experience.log" title="Experience" />
+      </div>
       <h2 className="sr-only">All roles</h2>
       <div className="mt-4">
         {entries.length > 0 ? (

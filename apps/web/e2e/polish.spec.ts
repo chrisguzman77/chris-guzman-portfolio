@@ -313,3 +313,13 @@ test("a long post slug wraps inside the logo and never reaches the header button
     await expectNoAxeViolations(page);
   }
 });
+
+test("cd .. on a section page goes home", async ({ page }) => {
+  for (const path of ["/experience", "/education", "/projects", "/blog", "/resume", "/contact"]) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: "cd .. (back to home)" })).toBeVisible();
+  }
+  await page.getByRole("link", { name: "cd .. (back to home)" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
