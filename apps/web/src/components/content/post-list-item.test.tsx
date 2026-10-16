@@ -45,4 +45,15 @@ describe("PostListItem", () => {
     expect(link.querySelector("svg")).toBeTruthy();
     expect(container.querySelectorAll("a")).toHaveLength(1);
   });
+
+  it("puts the Read post button in the top row, after the title in reading order", () => {
+    render(<PostListItem post={post} />);
+    const heading = screen.getByRole("heading", { level: 3 });
+    const link = screen.getByRole("link", { name: /read post/i });
+    const topRow = heading.closest("[data-post-top]");
+    expect(topRow).not.toBeNull();
+    expect(topRow?.contains(link)).toBe(true);
+    expect(topRow?.contains(screen.getByText("A tour of the Compose stack."))).toBe(false);
+    expect(heading.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
