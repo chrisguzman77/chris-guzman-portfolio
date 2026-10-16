@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { BackLink } from "@/components/content/back-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { ProjectCard } from "@/components/content/project-card";
@@ -33,7 +34,10 @@ export default async function ProjectsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <PageHeader prompt="$ ls projects/" title="Projects" />
+      <BackLink href="/" label="home" />
+      <div className="mt-5">
+        <PageHeader prompt="$ ls projects/" title="Projects" />
+      </div>
       {groups.length === 0 ? (
         <div className="mt-6">
           <EmptyState>No projects published yet.</EmptyState>

@@ -27,6 +27,10 @@ describe("/resume", () => {
     render(await ResumePage());
 
     expect(screen.getByText("$ open resume.pdf")).toBeTruthy();
+
+    expect(screen.getByRole("link", { name: "cd .. (back to home)" }).getAttribute("href")).toBe(
+      "/",
+    );
     expect(screen.getByRole("heading", { level: 1, name: "Resume" })).toBeTruthy();
   });
 

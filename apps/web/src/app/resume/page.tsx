@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { ResumeLink } from "@/components/analytics/resume-link";
 import { PdfEmbed } from "@/components/content/pdf-embed";
+import { BackLink } from "@/components/content/back-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { cmsAssetUrl } from "@/lib/cms-assets";
@@ -25,7 +26,10 @@ export default async function ResumePage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10">
-      <PageHeader prompt="$ open resume.pdf" title="Resume" />
+      <BackLink href="/" label="home" />
+      <div className="mt-5">
+        <PageHeader prompt="$ open resume.pdf" title="Resume" />
+      </div>
       {resume?.file ? (
         <ResumeViewer
           src={cmsAssetUrl(resume.file.id, resume.file.version)}

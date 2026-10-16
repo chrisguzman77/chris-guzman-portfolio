@@ -45,6 +45,10 @@ describe("/blog", () => {
     const { container } = render(await BlogPage());
 
     expect(screen.getByText("$ ls posts/")).toBeTruthy();
+
+    expect(screen.getByRole("link", { name: "cd .. (back to home)" }).getAttribute("href")).toBe(
+      "/",
+    );
     expect(screen.getByRole("heading", { level: 1, name: "Blog" })).toBeTruthy();
 
     const list = container.querySelector("ol");

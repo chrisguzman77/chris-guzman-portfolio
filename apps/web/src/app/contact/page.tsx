@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { ContactForm } from "@/components/contact/contact-form";
 import { FaqSection } from "@/components/contact/faq-section";
 import { CopyEmail } from "@/components/content/copy-email";
+import { BackLink } from "@/components/content/back-link";
 import { PageHeader } from "@/components/content/page-header";
 import { GitHubIcon, LinkedInIcon } from "@/components/icons/brand";
 import { outboundProps } from "@/lib/analytics";
@@ -52,7 +53,10 @@ export default async function ContactPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10">
-      <PageHeader prompt="$ ping chris" title="Get in touch" />
+      <BackLink href="/" label="home" />
+      <div className="mt-5">
+        <PageHeader prompt="$ ping chris" title="Get in touch" />
+      </div>
       <div className="mt-4 grid items-start gap-4 md:grid-cols-[1.7fr_1fr]">
         <section
           aria-labelledby="contact-form-heading"

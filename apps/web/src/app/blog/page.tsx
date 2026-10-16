@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { BackLink } from "@/components/content/back-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { PostListItem } from "@/components/content/post-list-item";
@@ -23,7 +24,10 @@ export default async function BlogPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <PageHeader prompt="$ ls posts/" title="Blog" />
+      <BackLink href="/" label="home" />
+      <div className="mt-5">
+        <PageHeader prompt="$ ls posts/" title="Blog" />
+      </div>
       {turnstileSiteKey ? (
         <div className="mt-4">
           <SubscribeForm apiUrl={publicApiUrl} siteKey={turnstileSiteKey} />

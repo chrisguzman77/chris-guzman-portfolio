@@ -41,6 +41,10 @@ describe("/contact", () => {
     const { container } = render(await ContactPage());
 
     expect(screen.getByText("$ ping chris")).toBeTruthy();
+
+    expect(screen.getByRole("link", { name: "cd .. (back to home)" }).getAttribute("href")).toBe(
+      "/",
+    );
     const title = screen.getByRole("heading", { level: 1, name: "Get in touch" });
     // The header block is exactly the prompt line and the h1: no caption paragraph beneath it.
     expect(title.parentElement?.children).toHaveLength(2);

@@ -1,6 +1,7 @@
 import { ExternalLink, GraduationCap } from "lucide-react";
 import type { Metadata } from "next";
 
+import { BackLink } from "@/components/content/back-link";
 import { EmptyState } from "@/components/content/empty-state";
 import { PageHeader } from "@/components/content/page-header";
 import { SectionHeading } from "@/components/content/section-heading";
@@ -67,7 +68,10 @@ export default async function EducationPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <PageHeader prompt="$ cat education.md" title="Education" />
+      <BackLink href="/" label="home" />
+      <div className="mt-5">
+        <PageHeader prompt="$ cat education.md" title="Education" />
+      </div>
 
       <div className="mt-4 grid gap-3">
         {education.length > 0 ? (

@@ -78,6 +78,10 @@ describe("/education", () => {
     render(await EducationPage());
 
     expect(screen.getByText("$ cat education.md")).toBeTruthy();
+
+    expect(screen.getByRole("link", { name: "cd .. (back to home)" }).getAttribute("href")).toBe(
+      "/",
+    );
     expect(screen.getByRole("heading", { level: 1, name: "Education" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: school.school })).toBeTruthy();
     expect(screen.getByText("Augusta, GA")).toBeTruthy();

@@ -48,6 +48,10 @@ describe("/experience", () => {
     const { container } = render(await ExperiencePage());
 
     expect(screen.getByText("$ cat experience.log")).toBeTruthy();
+
+    expect(screen.getByRole("link", { name: "cd .. (back to home)" }).getAttribute("href")).toBe(
+      "/",
+    );
     expect(screen.getByRole("heading", { level: 1, name: "Experience" })).toBeTruthy();
 
     const text = container.textContent ?? "";
