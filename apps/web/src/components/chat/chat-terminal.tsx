@@ -168,7 +168,7 @@ function AnswerFeedback({
         type="button"
         onClick={(event) => void rate(rating, event.currentTarget)}
         disabled={state === "sending" || state === "saved"}
-        aria-label={label}
+        aria-label={`[${key}] ${label}`}
         aria-pressed={pressed}
         className={`${feedbackButton} ${color}`}
       >

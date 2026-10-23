@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RippleGrid } from "./ripple-grid";
@@ -39,7 +39,7 @@ function renderGrid(rect?: { top: number; bottom: number }) {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect as DOMRect);
   }
   return render(
-    <RippleGrid label="1,234 GitHub contributions in the last year">
+    <RippleGrid>
       <div>
         <span />
       </div>
@@ -47,12 +47,16 @@ function renderGrid(rect?: { top: number; bottom: number }) {
   );
 }
 
+function gridOf({ container }: ReturnType<typeof renderGrid>): HTMLElement {
+  return container.firstElementChild as HTMLElement;
+}
+
 describe("RippleGrid", () => {
-  it("keeps the accessible image and arms the ripple when the heatmap starts off screen", () => {
+  it("arms the ripple when the heatmap starts off screen, hidden from screen readers", () => {
     stubReducedMotion(false);
     // jsdom rects are all zeros: bottom 0, so "off screen" (bottom <= 0).
-    renderGrid();
-    const grid = screen.getByRole("img", { name: "1,234 GitHub contributions in the last year" });
+    const grid = gridOf(renderGrid());
+    expect(grid.getAttribute("aria-hidden")).toBe("true");
     expect(grid.getAttribute("data-ripple")).toBe("armed");
     observed[0].callback(
       [{ isIntersecting: true } as IntersectionObserverEntry],
@@ -64,15 +68,13 @@ describe("RippleGrid", () => {
 
   it("does nothing when the heatmap is already on screen at load", () => {
     stubReducedMotion(false);
-    renderGrid({ top: 100, bottom: 200 });
-    expect(screen.getByRole("img").hasAttribute("data-ripple")).toBe(false);
+    expect(gridOf(renderGrid({ top: 100, bottom: 200 })).hasAttribute("data-ripple")).toBe(false);
     expect(observed).toHaveLength(0);
   });
 
   it("does nothing with reduced motion", () => {
     stubReducedMotion(true);
-    renderGrid();
-    expect(screen.getByRole("img").hasAttribute("data-ripple")).toBe(false);
+    expect(gridOf(renderGrid()).hasAttribute("data-ripple")).toBe(false);
     expect(observed).toHaveLength(0);
   });
 });

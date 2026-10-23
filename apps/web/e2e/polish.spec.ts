@@ -222,7 +222,7 @@ test.describe("reduced motion", () => {
   test("the heatmap is simply there", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 500 });
     await page.goto("/");
-    const grid = page.getByRole("img", { name: /GitHub contributions in the last year/ });
+    const grid = page.locator(".ripple-grid");
     await expect(grid).not.toHaveAttribute("data-ripple");
   });
 });
@@ -271,7 +271,7 @@ test.describe("404 terminal", () => {
 test("the GitHub heatmap ripples in when it scrolls into view", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 500 }); // keep the heatmap below the fold
   await page.goto("/");
-  const grid = page.getByRole("img", { name: /GitHub contributions in the last year/ });
+  const grid = page.locator(".ripple-grid");
   await expect(grid).toHaveAttribute("data-ripple", "armed");
   await grid.scrollIntoViewIfNeeded();
   await expect(grid).toHaveAttribute("data-ripple", "play");

@@ -41,14 +41,15 @@ describe("GitHubActivity", () => {
     expect(container.querySelector("[data-live-feature]")).toBeNull();
   });
 
-  it("labels the grid for screen readers and links to the profile in a new tab", () => {
+  // Named by its caption, not an aria-label: axe label-content-name-mismatch (WCAG 2.5.3) flags an
+  // aria-label that leaves out the card's visible month and legend text.
+  it("names the profile link by its caption and opens it in a new tab", () => {
     render(<GitHubActivity activity={makeActivity()} profileUrl="https://github.com/octo" />);
-    expect(
-      screen.getByRole("img", { name: "1,234 GitHub contributions in the last year" }),
-    ).toBeTruthy();
+    expect(screen.queryByRole("img")).toBeNull();
     const link = screen.getByRole("link", {
-      name: /^1,234 contributions in the last year · updated hourly/,
+      name: "1,234 contributions in the last year · updated hourly: GitHub profile (opens in a new tab)",
     });
+    expect(link.hasAttribute("aria-label")).toBe(false);
     expect(link.getAttribute("href")).toBe("https://github.com/octo");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
@@ -59,7 +60,7 @@ describe("GitHubActivity", () => {
     const { container } = render(
       <GitHubActivity activity={makeActivity()} profileUrl="https://github.com/octo" />,
     );
-    const columns = container.querySelectorAll('[role="img"] > div');
+    const columns = container.querySelectorAll(".ripple-grid > div");
     expect(columns).toHaveLength(30);
     expect(columns[0].children).toHaveLength(7);
     expect(columns[0].querySelectorAll("[title]")).toHaveLength(4); // Wed–Sat
@@ -70,7 +71,7 @@ describe("GitHubActivity", () => {
     const { container } = render(
       <GitHubActivity activity={makeActivity()} profileUrl="https://github.com/octo" />,
     );
-    const columns = [...container.querySelectorAll('[role="img"] > div')];
+    const columns = [...container.querySelectorAll(".ripple-grid > div")];
     const hidden = columns.filter((c) => c.className.includes("hidden md:flex"));
     expect(hidden).toHaveLength(30 - MOBILE_WEEKS);
     expect(columns.at(-1)?.className).not.toContain("hidden");
@@ -105,11 +106,8 @@ describe("GitHubActivity", () => {
     const activity = { ...makeActivity(), total: 1 };
     render(<GitHubActivity activity={activity} profileUrl="https://github.com/octo" />);
     expect(
-      screen.getByRole("img", { name: "1 GitHub contribution in the last year" }),
-    ).toBeTruthy();
-    expect(
       screen.getByRole("link", {
-        name: /^1 contribution in the last year · updated hourly/,
+        name: "1 contribution in the last year · updated hourly: GitHub profile (opens in a new tab)",
       }),
     ).toBeTruthy();
   });
