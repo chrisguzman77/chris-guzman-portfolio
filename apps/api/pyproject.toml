@@ -37,6 +37,11 @@ dev = [
 requires = ["uv_build>=0.11,<0.14"]
 build-backend = "uv_build"
 
+# fastembed 0.9 caps pillow <13, but 12.x has critical CVEs fixed in 13.0.0 (Trivy blocks the
+# release on them). We embed text only and never decode images; drop this once fastembed allows 13.
+[tool.uv]
+override-dependencies = ["pillow>=13"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
