@@ -28,6 +28,32 @@ This post covers what we built, the part that won, my share of it, and what brok
 
 The twin's lightning is simulated, not scripted. A storm cell starts about 20 miles out and moves toward the site, its flash rate rising and falling over its life. Strike times come from a random (Poisson) process, most strikes land near the core, and 5% are "bolts from the blue" 5 to 10 miles ahead of it. Each strike's distance to the site comes from where it landed, and its thunder arrives as late as sound would at the scenario's air temperature.
 
+This is the heart of Viet's storm model, from `sim/src/World/StormModel.module.lua`. It draws the time of the next candidate strike, keeps it with the storm's current odds, then places it:
+
+```luau
+while true do
+  t += -math.log(rand()) / lambdaMax
+  if t >= life then break end
+  if rand() <= math.sin(math.pi * t / life) then
+    -- storm frame: the cell moves along +x, the site at the origin, cross_track_mi to its left
+    local cx, cy = -p.start_mi + v * t, p.cross_track_mi
+    local x, y
+    if rand() < StormModel.BLUE_SHARE then
+      local d = 5 + 5 * rand()
+      local a = math.rad((rand() * 2 - 1) * 45)
+      x, y = cx + d * math.cos(a), cy + d * math.sin(a)
+    else
+      local r = StormModel.SIGMA_MI * math.sqrt(-2 * math.log(rand()))
+      local th = 2 * math.pi * rand()
+      x, y = cx + r * math.cos(th), cy + r * math.sin(th)
+    end
+    -- ... then the strike's bearing and distance to the site
+  end
+end
+```
+
+`math.sqrt(-2 * math.log(rand()))` turns a uniform random number into a Rayleigh-distributed distance from the core. `rand` is a small Park-Miller generator written out by hand instead of Roblox's `Random` and seeded per storm, so a scenario plays out the same way every time and the Lune test harness gets the exact strikes Studio fires.
+
 That is what made the demo work end to end. On screen, the storm walks in. When a strike lands inside 10 miles, the twin posts it to the backend, the backend opens a stop work and tells the beacon, and the real fan motor on the table stops while the beacon counts down and says how far away the strike was. The beacon in the Roblox world mirrors the real one, and a player who walks into the work zone shows up on the muster list.
 
 ## How the pieces fit
@@ -46,7 +72,13 @@ I built the hazard index, the briefings, the beacon's software, the contracts an
 
 Every site gets a 0 to 10 score for tomorrow, plus the three weather readings that pushed it up (from SHAP values), like "3 day rain 111 mm". I trained a LightGBM model on site-days: each of the 50 plants on each day from 2016 to 2024, 164,400 examples. A site-day counts as a hazard (about 6% do) if NOAA recorded a storm event like heat, lightning or flooding within 40 km that day, or OSHA has a severe injury report for outdoor work within 25 km. The inputs are that day's weather plus fixed facts about the site, like its flood zone.
 
-I split the data by time, never at random: train on 2016 to 2022, tune on 2023, test once on 2024. A random split would let the same storm leak into training and testing through neighboring sites and days. Every number sits next to the rule a supervisor would write by hand (a heat index of at least 103 °F, 3-day rain of at least 75 mm, or gusts of at least 60 km/h):
+I split the data by time, never at random: train on 2016 to 2022, tune on 2023, test once on 2024. In `ml/train.py` that is one line:
+
+```python
+tr, va, te = df[df.date.dt.year <= 2022], df[df.date.dt.year == 2023], df[df.date.dt.year == 2024]
+```
+
+A random split would let the same storm leak into training and testing through neighboring sites and days. Every number sits next to the rule a supervisor would write by hand (a heat index of at least 103 °F, 3-day rain of at least 75 mm, or gusts of at least 60 km/h):
 
 | 2024 test year | Model | Hand-written rule |
 |---|---|---|
@@ -60,13 +92,84 @@ A random guess scores about 0.058, the share of days that are hazards, so the mo
 
 ### Briefings that can't invent numbers
 
-Gemini writes the 6 PM briefings in English and Spanish, the one-sentence explanation of each score, and the hazard photo tags. A language model can state a number that isn't in the data, so every number in a generated briefing is checked against the numbers it was given. If the output has a number that isn't in the input, it retries once, then falls back to a template built from the data alone.
+Gemini writes the 6 PM briefings in English and Spanish, the one-sentence explanation of each score, and the hazard photo tags. A language model can state a number that isn't in the data, so every number in a generated briefing is checked against the numbers it was given. If the output has a number that isn't in the input, it retries once, then falls back to a template built from the data alone. The whole check is two functions and a loop, from `backend/app/intel/gemini.py`:
+
+```python
+def numbers(s: str) -> set[float]:
+    return {float(n) for n in re.findall(r'\d+(?:\.\d+)?', s)}
+
+
+def invented(text: str, payload: dict) -> set[float]:
+    """Numbers in text that do not appear anywhere in the payload."""
+    return numbers(text) - numbers(json.dumps(payload, ensure_ascii=False))
+
+
+async def briefing(payload: dict) -> tuple[dict, str]:
+    prompt = ...  # "Use only the numbers in this payload and add no others", then the payload as JSON
+    for attempt in range(2):
+        try:
+            out = await generate(prompt, BRIEFING_SCHEMA, patient=True)
+        except Exception:
+            log.exception('briefing call failed')
+            break
+        bad = invented(out['english'], payload) | invented(out['spanish'], payload)
+        if not bad:
+            return {'english': out['english'], 'spanish': out['spanish']}, 'gemini'
+        log.warning('briefing attempt %d invented %s', attempt + 1, sorted(bad))
+        prompt += ' Your last answer used numbers that are not in the payload. Use only payload numbers.'
+    return template_briefing(payload), 'template'
+```
+
+The forecast numbers in the payload are rounded to whole numbers before the model sees them, because the model rounds, and a briefing that says "97 °F" for 96.8 would otherwise fail the check.
 
 ### The beacon
 
 The beacon has three boards. A sensor pod (an RP2040 running MicroPython) samples a light sensor 5,000 times a second to catch a lightning flash, and reads a radar, a water probe and an IR remote. A Raspberry Pi 5 runs the rules and speaks alerts offline in English and Spanish. An Arduino UNO drives the LCD, the countdown display and a 29-LED strip that shows the hazard index.
 
+The flash detector runs on the pod's second core. At startup it measures the resting light for 0.4 seconds, then sets the threshold 6 standard deviations above it, and at least 1,500 counts (`FLASH_SIGMA` and `FLASH_MIN_DELTA`), so a very steady room doesn't fire on sensor noise:
+
+```python
+mean = sum(rest) / len(rest)
+sd = math.sqrt(sum((v - mean) ** 2 for v in rest) / len(rest))
+delta = max(int(FLASH_SIGMA * sd), FLASH_MIN_DELTA)
+mean_q = int(mean) << 8                       # the mean in 1/256 counts, so the slow average stays a small int
+thresh = int(mean) + delta
+# ...
+while running:
+    v = ldr.read_u16()
+    if v > thresh:
+        above += 1
+        if above == 2:
+            t = time.ticks_us()
+            if time.ticks_diff(t, last) > 300000:
+                flash_us, last = t, t
+                flash_count += 1
+    else:
+        above = 0
+        mean_q += ((v << 8) - mean_q) >> 13
+        thresh = (mean_q >> 8) + delta
+```
+
+Two samples in a row above the threshold count as a flash, followed by 300 ms when nothing counts. Between flashes, the resting mean slowly follows the room's light, so a passing shadow or a screen changing brightness isn't lightning.
+
 The rule I cared about most: the beacon has to keep working when the internet doesn't. The Pi enforces the stop-work rules itself (if it sees a flash but has no thunder to time, it stops work anyway with the distance unknown), queues its events while offline, and replays them in order with their original timestamps when it reconnects. A stop work survives a reboot, and a release made on the dashboard while the beacon was offline is applied when it comes back. The motor runs only while the Pi holds GPIO 18 high, and the pin goes low if the program stops or crashes, so a failure stops the equipment instead of leaving it running. Only a supervisor PIN, on the dashboard or the beacon's IR remote, starts it again.
+
+The same idea runs through `firmware/gateway/interlock.py`. The motor pin starts low, so the equipment can't run until the gateway decides it may, and a physical e-stop button on GPIO 23 cuts the motor before the rest of the program even hears about it:
+
+```python
+class Interlock:
+    def __init__(self, loop, on_estop):
+        # initial_value False: the motor stays off until the gateway decides it may run (fails safe on boot)
+        self.motor = DigitalOutputDevice(18, initial_value=False)
+        self.button = Button(23, pull_up=True, bounce_time=0.05)
+
+        def pressed():   # runs on gpiozero's thread: cut the motor before anything else happens
+            self.motor.off()
+            log.info('E-STOP: GPIO 18 low, motor STOPPED')
+            loop.call_soon_threadsafe(on_estop)
+
+        self.button.when_pressed = pressed
+```
 
 ## What broke
 
