@@ -2,9 +2,9 @@
 
 Drafts for Phase 7b. Edit them here, then paste them into Directus.
 
-1. **Upload diagrams.** In Directus → File Library, upload each `content/diagrams/*.png`. Copy each file's ID.
-2. **Swap the diagram references.** In each draft, replace `DIAGRAM:<name>.png` with `/assets/<file-id>`. The site rewrites `/assets/` to `/cms-assets/`.
-3. **Project pages.** For each project in `content/projects/`, open the item in Directus → Projects and paste `summary` and the body (everything below the front matter) into Body. Set every front-matter field that differs from the current item (`summary`, `repo_url`, `live_url`, `date`, `tech`). Save.
+1. **Upload diagrams and images.** In Directus → File Library, upload each `content/diagrams/*.png` and `content/images/*`. Copy each file's ID.
+2. **Swap the references.** In each draft, replace `DIAGRAM:<name>.png` and `IMAGE:<name>` with `/assets/<file-id>`. The site rewrites `/assets/` to `/cms-assets/`.
+3. **Project pages.** For each project in `content/projects/`, open the item in Directus → Projects and paste `summary` and the body (everything below the front matter) into Body. Set every front-matter field that differs from the current item (`summary`, `repo_url`, `live_url`, `date`, `tech`). Save. A project with no item yet (OmniRisk) is a new item: also set `slug`, `title`, `type`, `award`, `featured`, and pick the uploaded file for `cover`.
 4. **Blog post.** Directus → Posts → create with `title`, `slug`, `excerpt`, `tags` and `published_at`, Body = the markdown below the front matter, status Published.
 5. **Newsletter test send.** After publishing, run the post's "Email to subscribers" Flow with "Send a test to me only" ticked, then again unticked to send for real. See `docs/runbook.md` (Newsletter).
 6. **FAQ.** It's seeded automatically on the deploy that adds it. Edit it later in Directus → Faq.
