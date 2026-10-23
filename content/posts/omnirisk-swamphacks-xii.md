@@ -6,7 +6,7 @@ tags: [hackathon, machine-learning, raspberry-pi, roblox, fastapi, iot]
 published_at: "2026-10-23"
 ---
 
-In October, four of us spent about 30 hours at SwampHacks XII, the University of Florida's hackathon, building OmniRisk: a jobsite safety platform for utility field crews. We built it for the PlanIT Control challenge, and it won **Best Use of Roblox Studio** [CHRIS: confirm the prize name exactly as Devpost shows it].
+In October, four of us spent about 30 hours at SwampHacks XII, the University of Florida's hackathon, building OmniRisk: a jobsite safety platform for utility field crews. We built it for the PlanIT Control challenge, and it won **Best Use of Roblox Studio** (the prize was a Roblox gift card).
 
 It starts from one observation. Crews get hurt by hazards that were knowable the night before: lightning, extreme heat, flooding, soft soil. The data exists, but it lives in a dozen places and nobody turns it into a decision. OmniRisk tries to close that gap, from tomorrow's forecast all the way to the switch on the equipment.
 
@@ -24,7 +24,7 @@ This post covers what we built, the part that won, my share of it, and what brok
 
 ## The part that won: a storm in Roblox
 
-[Slavik](https://github.com/github-slavik) built the Roblox world and its scenarios, and [Viet Nguyen](https://github.com/vietnguyen120) wrote the storm model and the bridge to our backend. [CHRIS: full names and the links you want (GitHub or LinkedIn) for Slavik, Viet and Cam; confirm vietnguyen120 is Viet and GldnCh is Cam.]
+[Yaroslav Kulyna](https://www.linkedin.com/in/kulynayaroslav/) built the Roblox world and its scenarios, and [Viet Nguyen](https://www.linkedin.com/in/02-vietnguyen/) wrote the storm model and the bridge to our backend.
 
 The twin's lightning is simulated, not scripted. A storm cell starts about 20 miles out and moves toward the site, its flash rate rising and falling over its life. Strike times come from a random (Poisson) process, most strikes land near the core, and 5% are "bolts from the blue" 5 to 10 miles ahead of it. Each strike's distance to the site comes from where it landed, and its thunder arrives as late as sound would at the scenario's air temperature.
 
@@ -36,7 +36,7 @@ That is what made the demo work end to end. On screen, the storm walks in. When 
 
 Green arrows trace a lightning strike from the twin to the motor. Accent bars mark the parts I built myself; Viet and I built the backend together. It is FastAPI on a Vultr server, with its data in TimescaleDB on Tiger Data.
 
-Before the feature work, I wrote the contracts: the event shapes, the serial lines between the boards, the websocket messages and the REST routes, each as a markdown file in `contracts/`. With those agreed, four people could build in parallel and connect the pieces near the end. Viet and I built the backend core, [Cam](https://github.com/GldnCh) built the web app (the dashboard, each site's Hub and the crew phone page), and Slavik also wired the beacon's hardware.
+Before the feature work, I wrote the contracts: the event shapes, the serial lines between the boards, the websocket messages and the REST routes, each as a markdown file in `contracts/`. With those agreed, four people could build in parallel and connect the pieces near the end. Viet and I built the backend core, [Cameron Clemons](https://www.linkedin.com/in/cameron-clemons-jm3/) built the web app (the dashboard, each site's Hub and the crew phone page), and Yaroslav also wired the beacon's hardware.
 
 ## My part
 
@@ -82,13 +82,11 @@ The hardware broke in ways software doesn't:
 - **Put the baseline in every table.** The model's numbers only mean something next to the rule it would replace.
 - **Fail safe.** When something goes wrong, the beacon stops the equipment.
 
-[CHRIS: optional, a line or two in your own words about the weekend: the demo, the judges, the moment it all worked, or what you'd tell someone going to their first hackathon.]
-
 ## Links
 
 - Devpost: [devpost.com/software/omnirisk-planit-beacon](https://devpost.com/software/omnirisk-planit-beacon)
 - Code: [github.com/chrisguzman77/beacon](https://github.com/chrisguzman77/beacon)
-- Live dashboard: [omnirisking-it-all-at-swamphacks.us](https://omnirisking-it-all-at-swamphacks.us) [CHRIS: keep this link only while the demo server stays up]
+- Live dashboard: [omnirisking-it-all-at-swamphacks.us](https://omnirisking-it-all-at-swamphacks.us)
 - Project page: [OmniRisk](/projects/omnirisk)
 
 If you have questions, or you're hiring, [get in touch](/contact).

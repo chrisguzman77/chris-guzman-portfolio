@@ -7,14 +7,14 @@ repo_url: https://github.com/chrisguzman77/beacon
 live_url: https://omnirisking-it-all-at-swamphacks.us
 award: Best Use of Roblox Studio
 date: 2026-10-18
-featured: false
+featured: true
 tech: [python, fastapi, timescaledb, lightgbm, gemini, react, typescript, raspberry-pi, micropython, arduino, roblox, luau, docker]
 cover: IMAGE:omnirisk-dashboard.jpg
 ---
 
 ## What it is
 
-OmniRisk won Best Use of Roblox Studio at SwampHacks XII, the University of Florida's hackathon [CHRIS: confirm the prize name]. Four of us built it in about 30 hours for the PlanIT Control challenge. It is a safety platform for utility field crews that turns public data into decisions, from tomorrow's forecast down to the switch on the equipment.
+OmniRisk won Best Use of Roblox Studio at SwampHacks XII, the University of Florida's hackathon (the prize was a Roblox gift card). Four of us built it in about 30 hours for the PlanIT Control challenge. It is a safety platform for utility field crews that turns public data into decisions, from tomorrow's forecast down to the switch on the equipment.
 
 It watches 50 real power plant sites across Florida and the Gulf states, ranks them by a 0 to 10 hazard index with the three reasons behind each score, and enforces stop-work rules: a lightning strike within 10 miles starts a 30-minute countdown that only a supervisor PIN can end. Each site gets a 6 PM briefing for the next day in English and Spanish, crews check in from their phones, and a physical beacon on site stops the equipment on its own, even with no internet. A Roblox twin of the site runs a simulated storm whose strikes reach the real beacon.
 
@@ -41,4 +41,4 @@ The beacon is three boards: an RP2040 sensor pod that samples a light sensor 5,0
 
 ## My part
 
-We were a team of four. I wrote the contracts, trained the hazard index (data pipeline, labels, LightGBM, calibration and SHAP reasons), built the Gemini briefings with the number check and the photo tagging, wrote the software for all three beacon boards, built the backend core with Viet, and deployed it on Vultr. Viet Nguyen also built the storm model and the Roblox bridge; Cam built the web app; Slavik built the Roblox world and the beacon's hardware. [CHRIS: full names for Cam and Slavik; confirm Viet Nguyen.] More in the post: [OmniRisk: what we built at SwampHacks XII](/blog/omnirisk-swamphacks-xii).
+We were a team of four. I wrote the contracts, trained the hazard index (data pipeline, labels, LightGBM, calibration and SHAP reasons), built the Gemini briefings with the number check and the photo tagging, wrote the software for all three beacon boards, built the backend core with Viet, and deployed it on Vultr. Viet Nguyen also built the storm model and the Roblox bridge; Cameron Clemons built the web app; Yaroslav Kulyna built the Roblox world and the beacon's hardware. More in the post: [OmniRisk: what we built at SwampHacks XII](/blog/omnirisk-swamphacks-xii).
