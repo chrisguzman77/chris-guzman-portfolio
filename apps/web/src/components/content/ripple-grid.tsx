@@ -4,8 +4,9 @@ import { type ReactNode, useEffect, useRef } from "react";
 
 // The home heatmap's cells pop in as a wave the first time it scrolls into view (CSS in
 // globals.css, "Heatmap ripple"). Skipped when it is already on screen at load (no hide-then-show
-// flash), with reduced motion, and without JS: the cells are simply there.
-export function RippleGrid({ label, children }: { label: string; children: ReactNode }) {
+// flash), with reduced motion, and without JS: the cells are simply there. Hidden from screen
+// readers: the caption under it carries the same total.
+export function RippleGrid({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function RippleGrid({ label, children }: { label: string; children: React
   }, []);
 
   return (
-    <div ref={ref} role="img" aria-label={label} className="ripple-grid flex gap-[3px]">
+    <div ref={ref} aria-hidden="true" className="ripple-grid flex gap-[3px]">
       {children}
     </div>
   );

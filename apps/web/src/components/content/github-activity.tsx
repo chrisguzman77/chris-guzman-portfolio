@@ -84,7 +84,6 @@ export function GitHubActivity({
       href={profileUrl}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`${totalText} ${plural(total)} in the last year · updated hourly: GitHub profile (opens in a new tab)`}
       className="card-glow block rounded-[10px] border border-border bg-card p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-brand"
       {...outboundProps("github")}
     >
@@ -106,7 +105,7 @@ export function GitHubActivity({
           </span>
         ))}
       </div>
-      <RippleGrid label={`${totalText} GitHub ${plural(total)} in the last year`}>
+      <RippleGrid>
         {/* ~370 cells: shared classes sit on the column and keys are slot indexes, so each
             cell stays small in both the HTML and the inlined RSC payload. */}
         {weeks.map((week, index) => (
@@ -135,6 +134,7 @@ export function GitHubActivity({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <p className="font-mono text-[11px] text-muted-foreground">
           {`${totalText} ${plural(total)} in the last year · updated hourly`}
+          <span className="sr-only">: GitHub profile (opens in a new tab)</span>
         </p>
         <div
           aria-hidden="true"

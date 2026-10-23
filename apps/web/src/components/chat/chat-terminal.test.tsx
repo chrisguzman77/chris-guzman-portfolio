@@ -455,8 +455,8 @@ describe("ChatTerminal feedback", () => {
     questions_left: 10,
   };
   const saved = () => Promise.resolve(new Response(null, { status: 204 }));
-  const helpful = () => screen.getByRole("button", { name: "Mark answer helpful" });
-  const notHelpful = () => screen.getByRole("button", { name: "Mark answer not helpful" });
+  const helpful = () => screen.getByRole("button", { name: "[y] Mark answer helpful" });
+  const notHelpful = () => screen.getByRole("button", { name: "[n] Mark answer not helpful" });
 
   function feedbackResponds(response: () => Promise<Response>) {
     fetchMock.mockImplementation((url: string) =>
@@ -551,7 +551,7 @@ describe("ChatTerminal feedback", () => {
     await ask("Postgres?");
     const asks = fetchMock.mock.calls.filter(([u]) => String(u).endsWith("/messages"));
     expect(asks).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: "Mark answer helpful" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "[y] Mark answer helpful" })).toHaveLength(2);
     expect(screen.getByRole("textbox").getAttribute("placeholder")).toBe("type a question…");
   });
 });
