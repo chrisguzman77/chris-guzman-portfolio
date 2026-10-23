@@ -12,7 +12,7 @@ It starts from one observation. Crews get hurt by hazards that were knowable the
 
 This post covers what we built, the part that won, my share of it, and what broke.
 
-![The OmniRisk dashboard: a map of 50 power plant sites across Florida and the Gulf states, each dot colored by its 0 to 10 hazard index, next to a ranked list of sites and the selected site's index, crew count and next-day briefing](IMAGE:omnirisk-dashboard.jpg)
+![The OmniRisk dashboard: a map of 50 power plant sites across Florida and the Gulf states, each dot colored by its 0 to 10 hazard index, next to a ranked list of sites and the selected site's index, crew count and next-day briefing](/assets/cc450a0a-35f5-4ea7-906d-0ec7330c0aba)
 
 ## What it does
 
@@ -32,7 +32,7 @@ That is what made the demo work end to end. On screen, the storm walks in. When 
 
 ## How the pieces fit
 
-![OmniRisk architecture: a FastAPI backend on Vultr pulls public data, stores it in TimescaleDB, scores the hazard index and has Gemini write briefings; the React web app talks to it over REST and websockets; the Roblox twin posts strikes to it; it sends STOPWORK over a websocket to the Raspberry Pi gateway on site, which reads the sensor pod, drives the UNO beacon head and stops the fan motor on GPIO 18](DIAGRAM:omnirisk.png)
+![OmniRisk architecture: a FastAPI backend on Vultr pulls public data, stores it in TimescaleDB, scores the hazard index and has Gemini write briefings; the React web app talks to it over REST and websockets; the Roblox twin posts strikes to it; it sends STOPWORK over a websocket to the Raspberry Pi gateway on site, which reads the sensor pod, drives the UNO beacon head and stops the fan motor on GPIO 18](/assets/648f5db2-48b6-42b7-8f54-758fabe705a9)
 
 Green arrows trace a lightning strike from the twin to the motor. Accent bars mark the parts I built myself; Viet and I built the backend together. It is FastAPI on a Vultr server, with its data in TimescaleDB on Tiger Data.
 
@@ -54,7 +54,7 @@ I split the data by time, never at random: train on 2016 to 2022, tune on 2023, 
 | ROC AUC | **0.817** | 0.594 |
 | Brier score (lower is better) | **0.049** | 0.136 |
 
-![Precision-recall curve for the 2024 test year: the model's curve, with an average precision of 0.246, sits above the hand-written rule's single point and well above the 5.8% positive rate](IMAGE:omnirisk-pr-curve.png)
+![Precision-recall curve for the 2024 test year: the model's curve, with an average precision of 0.246, sits above the hand-written rule's single point and well above the 5.8% positive rate](/assets/934cc453-23b7-4948-8f76-cd0714fca081)
 
 A random guess scores about 0.058, the share of days that are hazards, so the model is about 4 times better than chance and 3 times better than the rule. The rule catches 29% of hazard days and is right 15% of the time it fires. Set to catch half of them, the model is right 21% of the time. That is still wrong most of the time, so it's a tool for deciding where to look first, not a forecast of injuries. And since location ranks high among its inputs, part of what it learned is which sites have been riskier in the past, not only which weather is.
 

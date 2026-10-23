@@ -9,7 +9,7 @@ award: Best Use of Roblox Studio
 date: 2026-10-18
 featured: true
 tech: [python, fastapi, timescaledb, lightgbm, gemini, react, typescript, raspberry-pi, micropython, arduino, roblox, luau, docker]
-cover: IMAGE:omnirisk-dashboard.jpg
+cover: cc450a0a-35f5-4ea7-906d-0ec7330c0aba
 ---
 
 ## What it is
@@ -20,7 +20,7 @@ It watches 50 real power plant sites across Florida and the Gulf states, ranks t
 
 ## How it works
 
-![OmniRisk architecture: a FastAPI backend on Vultr pulls public data, stores it in TimescaleDB, scores the hazard index and has Gemini write briefings; the React web app talks to it over REST and websockets; the Roblox twin posts strikes to it; it sends STOPWORK over a websocket to the Raspberry Pi gateway on site, which reads the sensor pod, drives the UNO beacon head and stops the fan motor on GPIO 18](DIAGRAM:omnirisk.png)
+![OmniRisk architecture: a FastAPI backend on Vultr pulls public data, stores it in TimescaleDB, scores the hazard index and has Gemini write briefings; the React web app talks to it over REST and websockets; the Roblox twin posts strikes to it; it sends STOPWORK over a websocket to the Raspberry Pi gateway on site, which reads the sensor pod, drives the UNO beacon head and stops the fan motor on GPIO 18](/assets/648f5db2-48b6-42b7-8f54-758fabe705a9)
 
 A FastAPI backend on Vultr pulls Open-Meteo forecasts, NWS alerts, FEMA flood zones and iNaturalist sightings on a schedule and stores them in TimescaleDB. Once a day it scores each site's hazard index with a LightGBM model, and at 6 PM in each site's time zone it has Gemini write the briefing. The React dashboard and the beacon connect over websockets.
 
