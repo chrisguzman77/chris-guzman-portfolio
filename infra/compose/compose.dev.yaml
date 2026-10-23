@@ -98,7 +98,7 @@ services:
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
 
   blackbox-exporter:
-    image: prom/blackbox-exporter:v0.28.0
+    image: prom/blackbox-exporter:v0.29.0
     profiles: [monitoring]
     command: ["--config.file=/etc/blackbox/blackbox.yml"]
     volumes:

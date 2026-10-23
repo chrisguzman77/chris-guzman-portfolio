@@ -179,7 +179,7 @@ jobs:
             -v "$PWD/infra/observability/prometheus:/etc/prometheus:ro" \
             prom/prometheus:v3.15.0 check config /etc/prometheus/prometheus.yml
           docker run --rm -v "$PWD/infra/observability/blackbox:/etc/blackbox:ro" \
-            prom/blackbox-exporter:v0.28.0 --config.file=/etc/blackbox/blackbox.yml --config.check
+            prom/blackbox-exporter:v0.29.0 --config.file=/etc/blackbox/blackbox.yml --config.check
       - name: Grafana provisioning and dashboards parse
         run: |
           yq() { docker run --rm -i -v "$PWD:/w" -w /w mikefarah/yq:4.54.1 "$@"; }
