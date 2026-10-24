@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="t d">
+  <title id="t">OmniRisk architecture</title>
+  <desc id="d">A FastAPI backend on Vultr (Docker and Caddy) pulls public data (Open-Meteo, NWS, FEMA, iNaturalist), stores conditions and events in TimescaleDB on Tiger Data, scores a 0 to 10 LightGBM hazard index with three SHAP reasons, and has Gemini (Briefings) write the 6 PM briefings in English and Spanish and tag hazard photos. A React web app (dashboard, Hub, crew phone page) talks to it over REST and websockets. On site, the beacon is a Raspberry Pi 5 gateway that reads an RP2040 sensor pod over USB serial, drives an Arduino UNO beacon head (LCD, countdown, 29-LED gauge) over serial, and holds the equipment fan motor on GPIO 18 through an L293D driver, enforcing its rules offline. Lightning strike path: the Roblox twin posts each strike to the backend, the backend sends STOPWORK to the gateway over a websocket, and the gateway pulls GPIO 18 low to stop the motor. Accent bars mark the hazard index, the briefings, the gateway, the sensor pod and the beacon head software, which are Chris's part.</desc>
+  <defs>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d7a57"/>
+    </marker>
+    <marker id="ah-gray" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="759" fill="#ffffff" stroke="#e6e8eb" stroke-width="1"/>
+
+  <!-- Boundaries: cloud and on-site beacon -->
+  <g fill="none" stroke="#4b5563" stroke-width="1.5" stroke-dasharray="8 6">
+    <rect x="280" y="40" width="620" height="330" rx="14"/>
+    <rect x="40" y="440" width="1120" height="210" rx="14"/>
+  </g>
+
+  <!-- Boxes -->
+  <g fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5">
+    <rect x="40" y="100" width="200" height="90" rx="10"/>
+    <rect x="40" y="255" width="200" height="95" rx="10"/>
+    <rect x="330" y="100" width="230" height="90" rx="10"/>
+    <rect x="620" y="100" width="250" height="90" rx="10"/>
+    <rect x="400" y="250" width="380" height="100" rx="10"/>
+    <rect x="960" y="100" width="200" height="90" rx="10"/>
+    <rect x="960" y="260" width="200" height="90" rx="10"/>
+    <rect x="80" y="505" width="220" height="90" rx="10"/>
+    <rect x="470" y="495" width="250" height="110" rx="10"/>
+    <rect x="800" y="505" width="200" height="90" rx="10"/>
+    <rect x="1030" y="505" width="110" height="90" rx="10"/>
+  </g>
+
+  <!-- Accent bars: my part -->
+  <g fill="#0d7a57">
+    <rect x="330" y="110" width="3" height="70"/>
+    <rect x="620" y="110" width="3" height="70"/>
+    <rect x="80" y="515" width="3" height="70"/>
+    <rect x="470" y="505" width="3" height="90"/>
+    <rect x="800" y="515" width="3" height="70"/>
+  </g>
+
+  <!-- Arrows: supporting data flow -->
+  <g stroke="#4b5563" stroke-width="2" fill="none" marker-end="url(#ah-gray)">
+    <line x1="240" y1="302" x2="400" y2="302"/>
+    <line x1="445" y1="250" x2="445" y2="190"/>
+    <line x1="745" y1="250" x2="745" y2="190"/>
+    <path d="M400,268 H305 V145 H240" marker-start="url(#ah-gray)"/>
+    <path d="M780,268 H920 V145 H960" marker-start="url(#ah-gray)"/>
+    <line x1="300" y1="550" x2="470" y2="550"/>
+    <line x1="720" y1="550" x2="800" y2="550"/>
+  </g>
+
+  <!-- Arrows: lightning strike path -->
+  <g stroke="#0d7a57" stroke-width="2.5" fill="none" marker-end="url(#ah-accent)">
+    <line x1="960" y1="320" x2="780" y2="320"/>
+    <line x1="595" y1="350" x2="595" y2="495"/>
+    <path d="M640,605 V630 H1085 V595"/>
+  </g>
+
+  <!-- Box labels -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" text-anchor="middle">
+    <text x="140" y="138" font-size="19" font-weight="600">TimescaleDB</text>
+    <text x="140" y="162" font-size="15">Tiger Data</text>
+
+    <text x="140" y="290" font-size="19" font-weight="600">Public data</text>
+    <text x="140" y="314" font-size="15">Open-Meteo · NWS</text>
+    <text x="140" y="336" font-size="15">FEMA · iNaturalist</text>
+
+    <text x="445" y="133" font-size="19" font-weight="600">Hazard index</text>
+    <text x="445" y="157" font-size="15">LightGBM · 0 to 10</text>
+    <text x="445" y="178" font-size="15">3 SHAP reasons</text>
+
+    <text x="745" y="133" font-size="19" font-weight="600">Briefings</text>
+    <text x="745" y="157" font-size="15">Gemini · 6 PM · EN, ES</text>
+    <text x="745" y="178" font-size="15">hazard photo tags</text>
+
+    <text x="590" y="287" font-size="19" font-weight="600">FastAPI backend</text>
+    <text x="590" y="311" font-size="15">stop-work rules · scheduler</text>
+    <text x="590" y="333" font-size="15">REST · websockets</text>
+
+    <text x="1060" y="133" font-size="19" font-weight="600">Web app</text>
+    <text x="1060" y="157" font-size="15">React · dashboard</text>
+    <text x="1060" y="178" font-size="15">Hub · crew phone page</text>
+
+    <text x="1060" y="294" font-size="19" font-weight="600">Roblox twin</text>
+    <text x="1060" y="318" font-size="15">storm · flood · muster</text>
+
+    <text x="190" y="538" font-size="19" font-weight="600">Sensor pod</text>
+    <text x="190" y="562" font-size="15">RP2040 · light sensor</text>
+    <text x="190" y="583" font-size="15">radar · water · IR</text>
+
+    <text x="595" y="530" font-size="19" font-weight="600">Pi 5 gateway</text>
+    <text x="595" y="554" font-size="15">local rules · interlock</text>
+    <text x="595" y="576" font-size="15">voice · supervisor PIN</text>
+
+    <text x="900" y="538" font-size="19" font-weight="600">Beacon head</text>
+    <text x="900" y="562" font-size="15">UNO · LCD · countdown</text>
+    <text x="900" y="583" font-size="15">29-LED gauge</text>
+
+    <text x="1085" y="540" font-size="19" font-weight="600">Motor</text>
+    <text x="1085" y="564" font-size="15">fan</text>
+    <text x="1085" y="585" font-size="15">L293D</text>
+  </g>
+
+  <!-- Arrow labels -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" font-size="15">
+    <text x="870" y="310" text-anchor="middle">strikes</text>
+    <text x="932" y="222">REST · websockets</text>
+    <text x="607" y="415">websocket · STOPWORK</text>
+    <text x="385" y="540" text-anchor="middle">USB serial</text>
+    <text x="760" y="540" text-anchor="middle">serial</text>
+    <text x="862" y="623" text-anchor="middle">GPIO 18 low: motor stops</text>
+  </g>
+
+  <!-- Boundary labels -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#16191d">
+    <text x="300" y="70">Vultr · Docker · Caddy</text>
+    <text x="60" y="470">The beacon · on site · works offline</text>
+  </g>
+
+  <!-- Legend -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" font-size="15">
+    <rect x="40" y="690" width="40" height="26" rx="5" fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5"/>
+    <rect x="40" y="694" width="3" height="18" fill="#0d7a57"/>
+    <text x="92" y="708">accent = my part</text>
+    <line x1="290" y1="703" x2="334" y2="703" stroke="#0d7a57" stroke-width="2.5" marker-end="url(#ah-accent)"/>
+    <text x="346" y="708">lightning strike path</text>
+  </g>
+</svg>
