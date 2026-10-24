@@ -24,7 +24,7 @@ This post covers what we built, the part that won, my share of it, and what brok
 
 ## The part that won: a storm in Roblox
 
-[Yaroslav Kulyna](https://www.linkedin.com/in/kulynayaroslav/) built the Roblox world and its scenarios, and [Viet Nguyen](https://www.linkedin.com/in/02-vietnguyen/) wrote the storm model and the bridge to our backend.
+[Viet Nguyen](https://www.linkedin.com/in/02-vietnguyen/) built most of the Roblox twin, including the storm model and the bridge to our backend, and [Yaroslav Kulyna](https://www.linkedin.com/in/kulynayaroslav/) helped on it.
 
 The twin's lightning is simulated, not scripted. A storm cell starts about 20 miles out and moves toward the site, its flash rate rising and falling over its life. Strike times come from a random (Poisson) process, most strikes land near the core, and 5% are "bolts from the blue" 5 to 10 miles ahead of it. Each strike's distance to the site comes from where it landed, and its thunder arrives as late as sound would at the scenario's air temperature.
 
@@ -62,11 +62,11 @@ That is what made the demo work end to end. On screen, the storm walks in. When 
 
 Green arrows trace a lightning strike from the twin to the motor. Accent bars mark the parts I built myself; Viet and I built the backend together. It is FastAPI on a Vultr server, with its data in TimescaleDB on Tiger Data.
 
-Before the feature work, I wrote the contracts: the event shapes, the serial lines between the boards, the websocket messages and the REST routes, each as a markdown file in `contracts/`. With those agreed, four people could build in parallel and connect the pieces near the end. Viet and I built the backend core, [Cameron Clemons](https://www.linkedin.com/in/cameron-clemons-jm3/) built the web app (the dashboard, each site's Hub and the crew phone page), and Yaroslav also wired the beacon's hardware.
+Before the feature work, I wrote the contracts: the event shapes, the serial lines between the boards, the websocket messages and the REST routes, each as a markdown file in `contracts/`. With those agreed, four people could build in parallel and connect the pieces near the end. Viet and I built the backend, [Cameron Clemons](https://www.linkedin.com/in/cameron-clemons-jm3/) built the frontend (the dashboard, each site's Hub and the crew phone page), and Yaroslav built the beacon's hardware.
 
 ## My part
 
-I built the hazard index, the briefings, the beacon's software, the contracts and the deployment.
+Besides the backend, which Viet and I built together, I built the AI and machine learning pieces (the hazard index and the briefings), the beacon's software, the contracts and the deployment.
 
 ### The hazard index
 
