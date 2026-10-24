@@ -1,6 +1,6 @@
 ---
 title: "OmniRisk: what we built at SwampHacks XII"
-slug: omnirisk-swamphacks-xii
+slug: omnirisk
 excerpt: Four of us built a jobsite safety platform in about 30 hours, with a machine learning hazard index, a beacon that cuts equipment power when lightning is near, and a Roblox digital twin that won Best Use of Roblox Studio.
 tags: [hackathon, machine-learning, raspberry-pi, roblox, fastapi, iot]
 published_at: "2026-10-23"
