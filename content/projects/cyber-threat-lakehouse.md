@@ -7,7 +7,7 @@ live_url: null
 award: null
 date: 2026-10-14
 tech: [python, apache spark, delta lake, databricks, sql, scikit-learn, mlflow, docker]
-cover: IMAGE:lakehouse-dashboard.jpg
+cover: 5d62ae47-da8f-4d8d-8491-e4abbfe2a38c
 ---
 
 ## What it is
@@ -16,7 +16,7 @@ A lakehouse pipeline that turns the full UNSW-NB15 dataset (2,540,047 network fl
 
 ## How it works
 
-![The Cyber Threat Lakehouse pipeline: chunk files land over time, stream into Bronze, are deduplicated into Silver with an insert-only MERGE, flow into Gold and Predictions through Change Data Feed, then a quality gate writes results that a Databricks dashboard reads; training runs on demand and supplies the models](DIAGRAM:cyber-threat-lakehouse.png)
+![The Cyber Threat Lakehouse pipeline: chunk files land over time, stream into Bronze, are deduplicated into Silver with an insert-only MERGE, flow into Gold and Predictions through Change Data Feed, then a quality gate writes results that a Databricks dashboard reads; training runs on demand and supplies the models](/assets/700f0127-2cb8-40c1-a89a-592e4d27ffac)
 
 The pipeline is incremental. A replay script releases the raw data as 250,000-row chunk files over time, and each layer is a checkpointed Spark stream that processes only what's new, then stops. It runs locally in Docker, or on Databricks as two Workflows. On serverless compute, the pipeline takes 2 to 3 minutes per run, and training, which retrains and rescores every flow, takes about 4.5 minutes.
 

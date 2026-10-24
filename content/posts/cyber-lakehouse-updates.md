@@ -12,7 +12,7 @@ The version I finished in August worked, but I kept finding things I couldn't de
 
 Between October 12 and 14, I fixed all of that. Here is each change and the reason behind it. The reasons are also written up as decision records in the repo, 12 of them for these changes.
 
-![The project's Databricks dashboard: 2.01 million flows analyzed, 94,913 alerts raised, and alerts per hour by attack family for both capture sessions](IMAGE:lakehouse-dashboard.jpg)
+![The project's Databricks dashboard: 2.01 million flows analyzed, 94,913 alerts raised, and alerts per hour by attack family for both capture sessions](/assets/5d62ae47-da8f-4d8d-8491-e4abbfe2a38c)
 
 The dashboard's numbers come from the Databricks run, which trains on a smaller sample than the local run; more on that in section 5.
 
@@ -22,7 +22,7 @@ Rebuilding every layer on each run reprocesses 2.5 million rows to add a few, an
 
 A replay script now releases the raw data as 250,000-row chunk files into a landing folder, as if logs were arriving. Each layer is a checkpointed Spark stream with an `availableNow` trigger: it processes everything new since its last run, then stops. That trigger is also the only one Databricks serverless supports, so the same code runs in both places. Locally in Docker, a rerun with no new files takes 9 to 28 seconds per job and changes nothing.
 
-![The Cyber Threat Lakehouse pipeline: chunk files land over time, stream into Bronze, are deduplicated into Silver with an insert-only MERGE, flow into Gold and Predictions through Change Data Feed, then a quality gate writes results that a Databricks dashboard reads; training runs on demand and supplies the models](DIAGRAM:cyber-threat-lakehouse.png)
+![The Cyber Threat Lakehouse pipeline: chunk files land over time, stream into Bronze, are deduplicated into Silver with an insert-only MERGE, flow into Gold and Predictions through Change Data Feed, then a quality gate writes results that a Databricks dashboard reads; training runs on demand and supplies the models](/assets/700f0127-2cb8-40c1-a89a-592e4d27ffac)
 
 The interesting part is what happens when the same data shows up twice. Bronze keeps everything it receives. From Silver down, every write is an insert-only Delta MERGE on a SHA-256 hash of each flow's identity: a flow is added only if its hash isn't there yet. From `src/utils/incremental.py`:
 
@@ -142,7 +142,7 @@ The Databricks AI/BI dashboard has three pages: threat overview, model quality a
 
 One rule shaped it: model quality comes only from the saved test-split metrics. Comparing predictions with labels across all 2 million flows would include the flows the model trained on, and the numbers would look better than they are.
 
-![The dashboard's model quality page: the tuned alert threshold, test precision and recall, and every candidate model's validation and test metrics](IMAGE:lakehouse-model-quality.jpg)
+![The dashboard's model quality page: the tuned alert threshold, test precision and recall, and every candidate model's validation and test metrics](/assets/a95eca11-5741-476a-b20f-f5ef2e70374c)
 
 This screenshot is from the Databricks run, which trains on a 300,000-flow sample, so its numbers differ slightly from the local run above: threshold 0.880, precision 0.824, recall 0.953, F1 0.884. On that run the 95% recall floor held on the test set (0.953). In the local run, test recall came in at 0.945, just under it.
 
@@ -183,7 +183,7 @@ The detector is retrained on UNSW using only those 7 measurements plus 12 featur
 | CIC-trained, same 19 features | CIC | 0.999 | 0.956 | 0.977 | 1.000 |
 
 Precision isn't comparable across the two datasets, because attacks are about 4% of UNSW's test split and 16.5% of CIC's. ROC-AUC is the fairer comparison.
-![F1 and ROC-AUC for each train and test pair: the UNSW detector scores near 0.9 F1 on UNSW, collapses to 0.028 F1 and 0.470 ROC-AUC on CIC-IDS2017, while a model trained on CIC reaches 0.977](IMAGE:lakehouse-transfer-gap.png)
+![F1 and ROC-AUC for each train and test pair: the UNSW detector scores near 0.9 F1 on UNSW, collapses to 0.028 F1 and 0.470 ROC-AUC on CIC-IDS2017, while a model trained on CIC reaches 0.977](/assets/55caf965-5b2f-4ede-aef7-7b4657dbc15c)
 
 **It doesn't transfer.** On CIC it catches 3% of attacks, flags 24% of benign flows, and ranks flows slightly worse than random. No threshold fixes it: none catches 95% of CIC attacks above 19% precision. The features aren't the problem either, since dropping to 19 costs only 0.03 F1 on UNSW, and a model trained on CIC with the same 19 reaches 0.977. What the UNSW model learned is specific to UNSW:
 
