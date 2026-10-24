@@ -1,49 +1,53 @@
 ---
 slug: cyber-threat-lakehouse
 title: Cyber Threat Lakehouse
-summary: Spark and Delta Lake pipeline over 2.5M network flow records with Bronze/Silver/Gold layers, 54 engineered features, and a three-model detection benchmark, run locally and on Databricks.
+summary: Incremental Spark and Delta Lake pipeline over 2.5M network flows, with a validation-tuned intrusion detector, an attack-family model, a data-quality gate, a Databricks dashboard, and a cross-dataset test of whether it generalizes.
 repo_url: https://github.com/chrisguzman77/cyber-lakehouse
 live_url: null
 award: null
-date: 2026-02-01
-tech: [python, apache spark, delta lake, databricks, sql]
+date: 2026-10-14
+tech: [python, apache spark, delta lake, databricks, sql, scikit-learn, mlflow, docker]
+cover: IMAGE:lakehouse-dashboard.jpg
 ---
 
 ## What it is
 
-A lakehouse pipeline that turns the full UNSW-NB15 dataset (2,540,047 network flow records) into a model that flags malicious traffic. UNSW-NB15 mixes real benign traffic with nine synthetic attack families, such as exploits, DoS, reconnaissance and worms. I wanted to show both halves: multi-million-row data engineering, and honest evaluation on imbalanced data. I built it to practice the data-engineering and ML side of security work. The surprise was the dedupe: the raw data is about 13% attacks, but attack flows are heavily duplicated, so after deduplication only about 4% are.
+A lakehouse pipeline that turns the full UNSW-NB15 dataset (2,540,047 network flow records) into a model that flags malicious traffic and names the attack type. UNSW-NB15 mixes real benign traffic with nine synthetic attack families, such as exploits, DoS, reconnaissance and worms. I built it to practice the data engineering and ML side of security work, and to show both halves: multi-million-row pipelines that are safe to rerun, and honest evaluation on imbalanced data. The surprise was the dedupe: the raw data is about 13% attacks, but attack flows are heavily duplicated, so after deduplication only about 4% are.
 
 ## How it works
 
-![Pipeline of the Cyber Threat Lakehouse: raw UNSW-NB15 CSVs flow through Bronze, Silver (dedupe to 2,013,620 unique flows) and Gold (54 features), then a ~500k sample trains three models, the best by F1 scores all flows, and results feed Spark SQL analytics and MLflow with Unity Catalog](DIAGRAM:cyber-threat-lakehouse.png)
+![The Cyber Threat Lakehouse pipeline: chunk files land over time, stream into Bronze, are deduplicated into Silver with an insert-only MERGE, flow into Gold and Predictions through Change Data Feed, then a quality gate writes results that a Databricks dashboard reads; training runs on demand and supplies the models](DIAGRAM:cyber-threat-lakehouse.png)
 
-The pipeline is five Spark jobs. They run locally in a Docker Spark container, or as a five-task Databricks Workflow.
+The pipeline is incremental. A replay script releases the raw data as 250,000-row chunk files over time, and each layer is a checkpointed Spark stream that processes only what's new, then stops. It runs locally in Docker, or on Databricks as two Workflows. On serverless compute, the pipeline takes 2 to 3 minutes per run, and training, which retrains and rescores every flow, takes about 4.5 minutes.
 
-**Bronze** loads the four raw CSVs into a Delta table with an explicit schema and ingest metadata. **Silver** normalizes labels and attack categories, fixes CSV quirks, and removes duplicate flows by hashing each flow's identity with SHA-256. That takes 2,540,047 rows down to 2,013,620 unique flows. **Gold** builds a 54-feature ML table: 38 raw flow fields, 13 derived features, and 3 frequency-encoded categorical fields (protocol, service, state).
+**Bronze** appends the raw rows to a Delta table with an explicit schema. **Silver** normalizes labels, fixes CSV quirks, and adds each flow only if the SHA-256 hash of its identity isn't there yet, using an insert-only MERGE. That takes 2,540,047 rows down to 2,013,620 unique flows. **Gold** reads Silver's Change Data Feed and builds a 54-feature table: 38 raw flow fields, 13 derived features and 3 frequency-encoded categorical fields. **Predictions** scores only new Gold rows with `mapInPandas`, so every flow is scored exactly once.
 
-**Train** draws a stratified sample of about 500k flows (80/20 split, fixed seed) and trains a random forest, logistic regression and a histogram gradient-boosting model. It keeps the best one by F1. On Databricks, each run is logged to MLflow and the best model is registered in Unity Catalog. **Score** runs that model over every flow and writes predictions to a Delta table.
+**Training** runs on demand. It splits a stratified sample of about 500,000 flows 60/20/20 into train, validation and test, and trains a random forest, logistic regression and histogram gradient boosting for two tasks: attack or benign, and which of the 9 attack families. On Databricks, every run is logged to MLflow and the best models are registered in Unity Catalog.
 
-Spark SQL then answers the analytics questions (attacks by category, most suspicious flows) and runs data-quality gates on each layer: null labels, negative durations, duplicate hashes, out-of-range probabilities. Every gate must return zero.
+After every run, **11 data-quality checks** append their results to `gold.quality_results`, and any failure fails the run. A three-page **Databricks AI/BI dashboard**, kept as code in the repo, shows alerts, model quality and pipeline health.
 
 ## Decisions worth noting
 
-- **One shared feature module.** The local jobs and the Databricks notebooks import the same feature code, so the two deployments can't drift apart.
-- **Explicit schema and hash-based dedupe.** No schema inference, and deduplication on a flow-identity hash. Dedupe removed about 20.7% of the raw rows, so every later count and metric is over unique flows.
-- **Batch scoring with `mapInPandas`.** The model loads once per worker and scores in chunks, so 2M+ rows never sit in a single pandas frame.
-- **F1 and ROC-AUC over accuracy.** Only about 4% of the deduplicated flows are attacks, so a model that calls everything benign would still score around 96% accuracy.
+- **Insert-only MERGE, first seen wins.** A re-delivered file writes nothing below Bronze, and a script verifies it: a rerun with nothing new changes nothing, and every flow is scored once.
+- **Threshold tuned on validation, not left at 0.5.** Each model alerts at the most precise threshold that still catches 95% of validation attacks, and the test split is used once, to report.
+- **Frozen encodings.** The frequency encodings are computed once at training and reused at scoring, so micro-batches can't encode the same value differently.
+- **Model quality from the test split only.** The dashboard never compares predictions with labels across all flows, which would include the training sample and overstate quality.
+- **One shared code base.** The local jobs and the Databricks notebooks import the same modules, so the two deployments can't drift apart. The reasoning behind every decision is in 21 decision records in the repo.
 
 ## Results
 
-From the local run on the ~500k sample (test set of 99,960 flows):
+From the local run (about 500,000 flows, 60/20/20 split):
 
-| Model | Precision | Recall | F1 | ROC-AUC | Train time |
+| Model | Threshold | Precision | Recall | F1 | ROC-AUC |
 |---|---|---|---|---|---|
-| Random forest (kept) | 0.768 | 0.991 | 0.865 | 0.9986 | 12.8 s |
-| Logistic regression | 0.735 | 0.999 | 0.847 | 0.9968 | 19.8 s |
-| Hist gradient boosting | 0.754 | 0.997 | 0.859 | 0.9988 | 3.9 s |
+| **Histogram gradient boosting** (kept) | 0.912 | **0.839** | 0.945 | **0.889** | 0.9988 |
+| Random forest | 0.766 | 0.817 | 0.955 | 0.880 | 0.9985 |
+| Logistic regression | 0.948 | 0.769 | 0.950 | 0.850 | 0.9964 |
 
-All three models catch almost every attack, and the random forest has the best F1. The trade-off is precision: nearly one in four flagged flows is benign. The full Databricks Workflow over the 2.54M-row dataset finishes in under 5 minutes on serverless compute, though the Databricks job trains on a smaller 300k-row sample than the 500k-row local run above, so the two runs are not equivalent.
+Compared with the August version, a random forest alerting at the default 0.5, false alarms fell from about 1 in 4 alerts to about 1 in 6, at the cost of missing about 5.5% of attacks instead of about 1%. The threshold alone takes the kept model from an F1 of 0.855 at 0.5 to 0.889. The attack-family model (a random forest, in the local run) reaches a test macro-F1 of 0.585. It is strong on generic and reconnaissance attacks and weak on the rarest families, with only 7 worm flows in the test set.
+
+The cross-dataset test is the honest limit. Retrained on the 19 features both datasets share and scored on CIC-IDS2017, traffic from another lab, the detector's F1 falls from 0.861 to **0.028** and its ROC-AUC to **0.470**, slightly worse than random. A model trained on CIC with the same features reaches 0.977, so the features aren't the problem: what the UNSW model learned doesn't carry over to another network. The 0.889 is a within-dataset number. The full story is in [What I changed in my Cyber Threat Lakehouse, and why](/blog/cyber-lakehouse-updates).
 
 ## My part
 
-This was a solo project. I built the pipeline, the feature engineering, the model benchmark, the data-quality gates, and both the Docker and Databricks deployments, with CI running lint and tests on every push.
+This was a solo project. I built the pipeline, the incremental ingestion, the feature engineering, the model benchmarks and evaluation protocol, the cross-dataset test, the quality gate, the dashboard, and both the Docker and Databricks deployments, with CI running lint and tests on every push.
