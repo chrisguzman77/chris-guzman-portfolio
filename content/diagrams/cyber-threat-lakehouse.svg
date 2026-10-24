@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="740" viewBox="0 0 1200 740" role="img" aria-labelledby="t d">
   <title id="t">Cyber Threat Lakehouse pipeline</title>
-  <desc id="d">Four UNSW-NB15 CSV files (2,540,047 rows) are ingested into a Bronze Delta table, then normalized and deduplicated by SHA-256 flow hash into Silver (2,013,620 unique flows). Gold holds 54 engineered features. A stratified sample of about 500,000 rows trains three models (random forest, logistic regression, histogram gradient boosting); runs are logged to MLflow and the best model, chosen by F1, is registered in Unity Catalog. The Score job batch-scores all flows, and Spark SQL runs analytics and data-quality gates on the predictions. The five Spark jobs run locally in Docker or as a Databricks Workflow.</desc>
+  <desc id="d">A replay script releases the four UNSW-NB15 CSV files (2,540,047 rows) into a landing folder as 250,000-row chunk files over time. Each run, a checkpointed stream with an availableNow trigger appends only new files to an append-only Bronze Delta table. Silver deduplicates each batch by SHA-256 flow hash and adds only unseen flows with an insert-only MERGE, reaching 2,013,620 unique flows. Gold builds 54 features from Silver's Change Data Feed inserts, and Predictions scores only new Gold rows with mapInPandas, so every flow is scored once. A data-quality gate of 11 checks runs after every run, appends its results to gold.quality_results, and fails the run on any violation; a Databricks AI/BI dashboard reads the results. On demand, training draws a 500,000-flow sample from Gold, trains a binary detector with a validation-tuned threshold and an attack-family model, logs runs to MLflow on Databricks, and saves the models and frozen encodings that scoring loads.</desc>
   <defs>
     <marker id="ah-accent" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#0d7a57"/>
@@ -10,72 +10,87 @@
     </marker>
   </defs>
 
-  <rect x="0.5" y="0.5" width="1199" height="619" fill="#ffffff" stroke="#e6e8eb" stroke-width="1"/>
+  <rect x="0.5" y="0.5" width="1199" height="739" fill="#ffffff" stroke="#e6e8eb" stroke-width="1"/>
 
   <!-- Boxes -->
   <g fill="#fbfbfa" stroke="#d0d4da" stroke-width="1.5">
-    <rect x="40" y="80" width="260" height="90" rx="10"/>
-    <rect x="470" y="80" width="260" height="90" rx="10"/>
-    <rect x="900" y="80" width="260" height="90" rx="10"/>
-    <rect x="900" y="260" width="260" height="90" rx="10"/>
-    <rect x="470" y="260" width="260" height="90" rx="10"/>
-    <rect x="40" y="260" width="260" height="90" rx="10"/>
-    <rect x="470" y="440" width="260" height="90" rx="10"/>
-    <rect x="40" y="440" width="260" height="90" rx="10"/>
+    <rect x="40" y="70" width="260" height="90" rx="10"/>
+    <rect x="470" y="70" width="260" height="90" rx="10"/>
+    <rect x="900" y="70" width="260" height="90" rx="10"/>
+    <rect x="40" y="290" width="260" height="90" rx="10"/>
+    <rect x="470" y="290" width="260" height="90" rx="10"/>
+    <rect x="900" y="290" width="260" height="90" rx="10"/>
+    <rect x="40" y="510" width="260" height="90" rx="10"/>
+    <rect x="470" y="510" width="260" height="100" rx="10"/>
+    <rect x="900" y="510" width="260" height="90" rx="10"/>
   </g>
 
-  <!-- Arrows: pipeline -->
+  <!-- Arrows: each run's incremental path -->
   <g stroke="#0d7a57" stroke-width="2.5" fill="none" marker-end="url(#ah-accent)">
-    <line x1="300" y1="125" x2="470" y2="125"/>
-    <line x1="730" y1="125" x2="900" y2="125"/>
-    <line x1="1030" y1="170" x2="1030" y2="260"/>
-    <line x1="900" y1="305" x2="730" y2="305"/>
-    <line x1="470" y1="305" x2="300" y2="305"/>
+    <line x1="300" y1="115" x2="470" y2="115"/>
+    <line x1="730" y1="115" x2="900" y2="115"/>
+    <line x1="1030" y1="160" x2="1030" y2="290"/>
+    <line x1="900" y1="335" x2="730" y2="335"/>
+    <line x1="470" y1="335" x2="300" y2="335"/>
+    <line x1="120" y1="380" x2="120" y2="510"/>
+    <path d="M170,600 V655 H1030 V600"/>
   </g>
 
-  <!-- Arrows: side outputs -->
-  <g stroke="#4b5563" stroke-width="2" fill="none" marker-end="url(#ah-gray)">
-    <line x1="600" y1="350" x2="600" y2="440"/>
-    <line x1="170" y1="350" x2="170" y2="440"/>
+  <!-- Arrows: training, on demand -->
+  <g stroke="#4b5563" stroke-width="2" fill="none">
+    <line x1="600" y1="380" x2="600" y2="510" marker-end="url(#ah-gray)"/>
+    <path d="M520,510 V470 H280 V380" stroke-dasharray="6 5" marker-end="url(#ah-gray)"/>
   </g>
 
   <!-- Box labels -->
   <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" text-anchor="middle">
-    <text x="170" y="118" font-size="19" font-weight="600">Raw CSVs</text>
-    <text x="170" y="143" font-size="15">UNSW-NB15 · 4 files</text>
+    <text x="170" y="108" font-size="19" font-weight="600">Raw CSVs</text>
+    <text x="170" y="134" font-size="15">UNSW-NB15 · 2,540,047 rows</text>
 
-    <text x="600" y="118" font-size="19" font-weight="600">Bronze</text>
-    <text x="600" y="143" font-size="15">raw Delta table</text>
+    <text x="600" y="108" font-size="19" font-weight="600">Landing</text>
+    <text x="600" y="134" font-size="15">chunk files arrive over time</text>
 
-    <text x="1030" y="118" font-size="19" font-weight="600">Silver</text>
-    <text x="1030" y="143" font-size="15">normalize · SHA-256 dedupe</text>
+    <text x="1030" y="108" font-size="19" font-weight="600">Bronze</text>
+    <text x="1030" y="134" font-size="15">append-only Delta</text>
 
-    <text x="1030" y="298" font-size="19" font-weight="600">Gold</text>
-    <text x="1030" y="323" font-size="15">54 features</text>
+    <text x="1030" y="328" font-size="19" font-weight="600">Silver</text>
+    <text x="1030" y="354" font-size="15">SHA-256 dedupe · 2,013,620 flows</text>
 
-    <text x="600" y="298" font-size="19" font-weight="600">Train · 3 models</text>
-    <text x="600" y="323" font-size="15">RF · LogReg · HistGB</text>
+    <text x="600" y="328" font-size="19" font-weight="600">Gold</text>
+    <text x="600" y="354" font-size="15">54 features</text>
 
-    <text x="170" y="298" font-size="19" font-weight="600">Score</text>
-    <text x="170" y="323" font-size="15">batch · all flows</text>
+    <text x="170" y="328" font-size="19" font-weight="600">Predictions</text>
+    <text x="170" y="354" font-size="15">every flow scored once</text>
 
-    <text x="600" y="478" font-size="19" font-weight="600">MLflow + Unity Catalog</text>
-    <text x="600" y="503" font-size="15">runs · registered model</text>
+    <text x="170" y="548" font-size="19" font-weight="600">Quality gate</text>
+    <text x="170" y="574" font-size="15">11 checks · fails the run</text>
 
-    <text x="170" y="478" font-size="19" font-weight="600">Spark SQL</text>
-    <text x="170" y="503" font-size="15">analytics · quality gates</text>
+    <text x="600" y="543" font-size="19" font-weight="600">Train (on demand)</text>
+    <text x="600" y="567" font-size="15">detector + attack-family model</text>
+    <text x="600" y="589" font-size="15">validation-tuned threshold</text>
+
+    <text x="1030" y="548" font-size="19" font-weight="600">Dashboard</text>
+    <text x="1030" y="574" font-size="15">Databricks AI/BI · 3 pages</text>
   </g>
 
-  <!-- Row counts on arrows -->
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#16191d" font-size="14" text-anchor="middle">
-    <text x="385" y="113">2,540,047 rows</text>
-    <text x="815" y="113">2,540,047 rows</text>
-    <text x="1018" y="220" text-anchor="end">2,013,620 unique flows</text>
-    <text x="815" y="293">~500k sample</text>
-    <text x="385" y="293">best by F1</text>
-    <text x="612" y="400" text-anchor="start">log runs</text>
-    <text x="182" y="400" text-anchor="start">predictions</text>
+  <!-- Arrow labels -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#16191d">
+    <text x="385" y="104" text-anchor="middle">250k-row chunks</text>
+    <text x="815" y="104" text-anchor="middle">availableNow</text>
+    <text x="1018" y="230" text-anchor="end">insert-only MERGE</text>
+    <text x="815" y="324" text-anchor="middle">CDF inserts</text>
+    <text x="385" y="324" text-anchor="middle">mapInPandas</text>
+    <text x="132" y="440">every run</text>
+    <text x="612" y="440">500k sample</text>
+    <text x="400" y="462" text-anchor="middle">models + encodings</text>
+    <text x="600" y="647" text-anchor="middle">gold.quality_results</text>
   </g>
 
-  <text x="600" y="582" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="15" fill="#16191d">Five Spark jobs, Bronze to Score: locally in Docker or as a Databricks Workflow</text>
+  <!-- Legend -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" fill="#16191d" font-size="15">
+    <line x1="40" y1="703" x2="84" y2="703" stroke="#0d7a57" stroke-width="2.5" marker-end="url(#ah-accent)"/>
+    <text x="96" y="708">each run: only new data, locally in Docker or as a Databricks Workflow</text>
+    <line x1="660" y1="703" x2="704" y2="703" stroke="#4b5563" stroke-width="2" marker-end="url(#ah-gray)"/>
+    <text x="716" y="708">training, on demand, then a full rescore</text>
+  </g>
 </svg>
