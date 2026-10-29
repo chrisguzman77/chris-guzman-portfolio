@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Nightly backup job (infra/backup/backup.sh) scheduled by supercronic.
-FROM alpine:3.24.2
+FROM alpine:3.24.3
 
 ARG SUPERCRONIC_VERSION=v0.2.49
 ARG SUPERCRONIC_SHA256=a53ae236602c7338aba3fbaff40bda6300eae3b9fedb8261eb06cfe3724430c1
