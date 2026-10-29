@@ -87,7 +87,7 @@ services:
   # Opt-in: `docker compose -f infra/compose/compose.dev.yaml --profile monitoring up -d prometheus blackbox-exporter`.
   # Reuses the production scrape config, so only the api and site jobs are up in dev.
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     profiles: [monitoring]
     command:
       - --config.file=/etc/prometheus/prometheus.yml
